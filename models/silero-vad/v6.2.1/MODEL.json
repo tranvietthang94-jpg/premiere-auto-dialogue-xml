@@ -1,0 +1,10 @@
+{
+  "name": "Silero VAD",
+  "version": "v6.2.1",
+  "repository": "https://github.com/snakers4/silero-vad",
+  "tag": "v6.2.1",
+  "commit": "7e30209a3e901f9842f81b225f3e93d8199902b1",
+  "file": "silero_vad.onnx",
+  "sha256": "1A153A22F4509E292A94E67D6F9B85E8DEB25B4988682B7E174C65279D8788E3",
+  "license": "MIT"
+}

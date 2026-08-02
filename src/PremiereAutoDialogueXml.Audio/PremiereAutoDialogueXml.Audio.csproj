@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>PremiereAutoDialogueXml.Audio</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.28.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\PremiereAutoDialogueXml.Core\PremiereAutoDialogueXml.Core.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="..\..\models\silero-vad\v6.2.1\silero_vad.onnx"
+                      LogicalName="PremiereAutoDialogueXml.Audio.Models.silero_vad.onnx" />
+  </ItemGroup>
+</Project>

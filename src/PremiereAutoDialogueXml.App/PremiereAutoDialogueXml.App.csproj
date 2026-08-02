@@ -7,6 +7,7 @@
     <AssemblyName>PremiereAutoDialogueXml</AssemblyName>
   </PropertyGroup>
   <ItemGroup>
+    <ProjectReference Include="..\PremiereAutoDialogueXml.Audio\PremiereAutoDialogueXml.Audio.csproj" />
     <ProjectReference Include="..\PremiereAutoDialogueXml.Core\PremiereAutoDialogueXml.Core.csproj" />
   </ItemGroup>
 </Project>
