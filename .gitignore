@@ -1,4 +1,5 @@
 # Build outputs
+.tools/
 bin/
 obj/
 artifacts/
@@ -36,4 +37,3 @@ local-inputs/
 
 # Local model staging. A verified model may later be committed explicitly.
 models/staging/
-

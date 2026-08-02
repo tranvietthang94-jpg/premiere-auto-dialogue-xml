@@ -1,0 +1,152 @@
+<Window x:Class="PremiereAutoDialogueXml.App.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Premiere Auto Dialogue XML"
+        Width="1080"
+        Height="760"
+        MinWidth="900"
+        MinHeight="650"
+        WindowStartupLocation="CenterScreen"
+        Background="#F4F6F8">
+    <Window.Resources>
+        <Style x:Key="StepCard" TargetType="Border">
+            <Setter Property="Background" Value="White" />
+            <Setter Property="BorderBrush" Value="#DCE2E8" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="Padding" Value="16" />
+            <Setter Property="Margin" Value="0,0,12,0" />
+        </Style>
+        <Style TargetType="Button">
+            <Setter Property="Padding" Value="16,9" />
+            <Setter Property="MinHeight" Value="38" />
+            <Setter Property="Background" Value="#2457D6" />
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Cursor" Value="Hand" />
+        </Style>
+        <Style TargetType="TextBox">
+            <Setter Property="Padding" Value="10,8" />
+            <Setter Property="BorderBrush" Value="#C8D0D9" />
+            <Setter Property="Background" Value="#FAFBFC" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+    </Window.Resources>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <Grid Margin="32">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <StackPanel Grid.Row="0" Margin="0,0,0,24">
+                <TextBlock FontSize="28" FontWeight="SemiBold" Foreground="#152033"
+                           Text="Premiere Auto Dialogue XML" />
+                <TextBlock Margin="0,6,0,0" FontSize="14" Foreground="#58667A" TextWrapping="Wrap"
+                           Text="Chuẩn bị line tiếng nghệ sĩ hoàn toàn offline, giữ nguyên XML, WAV và project Premiere gốc." />
+            </StackPanel>
+
+            <Grid Grid.Row="1" Margin="0,0,0,24">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <Border Grid.Column="0" Style="{StaticResource StepCard}">
+                    <StackPanel>
+                        <TextBlock FontSize="12" Foreground="#2457D6" FontWeight="Bold" Text="BƯỚC 1" />
+                        <TextBlock Margin="0,5,0,4" FontSize="16" FontWeight="SemiBold" Text="Chọn XML" />
+                        <TextBlock Foreground="#667386" Text="{Binding StepOneStatus}" />
+                    </StackPanel>
+                </Border>
+                <Border Grid.Column="1" Style="{StaticResource StepCard}">
+                    <StackPanel>
+                        <TextBlock FontSize="12" Foreground="#2457D6" FontWeight="Bold" Text="BƯỚC 2" />
+                        <TextBlock Margin="0,5,0,4" FontSize="16" FontWeight="SemiBold" Text="Kiểm tra" />
+                        <TextBlock Foreground="#667386" Text="{Binding StepTwoStatus}" />
+                    </StackPanel>
+                </Border>
+                <Border Grid.Column="2" Style="{StaticResource StepCard}">
+                    <StackPanel>
+                        <TextBlock FontSize="12" Foreground="#2457D6" FontWeight="Bold" Text="BƯỚC 3" />
+                        <TextBlock Margin="0,5,0,4" FontSize="16" FontWeight="SemiBold" Text="Phân tích" />
+                        <TextBlock Foreground="#667386" Text="{Binding StepThreeStatus}" />
+                    </StackPanel>
+                </Border>
+                <Border Grid.Column="3" Style="{StaticResource StepCard}" Margin="0">
+                    <StackPanel>
+                        <TextBlock FontSize="12" Foreground="#2457D6" FontWeight="Bold" Text="BƯỚC 4" />
+                        <TextBlock Margin="0,5,0,4" FontSize="16" FontWeight="SemiBold" Text="Xuất kết quả" />
+                        <TextBlock Foreground="#667386" Text="{Binding StepFourStatus}" />
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+            <Border Grid.Row="2" Background="White" BorderBrush="#DCE2E8" BorderThickness="1"
+                    CornerRadius="12" Padding="22" Margin="0,0,0,18">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="145" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock Grid.Row="0" Grid.ColumnSpan="3" Margin="0,0,0,18"
+                               FontSize="18" FontWeight="SemiBold" Text="Chuẩn bị tệp" />
+
+                    <TextBlock Grid.Row="1" Grid.Column="0" VerticalAlignment="Center" Text="XML từ Premiere" />
+                    <TextBox Grid.Row="1" Grid.Column="1" Margin="0,0,12,0" IsReadOnly="True"
+                             Text="{Binding XmlPath, Mode=OneWay}" ToolTip="Tệp XML đầu vào luôn được giữ nguyên" />
+                    <Button Grid.Row="1" Grid.Column="2" Click="SelectXml_Click" Content="Chọn XML…" />
+
+                    <TextBlock Grid.Row="2" Grid.Column="0" Margin="0,14,0,0" VerticalAlignment="Center"
+                               Text="Thư mục kết quả" />
+                    <TextBox Grid.Row="2" Grid.Column="1" Margin="0,14,12,0" IsReadOnly="True"
+                             Text="{Binding OutputDirectory, Mode=OneWay}" ToolTip="Mỗi lần chạy sẽ tạo một thư mục mới" />
+                    <Button Grid.Row="2" Grid.Column="2" Margin="0,14,0,0"
+                            Click="SelectOutputDirectory_Click" Content="Chọn thư mục…" />
+
+                    <StackPanel Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,18,0,0"
+                                Orientation="Horizontal" HorizontalAlignment="Right">
+                        <TextBlock Margin="0,0,14,0" VerticalAlignment="Center" Foreground="#6A7586"
+                                   Text="Phase 01 chỉ kiểm tra lựa chọn tệp; chưa phân tích nội dung XML." />
+                        <Button Click="InspectSelection_Click" Content="Kiểm tra lựa chọn"
+                                IsEnabled="{Binding CanInspect}" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <Border Grid.Row="3" Background="#EAF0FF" BorderBrush="#B9CAFA" BorderThickness="1"
+                    CornerRadius="10" Padding="16" Margin="0,0,0,14">
+                <TextBlock Foreground="#20345F" TextWrapping="Wrap" Text="{Binding StatusMessage}" />
+            </Border>
+
+            <StackPanel Grid.Row="4">
+                <Expander Header="Chi tiết kỹ thuật" Background="White" BorderBrush="#DCE2E8"
+                          BorderThickness="1" Padding="14">
+                    <StackPanel Margin="4,8,4,4">
+                        <TextBlock FontWeight="SemiBold" Text="Preset Cân bằng" />
+                        <TextBlock Margin="0,5,0,0" Foreground="#58667A" TextWrapping="Wrap"
+                                   Text="{Binding PresetSummary}" />
+                        <TextBlock Margin="0,10,0,0" Foreground="#58667A" TextWrapping="Wrap"
+                                   Text="Không cloud, không API, không telemetry. Sample peak -6 dBFS không phải LUFS, true peak hoặc cam kết Master bus." />
+                    </StackPanel>
+                </Expander>
+                <TextBlock Margin="0,16,0,0" HorizontalAlignment="Center" Foreground="#7A8594"
+                           Text="Bản nền tảng Phase 01 · chưa tạo hoặc sửa XML đầu ra" />
+            </StackPanel>
+        </Grid>
+    </ScrollViewer>
+</Window>
