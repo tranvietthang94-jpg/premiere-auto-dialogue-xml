@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/PremiereAutoDialogueXml.App/PremiereAutoDialogueXml.App.csproj" />
+    <Project Path="src/PremiereAutoDialogueXml.Core/PremiereAutoDialogueXml.Core.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/PremiereAutoDialogueXml.Core.Tests/PremiereAutoDialogueXml.Core.Tests.csproj" />
+  </Folder>
+</Solution>

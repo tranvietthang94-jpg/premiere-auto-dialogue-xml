@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <RootNamespace>PremiereAutoDialogueXml.App</RootNamespace>
+    <AssemblyName>PremiereAutoDialogueXml</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\PremiereAutoDialogueXml.Core\PremiereAutoDialogueXml.Core.csproj" />
+  </ItemGroup>
+</Project>

@@ -25,3 +25,15 @@ Kế hoạch triển khai và tiêu chí nghiệm thu nằm trong [docs/IMPLEMEN
 ## Trạng thái
 
 Phase 00 đã đạt round-trip Premiere Pro 2026 cho Disable, source trim và gain đến `+18 dB`. Dự án chuyển sang Phase 01: dựng nền tảng ứng dụng .NET/WPF và hợp đồng miền an toàn.
+
+## Build dành cho phát triển
+
+Yêu cầu .NET SDK `10.0.302` trên Windows:
+
+```powershell
+dotnet restore PremiereAutoDialogueXml.slnx
+dotnet build PremiereAutoDialogueXml.slnx --configuration Release --no-restore
+dotnet test PremiereAutoDialogueXml.slnx --configuration Release --no-build
+```
+
+SDK cài cục bộ trong `.tools/` được Git bỏ qua. CI chạy cùng phiên bản SDK trên `windows-latest`.
