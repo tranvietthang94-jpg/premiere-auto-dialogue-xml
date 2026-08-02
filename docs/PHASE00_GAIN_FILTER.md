@@ -85,4 +85,16 @@ Fixture đã đạt preflight `gain-filter-input-valid`:
 - SHA-256 XML: `6A1ED66D814758D15A463F93A2D25F31D3BF786BDCA048D09D44D1BD5787A749`
 - SHA-256 WAV: `E8FF1CCA69E5572F72AC56321EC5710A1A3A3EA2BE79EB73496C927945AD46DB`
 
-Trạng thái hiện tại: Phase 00 vẫn đang chờ Premiere round-trip của fixture hệ số tuyến tính.
+## Kết quả hệ số tuyến tính
+
+Cả hai candidate `+18 dB` đều đạt:
+
+- Level `+12 dB` + Gain-factor `+6 dB`: XML `+18 dB`, PCM `+18.0 dB`;
+- Level `+6 dB` + Gain-factor `+12 dB`: XML `+18 dB`, PCM `+18.0 dB`.
+
+Các mốc `0`, `+3`, `+6` và `+12 dB` cũng đạt XML và PCM trong `±0.1 dB`; timing và source trim không đổi. SHA-256 output Premiere:
+
+- XML: `6058CA0ED618F6324CCFFCDB959C198ECB74938E23FC1927E5761978BCB835F5`
+- WAV: `78ACF9C80329EA5EACF8626D93E24E92C5027DEF29EF168E2A37EE8BEF27B650`
+
+Trạng thái cuối: **Phase 00 đạt**. Implementation chọn Audio Levels `+12 dB` kết hợp Gain-filter factor cho phần còn lại khi tổng boost lớn hơn `+12 dB`.

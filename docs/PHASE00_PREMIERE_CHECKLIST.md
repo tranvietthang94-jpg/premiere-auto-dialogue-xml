@@ -28,10 +28,11 @@ powershell -ExecutionPolicy Bypass -File scripts\phase00\Test-CompatibilityExpor
 
 - Năm fragment và source trim giữ nguyên.
 - Trạng thái Disabled giữ nguyên.
-- Audio Levels `+6 dB`, `+12 dB` và hai mức `+9 dB` được giữ trong XML export.
-- Gain tương đối sau render lần lượt là `0`, `+6`, `+12`, `+18 dB`, sai số tối đa `0.1 dB`.
+- Audio Levels `+6 dB`, `+12 dB` được giữ trong XML export.
+- Fixture mở rộng dùng Gain-filter factor phải giữ các mốc `0`, `+3`, `+6`, `+12 dB` và ít nhất một tổ hợp `+18 dB` trong XML export.
+- Gain tương đối sau render phải khớp từng mốc, sai số tối đa `0.1 dB`.
 - Segment Disabled không có tín hiệu trên `-90 dBFS`.
 
 Nếu bất kỳ điều kiện nào không đạt, không tiếp tục Phase 01 và không âm thầm đổi sang render media hoặc cap gain thấp hơn.
 
-Kết quả chạy trên Premiere Pro 2026 được ghi tại [PHASE00_RESULT.md](PHASE00_RESULT.md): cổng không đạt vì hai Audio Levels `+9 +9 dB` chỉ còn `+9 dB` sau round-trip.
+Kết quả cuối trên Premiere Pro 2026 được ghi tại [PHASE00_RESULT.md](PHASE00_RESULT.md): cổng **đạt** với Audio Levels `+12 dB` kết hợp Gain-filter factor `+6 dB`; XML và PCM cùng đạt `+18.0 dB`.

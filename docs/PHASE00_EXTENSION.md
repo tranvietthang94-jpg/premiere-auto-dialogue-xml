@@ -49,4 +49,4 @@ SHA-256 của bằng chứng cục bộ không commit:
 - Premiere XML: `8E47829C6551CF468660B138F948F3D8F2F90C58974061A02CCA22C11F3B337A`
 - Premiere WAV: `039897D1C0F4E6DC8BC89E82B2AE5AC6EAB38BE524FD4D2F0771E16D621652DC`
 
-Thử nghiệm kế tiếp là tạo một clip có `Audio Gain +3 dB` bằng Premiere, export FCP XML và kiểm tra xem gain này có được mã hóa thành dữ liệu độc lập với `Audio Levels` hay không. Chỉ khi trường đó tồn tại và sống qua một lần import thứ hai mới có thể xem xét tổ hợp `+15 dB` clip volume với `+3 dB` audio gain.
+Vòng này dẫn tới thử nghiệm Premiere Gain filter. Kết quả tiếp theo, bao gồm lỗi literal-dB và encoding hệ số tuyến tính đã đạt `+18 dB`, được ghi tại [PHASE00_GAIN_FILTER.md](PHASE00_GAIN_FILTER.md) và [PHASE00_RESULT.md](PHASE00_RESULT.md).
