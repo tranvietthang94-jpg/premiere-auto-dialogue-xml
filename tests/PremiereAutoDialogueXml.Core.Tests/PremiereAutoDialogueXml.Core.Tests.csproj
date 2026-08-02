@@ -7,6 +7,7 @@
     <PackageReference Include="MSTest" Version="4.0.2" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\..\src\PremiereAutoDialogueXml.Audio\PremiereAutoDialogueXml.Audio.csproj" />
     <ProjectReference Include="..\..\src\PremiereAutoDialogueXml.Core\PremiereAutoDialogueXml.Core.csproj" />
   </ItemGroup>
   <ItemGroup>
