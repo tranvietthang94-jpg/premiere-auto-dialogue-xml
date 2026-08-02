@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Security.Cryptography;
 using System.Xml;
 using System.Xml.Linq;
 using PremiereAutoDialogueXml.Core.Inspection;
@@ -13,10 +12,6 @@ public sealed class PremiereXmlInspector
     private const int RequiredFrameRate = 25;
     private const int RequiredSampleRate = 48_000;
     private const int RequiredOutputChannels = 2;
-    private const long MaximumXmlBytes = 128L * 1024 * 1024;
-    private const int PrologCharacterLimit = 4_096;
-    private const string RequiredDocumentType = "<!DOCTYPE xmeml>";
-
     private static readonly string[] UnsupportedElementNames =
     [
         "filter",
@@ -49,32 +44,12 @@ public sealed class PremiereXmlInspector
 
         try
         {
-            using var stream = new FileStream(
-                xmlPath,
-                new FileStreamOptions
-                {
-                    Access = FileAccess.Read,
-                    Mode = FileMode.Open,
-                    Share = FileShare.Read,
-                    Options = FileOptions.SequentialScan
-                });
-
-            if (stream.Length <= 0)
-            {
-                return Failure("xml-empty", "Tệp XML đang trống.");
-            }
-
-            if (stream.Length > MaximumXmlBytes)
-            {
-                return Failure("xml-too-large", $"XML vượt giới hạn an toàn {MaximumXmlBytes / 1024 / 1024} MB của MVP.");
-            }
-
-            var sourceHash = Convert.ToHexString(SHA256.HashData(stream));
-            stream.Position = 0;
-            ValidatePremiereDocumentType(stream);
-            stream.Position = 0;
-            var document = LoadDocument(stream);
-            return InspectDocument(document, xmlPath, sourceHash);
+            var source = PremiereXmlDocumentLoader.Load(xmlPath);
+            return InspectDocument(source.Document, xmlPath, source.Sha256);
+        }
+        catch (PremiereXmlLoadException exception)
+        {
+            return Failure(exception.Code, exception.Message);
         }
         catch (XmlContractException exception)
         {
@@ -607,48 +582,6 @@ public sealed class PremiereXmlInspector
         throw new XmlContractException(
             "media-pathurl-invalid",
             "file://localhost phải chứa đường dẫn ổ đĩa Windows tuyệt đối, ví dụ F%3A/path/file.wav.");
-    }
-
-    private static XDocument LoadDocument(Stream stream)
-    {
-        var settings = new XmlReaderSettings
-        {
-            DtdProcessing = DtdProcessing.Ignore,
-            XmlResolver = null,
-            MaxCharactersInDocument = MaximumXmlBytes,
-            IgnoreComments = false,
-            IgnoreWhitespace = false,
-            CloseInput = false
-        };
-        using var reader = XmlReader.Create(stream, settings);
-        return XDocument.Load(reader, LoadOptions.PreserveWhitespace | LoadOptions.SetLineInfo);
-    }
-
-    private static void ValidatePremiereDocumentType(Stream stream)
-    {
-        using var reader = new StreamReader(
-            stream,
-            detectEncodingFromByteOrderMarks: true,
-            bufferSize: PrologCharacterLimit,
-            leaveOpen: true);
-        var buffer = new char[PrologCharacterLimit];
-        var count = reader.ReadBlock(buffer, 0, buffer.Length);
-        var prolog = new string(buffer, 0, count);
-        var documentTypeIndex = prolog.IndexOf("<!DOCTYPE", StringComparison.Ordinal);
-        var rootIndex = prolog.IndexOf("<xmeml", StringComparison.Ordinal);
-        if (documentTypeIndex < 0 || rootIndex < 0 || documentTypeIndex > rootIndex ||
-            !prolog.AsSpan(documentTypeIndex).StartsWith(RequiredDocumentType, StringComparison.Ordinal))
-        {
-            throw new XmlContractException(
-                "doctype-not-allowed",
-                "Chỉ chấp nhận DOCTYPE Premiere nguyên văn '<!DOCTYPE xmeml>'; external hoặc internal DTD bị từ chối.");
-        }
-
-        var afterRequiredType = documentTypeIndex + RequiredDocumentType.Length;
-        if (prolog.IndexOf("<!DOCTYPE", afterRequiredType, StringComparison.Ordinal) >= 0)
-        {
-            throw new XmlContractException("doctype-not-allowed", "XML chứa nhiều hơn một DOCTYPE.");
-        }
     }
 
     private static int ParseRate(XElement rateElement)
