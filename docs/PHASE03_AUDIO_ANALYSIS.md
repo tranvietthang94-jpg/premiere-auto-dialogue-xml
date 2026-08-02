@@ -52,7 +52,7 @@ Correlation và phép khớp residual chạy trên waveform thật đã lấy m�
 Ngày 2026-08-02 trên Windows:
 
 - Release build: đạt, `0` warning và `0` error.
-- MSTest: `49/49` đạt.
+- MSTest: `51/51` đạt.
 - Model nhúng khớp đúng dung lượng `2,327,524` byte và SHA-256 đã ghim.
 - Inference silence cho xác suất hữu hạn thấp hơn `0.10`; reset state tái lập đúng kết quả khối đầu.
 - Fixture PCM xác nhận biên âm/dương 16-bit, sign extension 24-bit, valid 24-bit trong container 32-bit và source trim không bắt đầu từ 0.

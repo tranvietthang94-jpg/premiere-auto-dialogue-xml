@@ -113,6 +113,61 @@ public sealed class TrackDialogueAnalyzerTests
                        segment.TimelineEndSample > 3_072));
     }
 
+    [TestMethod]
+    public void AnalyzePreservesLaughterLikeBorderlineBurstsAsAmbiguous()
+    {
+        using var fixture = TestAudioFixture.CreatePcm16(Enumerable.Repeat(0.2f, 19_200).ToArray());
+        var track = new PremiereAudioTrack(1, 1, [fixture.Clip("laugh", 0, 10)]);
+        var observations = new[]
+        {
+            Observation(0, 1_536, 0.01f, -60f),
+            Observation(4_608, 6_144, 0.40f, -14f),
+            Observation(6_144, 7_680, 0.42f, -14f)
+        };
+
+        var result = Analyze(track, observations);
+
+        Assert.HasCount(0, result.Phrases);
+        Assert.IsTrue(result.Segments.Any(
+            segment => segment.Status == AudioSegmentStatus.Ambiguous &&
+                       segment.TimelineStartSample <= 4_608 &&
+                       segment.TimelineEndSample >= 7_680));
+    }
+
+    [TestMethod]
+    public void AnalyzeSplitsOverlappingPaddingAtMidpointAndAmbiguousInheritsGain()
+    {
+        var samples = Enumerable.Repeat(0.001f, 115_200).ToArray();
+        Array.Fill(samples, 0.25f, 10_000, 6_144);
+        Array.Fill(samples, 0.25f, 34_576, 6_144);
+        using var fixture = TestAudioFixture.CreatePcm16(samples);
+        var track = new PremiereAudioTrack(3, 1, [fixture.Clip("two-phrases", 0, 60)]);
+        var observations = new[]
+        {
+            Observation(0, 1_536, 0.01f, -60f),
+            Observation(10_000, 11_536, 0.90f, -12f),
+            Observation(11_536, 13_072, 0.90f, -12f),
+            Observation(13_072, 14_608, 0.90f, -12f),
+            Observation(14_608, 16_144, 0.90f, -12f),
+            Observation(17_000, 18_536, 0.40f, -14f),
+            Observation(34_576, 36_112, 0.90f, -12f),
+            Observation(36_112, 37_648, 0.90f, -12f),
+            Observation(37_648, 39_184, 0.90f, -12f),
+            Observation(39_184, 40_720, 0.90f, -12f)
+        };
+
+        var result = Analyze(track, observations);
+
+        Assert.HasCount(2, result.Phrases);
+        Assert.AreEqual(result.Phrases[0].PaddedEndSample, result.Phrases[1].PaddedStartSample);
+        var inherited = result.Segments.Single(segment =>
+            segment.Status == AudioSegmentStatus.Ambiguous &&
+            segment.TimelineStartSample <= 17_000 &&
+            segment.TimelineEndSample >= 18_536);
+        Assert.AreEqual(result.Phrases[0].Id, inherited.PhraseId);
+        Assert.AreEqual(result.Phrases[0].AppliedGainDb, inherited.GainDb);
+    }
+
     private static TrackAudioAnalysis Analyze(
         PremiereAudioTrack track,
         IReadOnlyList<AudioFrameObservation> observations) =>
