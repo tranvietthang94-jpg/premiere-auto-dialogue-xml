@@ -1,0 +1,39 @@
+# Build outputs
+bin/
+obj/
+artifacts/
+TestResults/
+*.user
+*.suo
+.vs/
+.idea/
+
+# Runtime and local outputs
+runs/
+output/
+logs/
+private-artifacts/
+local-inputs/
+*.tmp
+*.log
+
+# Source media and Premiere projects must never be committed
+*.wav
+*.wave
+*.aif
+*.aiff
+*.mp3
+*.m4a
+*.prproj
+*.pek
+*.cfa
+
+# Packages and installers are published as release artifacts
+*.exe
+*.msi
+*.msix
+*.zip
+
+# Local model staging. A verified model may later be committed explicitly.
+models/staging/
+
