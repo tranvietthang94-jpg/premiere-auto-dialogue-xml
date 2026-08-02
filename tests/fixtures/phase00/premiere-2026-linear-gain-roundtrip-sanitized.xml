@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE xmeml>
+<xmeml version="4">
+	<sequence id="sequence-phase00-linear-gain-sanitized">
+		<duration>350</duration>
+		<rate><timebase>25</timebase><ntsc>FALSE</ntsc></rate>
+		<name>PHASE00_LINEAR_GAIN_COMPATIBILITY</name>
+		<media><audio><numOutputChannels>2</numOutputChannels><track premiereTrackType="Stereo">
+			<clipitem id="clipitem-1">
+				<name>PHASE00_UNITY_REFERENCE</name><enabled>TRUE</enabled>
+				<start>0</start><end>50</end><in>0</in><out>50</out>
+				<pproTicksIn>0</pproTicksIn><pproTicksOut>508032000000</pproTicksOut>
+				<filter><effect><effectid>audiolevels</effectid><parameter><parameterid>level</parameterid><value>1</value></parameter></effect></filter>
+			</clipitem>
+			<clipitem id="clipitem-2">
+				<name>PHASE00_PLUS_12_LEVEL_REFERENCE</name><enabled>TRUE</enabled>
+				<start>50</start><end>100</end><in>50</in><out>100</out>
+				<pproTicksIn>508032000000</pproTicksIn><pproTicksOut>1016064000000</pproTicksOut>
+				<filter><effect><effectid>audiolevels</effectid><parameter><parameterid>level</parameterid><value>3.98107</value></parameter></effect></filter>
+			</clipitem>
+			<clipitem id="clipitem-3">
+				<name>PHASE00_PLUS_3_GAIN_LINEAR</name><enabled>TRUE</enabled>
+				<start>100</start><end>150</end><in>100</in><out>150</out>
+				<pproTicksIn>1016064000000</pproTicksIn><pproTicksOut>1524096000000</pproTicksOut>
+				<filter><effect><effectid>audiolevels</effectid><parameter><parameterid>level</parameterid><value>1</value></parameter></effect></filter>
+				<filter><effect><effectid>audiolevels</effectid><parameter><parameterid>level</parameterid><value>1.41254</value></parameter></effect></filter>
+			</clipitem>
+			<clipitem id="clipitem-4">
+				<name>PHASE00_PLUS_6_GAIN_LINEAR</name><enabled>TRUE</enabled>
+				<start>150</start><end>200</end><in>150</in><out>200</out>
+				<pproTicksIn>1524096000000</pproTicksIn><pproTicksOut>2032128000000</pproTicksOut>
+				<filter><effect><effectid>audiolevels</effectid><parameter><parameterid>level</parameterid><value>1</value></parameter></effect></filter>
+				<filter><effect><effectid>audiolevels</effectid><parameter><parameterid>level</parameterid><value>1.99526</value></parameter></effect></filter>
+			</clipitem>
+			<clipitem id="clipitem-5">
+				<name>PHASE00_PLUS_12_GAIN_LINEAR</name><enabled>TRUE</enabled>
+				<start>200</start><end>250</end><in>200</in><out>250</out>
+				<pproTicksIn>2032128000000</pproTicksIn><pproTicksOut>2540160000000</pproTicksOut>
+				<filter><effect><effectid>audiolevels</effectid><parameter><parameterid>level</parameterid><value>1</value></parameter></effect></filter>
+				<filter><effect><effectid>audiolevels</effectid><parameter><parameterid>level</parameterid><value>3.98107</value></parameter></effect></filter>
+			</clipitem>
+			<clipitem id="clipitem-6">
+				<name>PHASE00_PLUS_18_LEVEL12_GAIN6_LINEAR</name><enabled>TRUE</enabled>
+				<start>250</start><end>300</end><in>250</in><out>300</out>
+				<pproTicksIn>2540160000000</pproTicksIn><pproTicksOut>3048192000000</pproTicksOut>
+				<filter><effect><effectid>audiolevels</effectid><parameter><parameterid>level</parameterid><value>3.98107</value></parameter></effect></filter>
+				<filter><effect><effectid>audiolevels</effectid><parameter><parameterid>level</parameterid><value>1.99526</value></parameter></effect></filter>
+			</clipitem>
+			<clipitem id="clipitem-7">
+				<name>PHASE00_PLUS_18_LEVEL6_GAIN12_LINEAR</name><enabled>TRUE</enabled>
+				<start>300</start><end>350</end><in>300</in><out>350</out>
+				<pproTicksIn>3048192000000</pproTicksIn><pproTicksOut>3556224000000</pproTicksOut>
+				<filter><effect><effectid>audiolevels</effectid><parameter><parameterid>level</parameterid><value>1.99526</value></parameter></effect></filter>
+				<filter><effect><effectid>audiolevels</effectid><parameter><parameterid>level</parameterid><value>3.98107</value></parameter></effect></filter>
+			</clipitem>
+		</track></audio></media>
+	</sequence>
+</xmeml>

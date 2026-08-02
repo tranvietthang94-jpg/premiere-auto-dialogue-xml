@@ -49,13 +49,16 @@ Mỗi phase dùng branch và draft pull request riêng. Các thay đổi có ý 
 - Noise/bleed dùng fragment Disabled, không xóa khỏi timeline.
 - Clone video, sequence/track metadata và media references; tạo UUID/clip IDs mới.
 - Cập nhật chính xác `start/end`, `in/out`, `pproTicksIn/Out` và source-track.
-- Gain trên `+12 dB` chỉ dùng hai Audio Levels sau khi Phase 00 chứng minh Premiere cộng đúng.
+- Gain không lớn hơn `+12 dB` dùng một Audio Levels với `value=10^(gainDb/20)`.
+- Gain trên `+12 dB` đến `+18 dB` dùng Audio Levels `+12 dB` và Premiere Gain filter cho phần còn lại; trường `Gain(dB)/value` phải ghi hệ số `10^(remainderDb/20)`, không ghi literal dB. Phase 00 đã chứng minh encoding này đạt XML và PCM trong `±0.1 dB`.
 
 ## Phase 00 compatibility gate
 
 Tạo duplicate sequence nhỏ có các ca `-6`, `+6`, `+12`, `+18 dB`, hai Audio Levels chồng nhau, Disable và source trim. Export/import XML và export PCM để so timing/peak.
 
 Nếu Disable, timing hoặc peak sai quá `0.1 dB`, dừng tại cổng này; không âm thầm cap `+12 dB` hoặc render WAV thay thế.
+
+Kết quả Premiere Pro 2026 ngày 2026-08-02: **đạt** sau vòng mở rộng Gain-filter hệ số tuyến tính. Xem [PHASE00_RESULT.md](PHASE00_RESULT.md).
 
 ## Nghiệm thu
 
@@ -66,4 +69,3 @@ Nếu Disable, timing hoặc peak sai quá `0.1 dB`, dừng tại cổng này; k
 - Câu không bị cap đạt `-6.0 ± 0.1 dBFS` sau Premiere round-trip.
 - Mục tiêu trên i9-12900K: HGE2 dưới 15 phút, full HGE dưới 90 phút, RAM dưới 1.5 GB.
 - Bộ cài chạy trên Windows 10/11 x64 sạch, không Python và không Internet.
-

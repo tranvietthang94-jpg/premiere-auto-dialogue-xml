@@ -24,5 +24,4 @@ Kế hoạch triển khai và tiêu chí nghiệm thu nằm trong [docs/IMPLEMEN
 
 ## Trạng thái
 
-Dự án đang ở Phase 00: xác nhận round-trip Audio Levels, Disable và source trim qua Premiere XML trước khi xây engine đầy đủ.
-
+Phase 00 đã đạt round-trip Premiere Pro 2026 cho Disable, source trim và gain đến `+18 dB`. Dự án chuyển sang Phase 01: dựng nền tảng ứng dụng .NET/WPF và hợp đồng miền an toàn.
