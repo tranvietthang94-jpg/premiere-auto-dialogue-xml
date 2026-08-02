@@ -48,4 +48,41 @@ Fixture cục bộ đã được tạo và kiểm tra cấu trúc thành công:
 - SHA-256 XML: `B027A2865275D80989AA7EC854DFED3FDC9DA452FE74CDF67B4031D2B332ABAA`
 - SHA-256 WAV: `E8FF1CCA69E5572F72AC56321EC5710A1A3A3EA2BE79EB73496C927945AD46DB`
 
-Trạng thái hiện tại: Phase 00 vẫn đang chờ Premiere round-trip của fixture Gain filter.
+## Kết quả round-trip giá trị dB literal
+
+Vòng thử trong `private-artifacts/phase00/3/result` không đạt. Premiere không diễn giải giá trị của tham số XML `Gain(dB)` theo đơn vị dB khi import; nó diễn giải giá trị đó như hệ số tuyến tính:
+
+| Input Gain XML | Gain PCM quan sát | XML re-export |
+|---:|---:|---:|
+| `3` | `+9.5 dB` (`20 log10(3)`) | Audio Levels `+9.542 dB` |
+| `15` | `+15 dB`, bị clamp | Audio Levels `+12 dB` |
+| `18` | `+15 dB`, bị clamp | Audio Levels `+12 dB` |
+| Level `+12 dB` + Gain `6` | `+27 dB` | hai Audio Levels tổng `+24 dB` |
+| Level `+6 dB` + Gain `12` | `+21 dB` | hai Audio Levels tổng `+18 dB` |
+
+Không candidate nào đạt đồng thời XML và PCM. Kết quả preflight cũ `gain-filter-input-valid` chỉ phản ánh giả định tên trường là dB; validator đã được sửa để mô hình hóa đúng hành vi importer là `20 log10(value)`.
+
+SHA-256 của output Premiere cục bộ:
+
+- XML: `6A7ADFDF8277590ED55EAB104413C375EA9F15067ADC9CE718591296FAE1B85C`
+- WAV: `53068816B3388E90CFD7896BD558A6801B4511DDA4A90C01A781EE3C210B3218`
+
+## Fixture hệ số tuyến tính
+
+Vòng kế tiếp ghi `Gain(dB)` bằng hệ số `10^(dB/20)`, đúng với hành vi importer vừa đo:
+
+- `+3 dB` → `1.412537545`;
+- `+6 dB` → `1.995262315`;
+- `+12 dB` → `3.981071706`;
+- `+18 dB` → một Audio Levels `+12 dB` kết hợp Gain-filter factor `+6 dB`, hoặc Audio Levels `+6 dB` kết hợp Gain-filter factor `+12 dB`.
+
+Validator yêu cầu cả năm mốc `0/+3/+6/+12 dB` và ít nhất một candidate `+18 dB` đạt XML lẫn PCM trong `±0.1 dB`; timing, source trim và `pproTicksIn/Out` vẫn phải nguyên vẹn.
+
+Fixture đã đạt preflight `gain-filter-input-valid`:
+
+- XML: `private-artifacts/phase00/4/phase00-linear-gain-input.xml`
+- WAV: `private-artifacts/phase00/4/phase00-linear-gain-tone.wav`
+- SHA-256 XML: `6A1ED66D814758D15A463F93A2D25F31D3BF786BDCA048D09D44D1BD5787A749`
+- SHA-256 WAV: `E8FF1CCA69E5572F72AC56321EC5710A1A3A3EA2BE79EB73496C927945AD46DB`
+
+Trạng thái hiện tại: Phase 00 vẫn đang chờ Premiere round-trip của fixture hệ số tuyến tính.

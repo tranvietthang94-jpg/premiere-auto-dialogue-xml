@@ -1,19 +1,29 @@
 [CmdletBinding()]
 param(
-    [string]$OutputDirectory
+    [string]$OutputDirectory,
+
+    [ValidateSet('LiteralDb', 'LinearFactor')]
+    [string]$Encoding = 'LiteralDb'
 )
 
 $ErrorActionPreference = 'Stop'
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
+$isLinearFactor = $Encoding -eq 'LinearFactor'
 if ([string]::IsNullOrWhiteSpace($OutputDirectory)) {
-    $OutputDirectory = Join-Path $repoRoot 'private-artifacts\phase00\3'
+    $relativeOutput = if ($isLinearFactor) { 'private-artifacts\phase00\4' } else { 'private-artifacts\phase00\3' }
+    $OutputDirectory = Join-Path $repoRoot $relativeOutput
 }
 $outputRoot = [IO.Path]::GetFullPath($OutputDirectory)
 [IO.Directory]::CreateDirectory($outputRoot) | Out-Null
 
 $ffmpeg = Get-Command ffmpeg -ErrorAction Stop
-$tonePath = Join-Path $outputRoot 'phase00-gain-filter-tone.wav'
-$xmlPath = Join-Path $outputRoot 'phase00-gain-filter-input.xml'
+$toneFileName = if ($isLinearFactor) { 'phase00-linear-gain-tone.wav' } else { 'phase00-gain-filter-tone.wav' }
+$xmlFileName = if ($isLinearFactor) { 'phase00-linear-gain-input.xml' } else { 'phase00-gain-filter-input.xml' }
+$sequenceName = if ($isLinearFactor) { 'PHASE00_LINEAR_GAIN_COMPATIBILITY' } else { 'PHASE00_GAIN_FILTER_COMPATIBILITY' }
+$idSuffix = if ($isLinearFactor) { 'linear-gain' } else { 'gain-filter' }
+$sequenceUuid = if ($isLinearFactor) { '00000000-0000-4000-8000-000000000004' } else { '00000000-0000-4000-8000-000000000003' }
+$tonePath = Join-Path $outputRoot $toneFileName
+$xmlPath = Join-Path $outputRoot $xmlFileName
 
 & $ffmpeg.Source -hide_banner -loglevel error -y `
     -f lavfi -i 'sine=frequency=1000:sample_rate=48000:duration=14' `
@@ -24,23 +34,34 @@ if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $tonePath -PathType Lea
 
 $culture = [Globalization.CultureInfo]::InvariantCulture
 $ticksPerFrame = [Int64]10160640000
-$segments = @(
-    [pscustomobject]@{ Name = 'UNITY_REFERENCE'; Start = 0; End = 50; LevelDb = 0.0; GainDb = 0.0; Kind = 'reference' },
-    [pscustomobject]@{ Name = 'PLUS_12_LEVEL_REFERENCE'; Start = 50; End = 100; LevelDb = 12.0; GainDb = 0.0; Kind = 'reference' },
-    [pscustomobject]@{ Name = 'PLUS_3_GAIN_REFERENCE'; Start = 100; End = 150; LevelDb = 0.0; GainDb = 3.0; Kind = 'reference' },
-    [pscustomobject]@{ Name = 'PLUS_18_GAIN_ONLY'; Start = 150; End = 200; LevelDb = 0.0; GainDb = 18.0; Kind = 'candidate' },
-    [pscustomobject]@{ Name = 'PLUS_15_GAIN_ONLY'; Start = 200; End = 250; LevelDb = 0.0; GainDb = 15.0; Kind = 'observation' },
-    [pscustomobject]@{ Name = 'PLUS_18_LEVEL12_GAIN6'; Start = 250; End = 300; LevelDb = 12.0; GainDb = 6.0; Kind = 'candidate' },
-    [pscustomobject]@{ Name = 'PLUS_18_LEVEL6_GAIN12'; Start = 300; End = 350; LevelDb = 6.0; GainDb = 12.0; Kind = 'candidate' }
-)
+if ($isLinearFactor) {
+    $segments = @(
+        [pscustomobject]@{ Name = 'UNITY_REFERENCE'; Start = 0; End = 50; LevelDb = 0.0; GainXmlValue = $null; Kind = 'reference' },
+        [pscustomobject]@{ Name = 'PLUS_12_LEVEL_REFERENCE'; Start = 50; End = 100; LevelDb = 12.0; GainXmlValue = $null; Kind = 'reference' },
+        [pscustomobject]@{ Name = 'PLUS_3_GAIN_LINEAR'; Start = 100; End = 150; LevelDb = 0.0; GainXmlValue = [Math]::Pow(10.0, 3.0 / 20.0); Kind = 'reference' },
+        [pscustomobject]@{ Name = 'PLUS_6_GAIN_LINEAR'; Start = 150; End = 200; LevelDb = 0.0; GainXmlValue = [Math]::Pow(10.0, 6.0 / 20.0); Kind = 'reference' },
+        [pscustomobject]@{ Name = 'PLUS_12_GAIN_LINEAR'; Start = 200; End = 250; LevelDb = 0.0; GainXmlValue = [Math]::Pow(10.0, 12.0 / 20.0); Kind = 'reference' },
+        [pscustomobject]@{ Name = 'PLUS_18_LEVEL12_GAIN6_LINEAR'; Start = 250; End = 300; LevelDb = 12.0; GainXmlValue = [Math]::Pow(10.0, 6.0 / 20.0); Kind = 'candidate' },
+        [pscustomobject]@{ Name = 'PLUS_18_LEVEL6_GAIN12_LINEAR'; Start = 300; End = 350; LevelDb = 6.0; GainXmlValue = [Math]::Pow(10.0, 12.0 / 20.0); Kind = 'candidate' }
+    )
+} else {
+    $segments = @(
+        [pscustomobject]@{ Name = 'UNITY_REFERENCE'; Start = 0; End = 50; LevelDb = 0.0; GainXmlValue = $null; Kind = 'reference' },
+        [pscustomobject]@{ Name = 'PLUS_12_LEVEL_REFERENCE'; Start = 50; End = 100; LevelDb = 12.0; GainXmlValue = $null; Kind = 'reference' },
+        [pscustomobject]@{ Name = 'PLUS_3_GAIN_REFERENCE'; Start = 100; End = 150; LevelDb = 0.0; GainXmlValue = 3.0; Kind = 'reference' },
+        [pscustomobject]@{ Name = 'PLUS_18_GAIN_ONLY'; Start = 150; End = 200; LevelDb = 0.0; GainXmlValue = 18.0; Kind = 'candidate' },
+        [pscustomobject]@{ Name = 'PLUS_15_GAIN_ONLY'; Start = 200; End = 250; LevelDb = 0.0; GainXmlValue = 15.0; Kind = 'observation' },
+        [pscustomobject]@{ Name = 'PLUS_18_LEVEL12_GAIN6'; Start = 250; End = 300; LevelDb = 12.0; GainXmlValue = 6.0; Kind = 'candidate' },
+        [pscustomobject]@{ Name = 'PLUS_18_LEVEL6_GAIN12'; Start = 300; End = 350; LevelDb = 6.0; GainXmlValue = 12.0; Kind = 'candidate' }
+    )
+}
 
 function Escape-Xml([string]$Value) {
     return [Security.SecurityElement]::Escape($Value)
 }
 
-function New-GainFilter([double]$GainDb) {
-    if ([Math]::Abs($GainDb) -lt 0.000001) { return '' }
-    $value = $GainDb.ToString('0.###', $culture)
+function New-GainFilter([double]$GainXmlValue) {
+    $value = $GainXmlValue.ToString('0.#########', $culture)
     return @"
 						<filter>
 							<effect>
@@ -92,8 +113,8 @@ for ($index = 0; $index -lt $segments.Count; $index++) {
     $ticksOut = [Int64]$segment.End * $ticksPerFrame
     $fileElement = if ($index -eq 0) {
 @"
-						<file id="file-gain-filter-1">
-							<name>phase00-gain-filter-tone.wav</name>
+						<file id="file-$idSuffix-1">
+							<name>$toneFileName</name>
 							<pathurl>$(Escape-Xml $toneUrl)</pathurl>
 							<rate><timebase>25</timebase><ntsc>FALSE</ntsc></rate>
 							<duration>350</duration>
@@ -102,12 +123,13 @@ for ($index = 0; $index -lt $segments.Count; $index++) {
 						</file>
 "@
     } else {
-        "`t`t`t`t`t`t<file id=`"file-gain-filter-1`"/>`n"
+        "`t`t`t`t`t`t<file id=`"file-$idSuffix-1`"/>`n"
     }
-    $filters = (New-GainFilter -GainDb $segment.GainDb) + (New-AudioLevelFilter -GainDb $segment.LevelDb)
+    $gainFilter = if ($null -eq $segment.GainXmlValue) { '' } else { New-GainFilter -GainXmlValue $segment.GainXmlValue }
+    $filters = $gainFilter + (New-AudioLevelFilter -GainDb $segment.LevelDb)
     [void]$clipXml.Append(@"
-					<clipitem id="clipitem-gain-filter-$clipNumber" premiereChannelType="mono">
-						<masterclipid>masterclip-gain-filter-1</masterclipid>
+					<clipitem id="clipitem-$idSuffix-$clipNumber" premiereChannelType="mono">
+						<masterclipid>masterclip-$idSuffix-1</masterclipid>
 						<name>PHASE00_$($segment.Name)</name>
 						<enabled>TRUE</enabled>
 						<duration>350</duration>
@@ -120,16 +142,15 @@ $fileElement$filters						<sourcetrack><mediatype>audio</mediatype><trackindex>1
 "@)
 }
 
-$sequenceUuid = '00000000-0000-4000-8000-000000000003'
 $xml = @"
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE xmeml>
 <xmeml version="4">
-	<sequence id="sequence-phase00-gain-filter">
+	<sequence id="sequence-phase00-$idSuffix">
 		<uuid>$sequenceUuid</uuid>
 		<duration>350</duration>
 		<rate><timebase>25</timebase><ntsc>FALSE</ntsc></rate>
-		<name>PHASE00_GAIN_FILTER_COMPATIBILITY</name>
+		<name>$sequenceName</name>
 		<timecode><rate><timebase>25</timebase><ntsc>FALSE</ntsc></rate><string>00:00:00:00</string><frame>0</frame><displayformat>NDF</displayformat></timecode>
 		<media>
 			<video>
@@ -154,6 +175,7 @@ $clipXml					<enabled>TRUE</enabled><locked>FALSE</locked><outputchannelindex>1<
 
 [IO.File]::WriteAllText($xmlPath, $xml, [Text.UTF8Encoding]::new($false))
 [pscustomobject]@{
+    Encoding = $Encoding
     XmlPath = $xmlPath
     TonePath = $tonePath
     SequenceSeconds = 14

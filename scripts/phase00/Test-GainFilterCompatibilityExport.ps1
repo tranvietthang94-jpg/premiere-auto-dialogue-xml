@@ -5,6 +5,9 @@ param(
 
     [string]$RenderedWav,
 
+    [ValidateSet('LiteralDb', 'LinearFactor')]
+    [string]$Encoding = 'LiteralDb',
+
     [double]$ToleranceDb = 0.1
 )
 
@@ -12,15 +15,29 @@ $ErrorActionPreference = 'Stop'
 $culture = [Globalization.CultureInfo]::InvariantCulture
 $ticksPerFrame = [Int64]10160640000
 $failures = [Collections.Generic.List[string]]::new()
-$expected = @(
-    [pscustomobject]@{ Name = 'UNITY_REFERENCE'; TotalDb = 0.0; Kind = 'reference' },
-    [pscustomobject]@{ Name = 'PLUS_12_LEVEL_REFERENCE'; TotalDb = 12.0; Kind = 'reference' },
-    [pscustomobject]@{ Name = 'PLUS_3_GAIN_REFERENCE'; TotalDb = 3.0; Kind = 'reference' },
-    [pscustomobject]@{ Name = 'PLUS_18_GAIN_ONLY'; TotalDb = 18.0; Kind = 'candidate' },
-    [pscustomobject]@{ Name = 'PLUS_15_GAIN_ONLY'; TotalDb = 15.0; Kind = 'observation' },
-    [pscustomobject]@{ Name = 'PLUS_18_LEVEL12_GAIN6'; TotalDb = 18.0; Kind = 'candidate' },
-    [pscustomobject]@{ Name = 'PLUS_18_LEVEL6_GAIN12'; TotalDb = 18.0; Kind = 'candidate' }
-)
+$isLinearFactor = $Encoding -eq 'LinearFactor'
+$expectedSequenceName = if ($isLinearFactor) { 'PHASE00_LINEAR_GAIN_COMPATIBILITY' } else { 'PHASE00_GAIN_FILTER_COMPATIBILITY' }
+if ($isLinearFactor) {
+    $expected = @(
+        [pscustomobject]@{ Name = 'UNITY_REFERENCE'; TotalDb = 0.0; Kind = 'reference' },
+        [pscustomobject]@{ Name = 'PLUS_12_LEVEL_REFERENCE'; TotalDb = 12.0; Kind = 'reference' },
+        [pscustomobject]@{ Name = 'PLUS_3_GAIN_LINEAR'; TotalDb = 3.0; Kind = 'reference' },
+        [pscustomobject]@{ Name = 'PLUS_6_GAIN_LINEAR'; TotalDb = 6.0; Kind = 'reference' },
+        [pscustomobject]@{ Name = 'PLUS_12_GAIN_LINEAR'; TotalDb = 12.0; Kind = 'reference' },
+        [pscustomobject]@{ Name = 'PLUS_18_LEVEL12_GAIN6_LINEAR'; TotalDb = 18.0; Kind = 'candidate' },
+        [pscustomobject]@{ Name = 'PLUS_18_LEVEL6_GAIN12_LINEAR'; TotalDb = 18.0; Kind = 'candidate' }
+    )
+} else {
+    $expected = @(
+        [pscustomobject]@{ Name = 'UNITY_REFERENCE'; TotalDb = 0.0; Kind = 'reference' },
+        [pscustomobject]@{ Name = 'PLUS_12_LEVEL_REFERENCE'; TotalDb = 12.0; Kind = 'reference' },
+        [pscustomobject]@{ Name = 'PLUS_3_GAIN_REFERENCE'; TotalDb = 3.0; Kind = 'reference' },
+        [pscustomobject]@{ Name = 'PLUS_18_GAIN_ONLY'; TotalDb = 18.0; Kind = 'candidate' },
+        [pscustomobject]@{ Name = 'PLUS_15_GAIN_ONLY'; TotalDb = 15.0; Kind = 'observation' },
+        [pscustomobject]@{ Name = 'PLUS_18_LEVEL12_GAIN6'; TotalDb = 18.0; Kind = 'candidate' },
+        [pscustomobject]@{ Name = 'PLUS_18_LEVEL6_GAIN12'; TotalDb = 18.0; Kind = 'candidate' }
+    )
+}
 
 function Measure-PeakDbfs {
     param([string]$FfmpegPath, [string]$WavePath, [int]$StartSeconds)
@@ -56,7 +73,7 @@ try { $document.Load($reader) } finally { $reader.Dispose() }
 $sequence = $document.SelectSingleNode('/xmeml/sequence')
 if ($null -eq $sequence) { throw 'XML has no direct sequence element.' }
 $sequenceName = $sequence.SelectSingleNode('name').InnerText
-if ($sequenceName -ne 'PHASE00_GAIN_FILTER_COMPATIBILITY') {
+if ($sequenceName -ne $expectedSequenceName) {
     $failures.Add("Unexpected sequence name: $sequenceName.")
 }
 $clips = @($sequence.SelectNodes('media/audio/track/clipitem'))
@@ -93,9 +110,16 @@ for ($index = 0; $index -lt $clipCount; $index++) {
     }
 
     $gainDb = 0.0
+    $gainXmlValues = @()
     $gainNodes = @($clip.SelectNodes("filter/effect[effectid='{61756678, 4761696e, 4b657947}']/parameter[parameterid='Gain(dB)']/value"))
     foreach ($node in $gainNodes) {
-        $gainDb += [double]::Parse($node.InnerText, $culture)
+        $gainXmlValue = [double]::Parse($node.InnerText, $culture)
+        $gainXmlValues += $gainXmlValue
+        if ($gainXmlValue -le 0.0) {
+            $failures.Add("Clip $($index + 1) has a non-positive Gain filter value: $gainXmlValue.")
+        } else {
+            $gainDb += 20.0 * [Math]::Log10($gainXmlValue)
+        }
     }
 
     $totalDb = $levelDb + $gainDb
@@ -104,6 +128,7 @@ for ($index = 0; $index -lt $clipCount; $index++) {
         Kind = $want.Kind
         ExpectedGainDb = $want.TotalDb
         XmlAudioLevelDb = [Math]::Round($levelDb, 3)
+        XmlGainFilterValues = @($gainXmlValues)
         XmlGainFilterDb = [Math]::Round($gainDb, 3)
         XmlTotalGainDb = [Math]::Round($totalDb, 3)
         XmlPass = [Math]::Abs($totalDb - $want.TotalDb) -le $ToleranceDb
@@ -148,6 +173,7 @@ if (-not $hasRenderedAudio) {
 
 [pscustomobject]@{
     Status = $status
+    Encoding = $Encoding
     SequenceName = $sequenceName
     Cases = $caseResults
     CompatibleCandidates = $compatibleCandidates
