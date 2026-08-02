@@ -36,4 +36,4 @@ jobs:
         run: dotnet build PremiereAutoDialogueXml.slnx --configuration Release --no-restore
 
       - name: Test
-        run: dotnet test PremiereAutoDialogueXml.slnx --configuration Release --no-build --logger "trx;LogFileName=phase01-tests.trx"
+        run: dotnet test PremiereAutoDialogueXml.slnx --configuration Release --no-build --logger "trx;LogFileName=tests.trx"

@@ -24,7 +24,9 @@ Kế hoạch triển khai và tiêu chí nghiệm thu nằm trong [docs/IMPLEMEN
 
 ## Trạng thái
 
-Phase 00 đã đạt round-trip Premiere Pro 2026 cho Disable, source trim và gain đến `+18 dB`. Dự án chuyển sang Phase 01: dựng nền tảng ứng dụng .NET/WPF và hợp đồng miền an toàn.
+Phase 00 đã đạt round-trip Premiere Pro 2026 cho Disable, source trim và gain đến `+18 dB`. Phase 01 đã hoàn thành nền tảng .NET/WPF. Phase 02 đã đọc đạt cả HGE2 (7 WAV) và HGE đầy đủ (19 WAV), gồm Unicode path, source trim, frame rounding và một WAV có đuôi PCM lẻ; chưa quét nội dung audio hoặc tạo XML đầu ra.
+
+Bằng chứng Phase 02 nằm trong [docs/PHASE02_XML_MEDIA_PARSER.md](docs/PHASE02_XML_MEDIA_PARSER.md).
 
 ## Build dành cho phát triển
 
