@@ -1,6 +1,6 @@
 # Kết quả Phase 00 — Premiere Pro 2026
 
-Ngày kiểm tra: 2026-08-02  
+Ngày kiểm tra: 2026-08-02
 Trạng thái cổng: **KHÔNG ĐẠT — dừng trước Phase 01**
 
 ## Phạm vi kiểm tra
