@@ -23,7 +23,7 @@ Phase 01 tạo khung ứng dụng Windows và các hợp đồng nền tảng; c
 
 - `dotnet restore`, `dotnet build -c Release` và `dotnet test -c Release` đạt.
 - WPF app khởi động trên Windows và bốn bước hiển thị đúng tiếng Việt.
-- Chọn file Unicode và thư mục output hoạt động; tệp rỗng/sai extension/media path chưa tồn tại không được chuyển sang bước kiểm tra.
+- Chọn file Unicode và thư mục output hoạt động; XML rỗng/sai extension/không tồn tại hoặc thư mục output không tồn tại không được chuyển sang bước kiểm tra.
 - CI của draft PR đạt trước khi merge.
 
 ## Bằng chứng cục bộ
