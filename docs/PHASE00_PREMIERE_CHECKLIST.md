@@ -34,3 +34,4 @@ powershell -ExecutionPolicy Bypass -File scripts\phase00\Test-CompatibilityExpor
 
 Nếu bất kỳ điều kiện nào không đạt, không tiếp tục Phase 01 và không âm thầm đổi sang render media hoặc cap gain thấp hơn.
 
+Kết quả chạy trên Premiere Pro 2026 được ghi tại [PHASE00_RESULT.md](PHASE00_RESULT.md): cổng không đạt vì hai Audio Levels `+9 +9 dB` chỉ còn `+9 dB` sau round-trip.
