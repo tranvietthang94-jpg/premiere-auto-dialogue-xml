@@ -29,3 +29,24 @@ Một encoding chỉ được chấp nhận khi đồng thời:
 - timing, source trim và `pproTicksIn/Out` không đổi.
 
 Nếu không biến thể nào đạt, Phase 00 vẫn bị chặn. Không suy diễn từ UI và không chọn phương pháp chỉ đúng trong XML nhưng sai trong PCM.
+
+## Kết quả vòng 1 trên Premiere Pro 2026
+
+| Ca | XML re-export | PCM tương đối | Kết quả |
+|---|---:|---:|---|
+| Unity | `0 dB` | `0 dB` | Mốc đạt |
+| `+12 dB` | `+12 dB` | `+12 dB` | Đạt |
+| `+15 dB`, trần mở rộng | `+12 dB` | `+15 dB` | PCM nhận `+15`, nhưng XML không round-trip trung thực |
+| `+18 dB`, trần mở rộng | `+12 dB` | `+15 dB` | Bị clamp ở `+15 dB` |
+| `+18 dB`, trần cũ | `+12 dB` | `+15 dB` | Bị clamp ở `+15 dB` |
+| `+12 +6 dB` | `+6 dB` | `+6 dB` | Chỉ effect cuối được giữ |
+| `+6 +12 dB` | `+12 dB` | `+12 dB` | Chỉ effect cuối được giữ |
+
+Không có encoding `+18 dB` nào đạt đồng thời XML và PCM. Kết quả cũng cho thấy Premiere có giới hạn clip volume nội bộ `+15 dB`, trong khi FCP XML re-export chuẩn hóa giá trị lớn hơn `+12 dB` về `+12 dB`.
+
+SHA-256 của bằng chứng cục bộ không commit:
+
+- Premiere XML: `8E47829C6551CF468660B138F948F3D8F2F90C58974061A02CCA22C11F3B337A`
+- Premiere WAV: `039897D1C0F4E6DC8BC89E82B2AE5AC6EAB38BE524FD4D2F0771E16D621652DC`
+
+Thử nghiệm kế tiếp là tạo một clip có `Audio Gain +3 dB` bằng Premiere, export FCP XML và kiểm tra xem gain này có được mã hóa thành dữ liệu độc lập với `Audio Levels` hay không. Chỉ khi trường đó tồn tại và sống qua một lần import thứ hai mới có thể xem xét tổ hợp `+15 dB` clip volume với `+3 dB` audio gain.
