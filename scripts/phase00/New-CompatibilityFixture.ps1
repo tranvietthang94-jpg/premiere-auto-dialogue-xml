@@ -59,7 +59,7 @@ function New-AudioLevelFilter([double]$GainDb) {
 "@
 }
 
-$toneUrl = ([Uri]$tonePath).AbsoluteUri
+$toneUrl = ([Uri]$tonePath).AbsoluteUri -replace '^file:///([A-Za-z]):', 'file://localhost/$1%3a'
 $clipXml = [Text.StringBuilder]::new()
 for ($index = 0; $index -lt $segments.Count; $index++) {
     $segment = $segments[$index]
@@ -121,7 +121,7 @@ $xml = @"
 					<group><index>1</index><numchannels>1</numchannels><downmix>0</downmix><channel><index>1</index></channel></group>
 					<group><index>2</index><numchannels>1</numchannels><downmix>0</downmix><channel><index>2</index></channel></group>
 				</outputs>
-				<track TL.SQTrackAudioKeyframeStyle="0" PannerCurrentValue="0.5" PannerIsInverted="true" PannerName="Balance" premiereTrackType="Stereo">
+				<track TL.SQTrackAudioKeyframeStyle="0" TL.SQTrackShy="0" TL.SQTrackExpandedHeight="41" TL.SQTrackExpanded="0" MZ.TrackTargeted="1" PannerCurrentValue="0.5" PannerIsInverted="true" PannerStartKeyframe="-91445760000000000,0.5,0,0,0,0,0,0" PannerName="Balance" currentExplodedTrackIndex="0" totalExplodedTrackCount="1" premiereTrackType="Stereo">
 $clipXml					<enabled>TRUE</enabled><locked>FALSE</locked><outputchannelindex>1</outputchannelindex>
 				</track>
 			</audio>
@@ -137,4 +137,3 @@ $clipXml					<enabled>TRUE</enabled><locked>FALSE</locked><outputchannelindex>1<
     TonePeakDbfs = -24
     SegmentSeconds = 2
 } | ConvertTo-Json
-
