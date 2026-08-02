@@ -121,8 +121,8 @@
                     <StackPanel Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,18,0,0"
                                 Orientation="Horizontal" HorizontalAlignment="Right">
                         <TextBlock Margin="0,0,14,0" VerticalAlignment="Center" Foreground="#6A7586"
-                                   Text="Phase 01 chỉ kiểm tra lựa chọn tệp; chưa phân tích nội dung XML." />
-                        <Button Click="InspectSelection_Click" Content="Kiểm tra lựa chọn"
+                                   Text="Chỉ đọc XML và header WAV; không quét âm thanh ở bước này." />
+                        <Button Click="InspectSelection_Click" Content="Kiểm tra XML và media"
                                 IsEnabled="{Binding CanInspect}" />
                     </StackPanel>
                 </Grid>
@@ -142,10 +142,14 @@
                                    Text="{Binding PresetSummary}" />
                         <TextBlock Margin="0,10,0,0" Foreground="#58667A" TextWrapping="Wrap"
                                    Text="Không cloud, không API, không telemetry. Sample peak -6 dBFS không phải LUFS, true peak hoặc cam kết Master bus." />
+                        <Separator Margin="0,14,0,10" />
+                        <TextBlock FontWeight="SemiBold" Text="Kết quả kiểm tra XML/media" />
+                        <TextBlock Margin="0,5,0,0" Foreground="#58667A" TextWrapping="Wrap"
+                                   Text="{Binding InspectionDetails}" />
                     </StackPanel>
                 </Expander>
                 <TextBlock Margin="0,16,0,0" HorizontalAlignment="Center" Foreground="#7A8594"
-                           Text="Bản nền tảng Phase 01 · chưa tạo hoặc sửa XML đầu ra" />
+                           Text="Phase 02 · kiểm tra chỉ đọc, chưa tạo hoặc sửa XML đầu ra" />
             </StackPanel>
         </Grid>
     </ScrollViewer>
