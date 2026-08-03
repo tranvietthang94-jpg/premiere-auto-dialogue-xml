@@ -1,6 +1,6 @@
 # Phase 06 — báo cáo pilot HGE2
 
-Trạng thái: `incomplete`; candidate frame-safe audit `1.2` đã đạt PCM round-trip A1–A7 và dừng an toàn, nhưng review Context phát hiện một xung đột VAD/năng lượng cần bảo vệ. Candidate audit `1.3` thay thế chưa qua Premiere; còn thiếu nhãn Mục tiêu và máy Windows sạch, không phát hành.
+Trạng thái: `incomplete`; candidate audit `1.3` đã giữ đúng M19 và đạt PCM round-trip A1–A7. Còn thiếu nhãn Mục tiêu, FCP Translation Results và máy Windows sạch; không phát hành.
 
 Ngày ghi nhận mới nhất: 2026-08-04.
 
@@ -102,6 +102,8 @@ Candidate audit `1.3` mới dùng cùng input SHA-256; XML output có SHA-256 `5
 
 Ba phrase trên A3/A4/A5 đổi gain từ `0,143–0,291 dB` do frame Enabled mới tham gia phép đo frame-safe; 2.129 phrase còn lại không đổi và toàn bộ 935 phrase không cap vẫn dự đoán đúng `-6 dBFS`. Vì XML/audit đã thay đổi, PCM cũ không được gắn sang candidate `1.3`. Chi tiết: [PHASE06_CONTEXT_LABEL_REVIEW.md](PHASE06_CONTEXT_LABEL_REVIEW.md).
 
+Người vận hành đã import candidate `1.3`, xác nhận M19/A3 tại `00:07:28:15` nghe được và export lại đủ A1–A7. Bảy WAV đều là mono PCM 48 kHz/24-bit, đủ 103.219.200 sample và liên kết đúng audit/source SHA-256. Validator đạt 2.132/2.132 phrase gain/timing, 935/935 phrase không cap ở target, 1.197 phrase cap khớp dự đoán và không phrase cap nào nóng hơn `-6 dBFS`. Peak không cap nằm từ `-6,000019` đến `-5,999974 dBFS`; phrase cap nóng nhất `-6,004388 dBFS`; sai lệch source-linked lớn nhất dưới `0,000027 dB`. Cổng PCM candidate audit `1.3` đạt; checksum từng WAV/report nằm trong báo cáo chi tiết.
+
 ## Dừng an toàn trên app thật
 
 App WPF build từ commit Phase 06 được mở trực tiếp, chọn `test HGE2.xml` và một thư mục gate trống riêng. Sau khi kiểm tra XML/media đạt, phân tích được bắt đầu và quan sát thấy nhiều worker đang chạy; người kiểm thử bấm **Dừng an toàn** khi trạng thái đang ở bước phân tích. UI chuyển sang `Đã dừng` và `Không tạo output dở`, sau đó cửa sổ đóng bình thường.
@@ -120,9 +122,8 @@ Build chứa lớp bảo vệ VAD/năng lượng đã được publish thành ZI
 
 ## Các cổng còn thiếu
 
-- Import XML audit `1.3`, lưu **FCP Translation Results** nếu Premiere có tạo và xác nhận không có lỗi làm mất audio.
+- Lưu **FCP Translation Results** của lượt import audit `1.3` nếu Premiere có tạo và xác nhận không có lỗi làm mất audio.
 - Kiểm tra fragment energy/VAD conflict, marker, ranh giới M19 và khả năng bật lại clip Disable.
-- Export PCM A1–A7 từ đúng candidate `1.3` và chạy validator gắn với audit mới; không tái sử dụng report audit `1.2`.
 - Gắn nhãn đúng khoảng Mục tiêu để tính 100% direct speech được giữ, ít nhất 90% clear noise/bleed bị Disable và 0% ambiguous bị Disable.
 - Publish ZIP candidate `1.3`, rồi chạy offline trên Windows 10 x64 và Windows 11 x64 sạch, không có .NET/Python cài sẵn.
 
