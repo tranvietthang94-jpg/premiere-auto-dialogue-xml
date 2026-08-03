@@ -29,11 +29,22 @@ Báo cáo này chỉ chứa bằng chứng đã làm sạch. XML, WAV, project P
 
 Ngày 2026-08-03, người vận hành xác nhận đã tự import XML kết quả vào Premiere Pro trong một lượt kiểm tra và đánh giá kết quả ban đầu là tốt.
 
-Bằng chứng này xác nhận smoke test import thực tế đã thành công ở mức quan sát của người vận hành. Hiện chưa lưu nội dung **FCP Translation Results**, ảnh timeline, PCM export hoặc checklist chi tiết nên chưa dùng bằng chứng này để khẳng định peak, duration, track count, media link hay độ chính xác nhận diện.
+Bằng chứng này xác nhận smoke test import thực tế đã thành công ở mức quan sát của người vận hành.
+
+Ba ảnh timeline Premiere được nhận và giữ ngoài Git. SHA-256 lần lượt là `3819B974ADC9861B54BE11F9CE27E7F0A9EC8D7868DE0F303AD91F8768D78883`, `DD27A869FE69154F55B868425579230DDD31FD1F77B3B789201E9B4610808C59` và `05012255577E6CB9C20AEA5B62FEF5375E0F908DEFFD99C1CB299DA35BC4CD4E`. Ảnh cho thấy:
+
+- sequence `- AUTO AUDIO` đã mở được;
+- đủ track A1–A7, clip có tên nguồn và waveform, không thấy chỉ báo media offline trong vùng ảnh;
+- các fragment, badge `fx` và marker đã xuất hiện trên timeline;
+- timeline overview phủ đến cuối chương trình dự kiến.
+
+Đối chiếu cấu trúc XML nguồn/kết quả xác nhận cùng duration 53.760 frame ở 25 fps (`00:35:50:10`), cùng 3 video track, 7 audio track và cùng tập 7 media reference. Cả XML nguồn và kết quả đều có 0 video clipitem, vì vậy V1–V3 trống trong ảnh là trạng thái của fixture, không phải video bị writer xóa. Audio thay đổi từ 7 clip nguồn thành 8.058 fragment theo thiết kế.
+
+Ảnh không chứa cửa sổ **FCP Translation Results** và không thể chứng minh sample peak, trạng thái Enabled/Disabled của từng fragment hay độ chính xác nhận diện.
 
 ## Các cổng còn thiếu
 
-- Lưu **FCP Translation Results** và xác nhận video, duration, đủ 7 audio track, media tự link, không mất audio.
+- Lưu **FCP Translation Results** nếu Premiere có tạo và xác nhận không có lỗi làm mất audio.
 - Kiểm tra vài fragment speech/ambiguous/noise, marker và khả năng bật lại clip Disable.
 - Export PCM không normalization/effect để xác minh phrase không bị cap đạt `-6.0 ± 0.1 dBFS` và phrase bị cap khớp predicted peak.
 - Gắn nhãn đủ để tính 100% direct speech được giữ, ít nhất 90% clear noise/bleed bị Disable và 0% ambiguous bị Disable.
