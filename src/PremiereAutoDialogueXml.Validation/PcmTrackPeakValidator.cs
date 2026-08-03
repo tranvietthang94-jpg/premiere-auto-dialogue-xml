@@ -17,6 +17,9 @@ public sealed record PhrasePeakValidation(
     double ExpectedRenderedPeakDbfs,
     double? ObservedRenderedPeakDbfs,
     double? DeltaDb,
+    double? FrameRoundedSourcePeakDbfs,
+    double? SourceDerivedExpectedRenderedPeakDbfs,
+    double? SourceDerivedDeltaDb,
     bool WithinTolerance,
     string ResultReason);
 
@@ -33,6 +36,10 @@ public sealed record PcmTrackPeakValidationReport(
     double? MedianObservedOffsetDb,
     int PhrasesMatchingMedianOffset,
     int PhrasesOutsideMedianOffset,
+    bool UsedSourceMedia,
+    double? SourceDerivedMedianOffsetDb,
+    int SourceDerivedPhrasesMatchingMedianOffset,
+    int SourceDerivedPhrasesOutsideMedianOffset,
     bool AllWithinTolerance,
     IReadOnlyList<PhrasePeakValidation> Phrases);
 
@@ -53,6 +60,7 @@ public sealed class PcmTrackPeakValidator
         OutputAudit audit,
         WaveFileInfo renderedWave,
         int trackIndex,
+        IReadOnlyDictionary<string, WaveFileInfo>? sourceMediaByFileId = null,
         double toleranceDb = 0.1,
         CancellationToken cancellationToken = default)
     {
@@ -99,6 +107,7 @@ public sealed class PcmTrackPeakValidator
                 ? measuredPeakDbfs + appliedGainDb
                 : audit.Preset.TargetSamplePeakDbfs;
             var maximumAbsoluteSample = 0f;
+            var maximumAbsoluteSourceSample = 0f;
 
             foreach (var fragment in fragments)
             {
@@ -118,24 +127,46 @@ public sealed class PcmTrackPeakValidator
                         "hãy export từ đầu sequence và không cắt đuôi.");
                 }
 
-                _sampleReader.ReadRange(
-                    renderedWave,
-                    startSample,
-                    endSample - startSample,
-                    samples =>
+                maximumAbsoluteSample = Math.Max(
+                    maximumAbsoluteSample,
+                    MeasurePeak(renderedWave, startSample, endSample, cancellationToken));
+
+                if (sourceMediaByFileId is not null)
+                {
+                    if (!sourceMediaByFileId.TryGetValue(fragment.SourceFileId, out var sourceWave))
                     {
-                        foreach (var sample in samples.Span)
-                        {
-                            maximumAbsoluteSample = Math.Max(maximumAbsoluteSample, Math.Abs(sample));
-                        }
-                    },
-                    cancellationToken);
+                        throw new InvalidDataException(
+                            $"Không tìm thấy media {fragment.SourceFileId} của phrase {phraseGroup.Key} trong XML nguồn.");
+                    }
+
+                    ValidateWave(sourceWave);
+                    if (fragment.SourceStartSample < 0 ||
+                        fragment.SourceEndSample <= fragment.SourceStartSample ||
+                        fragment.SourceEndSample > sourceWave.SampleFrameCount)
+                    {
+                        throw new InvalidDataException(
+                            $"Phrase {phraseGroup.Key} có source range ngoài WAV {fragment.SourceFileId}.");
+                    }
+
+                    maximumAbsoluteSourceSample = Math.Max(
+                        maximumAbsoluteSourceSample,
+                        MeasurePeak(
+                            sourceWave,
+                            fragment.SourceStartSample,
+                            fragment.SourceEndSample,
+                            cancellationToken));
+                }
             }
 
             var observedPeakDbfs = maximumAbsoluteSample > 0
                 ? 20d * Math.Log10(maximumAbsoluteSample)
                 : (double?)null;
             var deltaDb = observedPeakDbfs - expectedPeakDbfs;
+            var frameRoundedSourcePeakDbfs = sourceMediaByFileId is not null && maximumAbsoluteSourceSample > 0
+                ? 20d * Math.Log10(maximumAbsoluteSourceSample)
+                : (double?)null;
+            var sourceDerivedExpectedPeakDbfs = frameRoundedSourcePeakDbfs + appliedGainDb;
+            var sourceDerivedDeltaDb = observedPeakDbfs - sourceDerivedExpectedPeakDbfs;
             var withinTolerance = deltaDb is not null && Math.Abs(deltaDb.Value) <= toleranceDb;
 
             results.Add(new(
@@ -150,6 +181,9 @@ public sealed class PcmTrackPeakValidator
                 expectedPeakDbfs,
                 observedPeakDbfs,
                 deltaDb,
+                frameRoundedSourcePeakDbfs,
+                sourceDerivedExpectedPeakDbfs,
+                sourceDerivedDeltaDb,
                 withinTolerance,
                 observedPeakDbfs is null ? "rendered-silence" : withinTolerance ? "within-tolerance" : "peak-out-of-tolerance"));
         }
@@ -165,6 +199,15 @@ public sealed class PcmTrackPeakValidator
         var matchingMedianOffset = medianOffset is null
             ? 0
             : finiteDeltas.Count(delta => Math.Abs(delta - medianOffset.Value) <= toleranceDb);
+        var sourceDerivedDeltas = ordered
+            .Where(result => result.SourceDerivedDeltaDb is not null)
+            .Select(result => result.SourceDerivedDeltaDb!.Value)
+            .Order()
+            .ToArray();
+        var sourceDerivedMedianOffset = Median(sourceDerivedDeltas);
+        var matchingSourceDerivedOffset = sourceDerivedMedianOffset is null
+            ? 0
+            : sourceDerivedDeltas.Count(delta => Math.Abs(delta - sourceDerivedMedianOffset.Value) <= toleranceDb);
         return new(
             trackIndex,
             renderedWave.SampleRate,
@@ -178,8 +221,34 @@ public sealed class PcmTrackPeakValidator
             medianOffset,
             matchingMedianOffset,
             ordered.Length - matchingMedianOffset,
+            sourceMediaByFileId is not null,
+            sourceDerivedMedianOffset,
+            matchingSourceDerivedOffset,
+            sourceDerivedDeltas.Length - matchingSourceDerivedOffset,
             passedCount == ordered.Length,
             ordered);
+    }
+
+    private float MeasurePeak(
+        WaveFileInfo wave,
+        long startSample,
+        long endSample,
+        CancellationToken cancellationToken)
+    {
+        var maximumAbsoluteSample = 0f;
+        _sampleReader.ReadRange(
+            wave,
+            startSample,
+            endSample - startSample,
+            samples =>
+            {
+                foreach (var sample in samples.Span)
+                {
+                    maximumAbsoluteSample = Math.Max(maximumAbsoluteSample, Math.Abs(sample));
+                }
+            },
+            cancellationToken);
+        return maximumAbsoluteSample;
     }
 
     private static double? Median(IReadOnlyList<double> sortedValues)

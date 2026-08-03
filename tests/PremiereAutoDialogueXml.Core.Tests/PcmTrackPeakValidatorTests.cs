@@ -77,6 +77,32 @@ public sealed class PcmTrackPeakValidatorTests
         Assert.AreEqual("T01-P000001", report.Phrases[0].PhraseId);
     }
 
+    [TestMethod]
+    public void ValidateSourceLinkedComparisonSeparatesRoutingOffsetFromFramePeak()
+    {
+        using var source = TemporaryWave.Create(-12, -30);
+        using var rendered = TemporaryWave.Create(-9.0103, -15.0103);
+        var audit = Audit(
+            Fragment("T01-P000001", startFrame: 0, endFrame: 1, measuredPeakDbfs: -12, appliedGainDb: 6),
+            Fragment("T01-P000002", startFrame: 1, endFrame: 2, measuredPeakDbfs: -30, appliedGainDb: 18, gainWasCapped: true));
+
+        var report = new PcmTrackPeakValidator().Validate(
+            audit,
+            rendered.Info,
+            trackIndex: 1,
+            sourceMediaByFileId: new Dictionary<string, WaveFileInfo>(StringComparer.Ordinal)
+            {
+                ["file-1"] = source.Info
+            });
+
+        Assert.IsTrue(report.UsedSourceMedia);
+        Assert.AreEqual(-3.0103, report.SourceDerivedMedianOffsetDb!.Value, 0.01);
+        Assert.AreEqual(2, report.SourceDerivedPhrasesMatchingMedianOffset);
+        Assert.AreEqual(0, report.SourceDerivedPhrasesOutsideMedianOffset);
+        Assert.AreEqual(-6, report.Phrases[0].SourceDerivedExpectedRenderedPeakDbfs!.Value, 0.01);
+        Assert.AreEqual(-3.0103, report.Phrases[0].SourceDerivedDeltaDb!.Value, 0.01);
+    }
+
     private static OutputAudit Audit(params FragmentAudit[] fragments) => new(
         SchemaVersion: "1.0",
         RunId: "pilot-run",

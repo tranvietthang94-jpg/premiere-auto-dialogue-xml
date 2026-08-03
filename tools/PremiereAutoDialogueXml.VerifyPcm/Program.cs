@@ -4,26 +4,28 @@ using System.Text.Json.Serialization;
 using PremiereAutoDialogueXml.Core.Media;
 using PremiereAutoDialogueXml.Output.Audit;
 using PremiereAutoDialogueXml.Validation;
+using PremiereAutoDialogueXml.Core.Xml;
 
-if (args.Length != 4)
+if (args.Length is not (4 or 5))
 {
     Console.Error.WriteLine(
-        "Cách dùng: PremiereAutoDialogueXml.VerifyPcm <audit.json> <track-number> <full-sequence-mono-48k.wav> <new-report.json>");
+        "Cách dùng: PremiereAutoDialogueXml.VerifyPcm <audit.json> <track-number> <full-sequence-mono-48k.wav> <new-report.json> [source.xml]");
     return 2;
 }
 
 var auditPath = Path.GetFullPath(args[0]);
 var wavPath = Path.GetFullPath(args[2]);
 var reportPath = Path.GetFullPath(args[3]);
+var sourceXmlPath = args.Length == 5 ? Path.GetFullPath(args[4]) : null;
 if (!int.TryParse(args[1], out var trackIndex) || trackIndex <= 0)
 {
     Console.Error.WriteLine("track-number phải là số nguyên bắt đầu từ 1.");
     return 2;
 }
 
-if (!File.Exists(auditPath) || !File.Exists(wavPath))
+if (!File.Exists(auditPath) || !File.Exists(wavPath) || (sourceXmlPath is not null && !File.Exists(sourceXmlPath)))
 {
-    Console.Error.WriteLine("Không tìm thấy audit hoặc WAV pilot.");
+    Console.Error.WriteLine("Không tìm thấy audit, WAV pilot hoặc XML nguồn.");
     return 2;
 }
 
@@ -78,7 +80,33 @@ try
         return 1;
     }
 
-    var validation = new PcmTrackPeakValidator().Validate(audit, waveInspection.File, trackIndex);
+    IReadOnlyDictionary<string, WaveFileInfo>? sourceMediaByFileId = null;
+    string? sourceXmlSha256 = null;
+    if (sourceXmlPath is not null)
+    {
+        sourceXmlSha256 = await ComputeSha256Async(sourceXmlPath);
+        if (!string.Equals(sourceXmlSha256, audit.SourceXmlSha256, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidDataException("SHA-256 XML nguồn không khớp audit; từ chối đối chiếu media.");
+        }
+
+        var sourceInspection = new PremiereXmlInspector().Inspect(sourceXmlPath);
+        if (!sourceInspection.CanProceed || sourceInspection.Project is null)
+        {
+            throw new InvalidDataException("XML nguồn không qua được inspector; từ chối đối chiếu media.");
+        }
+
+        sourceMediaByFileId = sourceInspection.Project.Sequence.AudioTracks
+            .SelectMany(track => track.Clips)
+            .GroupBy(clip => clip.SourceFileId, StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.First().SourceMedia.Wave, StringComparer.Ordinal);
+    }
+
+    var validation = new PcmTrackPeakValidator().Validate(
+        audit,
+        waveInspection.File,
+        trackIndex,
+        sourceMediaByFileId);
     var envelope = new PcmPilotEvidence(
         "1.0",
         DateTimeOffset.UtcNow,
@@ -86,6 +114,8 @@ try
         await ComputeSha256Async(auditPath),
         Path.GetFileName(wavPath),
         await ComputeSha256Async(wavPath),
+        sourceXmlPath is null ? null : Path.GetFileName(sourceXmlPath),
+        sourceXmlSha256,
         audit.RunId,
         audit.Model,
         audit.Preset,
@@ -126,6 +156,10 @@ try
         validation.MedianObservedOffsetDb,
         validation.PhrasesMatchingMedianOffset,
         validation.PhrasesOutsideMedianOffset,
+        validation.UsedSourceMedia,
+        validation.SourceDerivedMedianOffsetDb,
+        validation.SourceDerivedPhrasesMatchingMedianOffset,
+        validation.SourceDerivedPhrasesOutsideMedianOffset,
         validation.AllWithinTolerance
     }, jsonOptions));
     return validation.AllWithinTolerance ? 0 : 1;
@@ -156,6 +190,8 @@ internal sealed record PcmPilotEvidence(
     string AuditSha256,
     string WavFileName,
     string WavSha256,
+    string? SourceXmlFileName,
+    string? SourceXmlSha256,
     string RunId,
     ModelAudit Model,
     PresetAudit Preset,
