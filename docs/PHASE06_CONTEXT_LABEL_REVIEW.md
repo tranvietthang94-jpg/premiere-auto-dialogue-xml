@@ -102,3 +102,12 @@ Tất cả report liên kết cùng audit SHA-256 `95C8C430861757FA1341A57180D6B
 Tổng hợp: 2.132/2.132 phrase đạt gain/timing; 935/935 phrase không cap đạt target; 1.197 phrase cap khớp dự đoán và không phrase nào nóng hơn `-6 dBFS`. Peak nhóm không cap nằm từ `-6,000019` đến `-5,999974 dBFS`; phrase cap nóng nhất `-6,004388 dBFS`; sai lệch source-linked tuyệt đối lớn nhất dưới `0,000027 dB`. Cổng PCM candidate audit `1.3` đạt.
 
 Kết quả này xác nhận gain/timing và M19 qua Premiere, nhưng không biến nhãn Context thành nhãn Mục tiêu và không thay bằng chứng Windows sạch.
+
+## Translation Results và khả năng phục hồi
+
+Ngày 2026-08-04, người vận hành xác nhận:
+
+- Premiere không hiện cửa sổ **FCP Translation Results** khi import candidate audit `1.3`; không có cảnh báo dịch XML hiển thị để lưu. Bằng chứng này được ghi đúng là “không có cửa sổ/cảnh báo hiển thị”, không được mô tả thành một report mà Premiere không tạo.
+- Một clip đang Disable được bật lại thủ công và audio gốc nghe bình thường. Cổng phục hồi non-destructive đạt; app không xóa audio nguồn khỏi timeline.
+
+Hai xác nhận trên cùng việc M19 nghe được và PCM A1–A7 đạt đóng phần import/khả năng phục hồi của candidate `1.3`. Cổng nhãn Mục tiêu và máy Windows sạch vẫn độc lập, chưa đạt.

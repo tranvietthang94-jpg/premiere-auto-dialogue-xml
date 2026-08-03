@@ -1,6 +1,6 @@
 # Phase 06 — báo cáo pilot HGE2
 
-Trạng thái: `incomplete`; candidate audit `1.3` đã giữ đúng M19 và đạt PCM round-trip A1–A7. Còn thiếu nhãn Mục tiêu, FCP Translation Results và máy Windows sạch; không phát hành.
+Trạng thái: `incomplete`; candidate audit `1.3` đã giữ đúng M19, đạt PCM round-trip A1–A7, import không hiện cảnh báo Translation Results và clip Disable bật lại nghe được audio gốc. Còn thiếu nhãn Mục tiêu và máy Windows sạch; không phát hành.
 
 Ngày ghi nhận mới nhất: 2026-08-04.
 
@@ -104,6 +104,8 @@ Ba phrase trên A3/A4/A5 đổi gain từ `0,143–0,291 dB` do frame Enabled m�
 
 Người vận hành đã import candidate `1.3`, xác nhận M19/A3 tại `00:07:28:15` nghe được và export lại đủ A1–A7. Bảy WAV đều là mono PCM 48 kHz/24-bit, đủ 103.219.200 sample và liên kết đúng audit/source SHA-256. Validator đạt 2.132/2.132 phrase gain/timing, 935/935 phrase không cap ở target, 1.197 phrase cap khớp dự đoán và không phrase cap nào nóng hơn `-6 dBFS`. Peak không cap nằm từ `-6,000019` đến `-5,999974 dBFS`; phrase cap nóng nhất `-6,004388 dBFS`; sai lệch source-linked lớn nhất dưới `0,000027 dB`. Cổng PCM candidate audit `1.3` đạt; checksum từng WAV/report nằm trong báo cáo chi tiết.
 
+Trong cùng lượt kiểm tra, Premiere không hiện cửa sổ **FCP Translation Results**, tức không có cảnh báo dịch XML hiển thị để lưu. Người vận hành bật lại thủ công một clip đang Disable và xác nhận audio gốc nghe bình thường. Cổng phục hồi non-destructive đạt; kết luận không được mở rộng thành một Translation Results report vì Premiere không tạo cửa sổ đó.
+
 ## Dừng an toàn trên app thật
 
 App WPF build từ commit Phase 06 được mở trực tiếp, chọn `test HGE2.xml` và một thư mục gate trống riêng. Sau khi kiểm tra XML/media đạt, phân tích được bắt đầu và quan sát thấy nhiều worker đang chạy; người kiểm thử bấm **Dừng an toàn** khi trạng thái đang ở bước phân tích. UI chuyển sang `Đã dừng` và `Không tạo output dở`, sau đó cửa sổ đóng bình thường.
@@ -122,8 +124,7 @@ Build chứa lớp bảo vệ VAD/năng lượng đã được publish thành ZI
 
 ## Các cổng còn thiếu
 
-- Lưu **FCP Translation Results** của lượt import audit `1.3` nếu Premiere có tạo và xác nhận không có lỗi làm mất audio.
-- Kiểm tra fragment energy/VAD conflict, marker, ranh giới M19 và khả năng bật lại clip Disable.
+- Kiểm tra marker `Cần kiểm tra` tại một fragment energy/VAD conflict nếu cần thêm bằng chứng giao diện.
 - Gắn nhãn đúng khoảng Mục tiêu để tính 100% direct speech được giữ, ít nhất 90% clear noise/bleed bị Disable và 0% ambiguous bị Disable.
 - Publish ZIP candidate `1.3`, rồi chạy offline trên Windows 10 x64 và Windows 11 x64 sạch, không có .NET/Python cài sẵn.
 
