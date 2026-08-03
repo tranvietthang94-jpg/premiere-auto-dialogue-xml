@@ -25,6 +25,7 @@ Luồng chính chỉ hiển thị thông tin editor cần để quyết định 
 
 - Publish self-contained `win-x64`, framework-dependent/Python/cloud/API/telemetry không nằm trong runtime contract.
 - Giữ model ONNX đã ghim và ONNX Runtime trong thư mục publish; không tải thêm sau cài đặt.
+- Script publish từ chối tạo ZIP nếu thiếu apphost, .NET/CoreCLR, WPF, ONNX Runtime native, thông báo giấy phép hoặc nếu checksum model nguồn khác giá trị đã duyệt.
 - Không trim assembly vì ONNX/WPF cần tương thích ổn định; không gộp single-file trước pilot.
 - Script đóng gói phải tạo thư mục mới, không ghi đè artifact cũ, rồi kiểm tra executable, DLL/runtime native và model checksum.
 - Phase 05 chỉ tạo publish folder/ZIP để kiểm thử. Installer chỉ được tạo sau cổng Premiere pilot ở Phase 06.

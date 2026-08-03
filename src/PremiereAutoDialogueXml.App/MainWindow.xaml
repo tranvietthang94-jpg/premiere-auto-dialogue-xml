@@ -163,7 +163,7 @@
                         <StackPanel>
                             <TextBlock FontSize="18" FontWeight="SemiBold" Text="Phân tích và xuất XML" />
                             <TextBlock Margin="0,5,0,0" Foreground="#667386" TextWrapping="Wrap"
-                                       Text="Preset Cân bằng · tối đa 4 worker · target sample peak -6 dBFS" />
+                                       Text="Preset Cân bằng · target sau routing Premiere gần -6 dBFS" />
                         </StackPanel>
                         <StackPanel Grid.Column="1" Orientation="Horizontal">
                             <Button Margin="0,0,10,0" Click="StartProcessing_Click"
@@ -205,7 +205,7 @@
                         <TextBlock Margin="0,5,0,0" Foreground="#58667A" TextWrapping="Wrap"
                                    Text="{Binding PresetSummary}" />
                         <TextBlock Margin="0,10,0,0" Foreground="#58667A" TextWrapping="Wrap"
-                                   Text="Không cloud, không API, không telemetry. Sample peak -6 dBFS không phải LUFS, true peak hoặc cam kết Master bus." />
+                                   Text="Bù center-pan +3,01 dB, boost vẫn giới hạn +18 dB. Không cloud, API hoặc telemetry; đây không phải LUFS, true peak hay cam kết Master bus." />
                         <Separator Margin="0,14,0,10" />
                         <TextBlock FontWeight="SemiBold" Text="Kiểm tra, warning và diagnostic" />
                         <TextBlock Margin="0,5,0,0" Foreground="#58667A" TextWrapping="Wrap"
@@ -213,7 +213,7 @@
                     </StackPanel>
                 </Expander>
                 <TextBlock Margin="0,16,0,0" HorizontalAlignment="Center" Foreground="#7A8594"
-                           Text="Phase 05 · xử lý offline, luôn tạo XML/audit mới" />
+                           Text="Phase 06 pilot · xử lý offline, luôn tạo XML/audit mới" />
             </StackPanel>
         </Grid>
     </ScrollViewer>

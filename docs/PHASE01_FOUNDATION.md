@@ -37,5 +37,5 @@ Ngày 2026-08-02 trên Windows:
 - Dialog XML: chọn thành công `F:\demo\test HGE2.xml`.
 - Dialog output: chọn thành công `F:\demo`.
 - Trạng thái UI: Bước 1 “Đã chọn”, Bước 2 “Đã kiểm tra nền tảng”.
-- Chi tiết kỹ thuật hiển thị đúng VAD `0.50`, `120/350 ms`, padding `200/300 ms`, peak `-6 dBFS`, boost `+18 dB`, bốn worker và giới hạn không cloud/API/telemetry.
+- Chi tiết kỹ thuật hiển thị đúng VAD `0.50`, `120/350 ms`, padding `200/300 ms`, peak hậu routing `-6 dBFS`, bù center-pan `+3,01 dB`, boost tổng `+18 dB`, bốn worker và giới hạn không cloud/API/telemetry.
 - Không tạo XML/WAV/output khi mới kiểm tra lựa chọn.

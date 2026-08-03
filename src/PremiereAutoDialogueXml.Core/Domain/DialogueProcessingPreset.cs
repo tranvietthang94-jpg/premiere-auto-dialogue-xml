@@ -14,8 +14,12 @@ public sealed record DialogueProcessingPreset(
     double BleedCorrelationThreshold,
     int BleedMaximumLagMilliseconds,
     double TargetSamplePeakDbfs,
+    string PremiereRoutingProfile,
+    double PremiereCenterPanCompensationDb,
+    string GainReferencePeakPolicy,
     double MaximumBoostDb,
-    int MaximumWorkers)
+    int MaximumWorkers,
+    bool PreserveVadNegativeHighEnergyConflicts)
 {
     public static DialogueProcessingPreset Balanced { get; } = new(
         Name: "Cân bằng",
@@ -29,8 +33,12 @@ public sealed record DialogueProcessingPreset(
         BleedCorrelationThreshold: 0.80,
         BleedMaximumLagMilliseconds: 12,
         TargetSamplePeakDbfs: -6.0,
+        PremiereRoutingProfile: "mono-center-equal-power-to-stereo",
+        PremiereCenterPanCompensationDb: 3.010299956639812,
+        GainReferencePeakPolicy: "max-direct-speech-and-frame-aligned-enabled-phrase-peak",
         MaximumBoostDb: 18.0,
-        MaximumWorkers: 4);
+        MaximumWorkers: 4,
+        PreserveVadNegativeHighEnergyConflicts: true);
 
     public IReadOnlyList<ValidationIssue> Validate()
     {
@@ -74,6 +82,27 @@ public sealed record DialogueProcessingPreset(
         if (TargetSamplePeakDbfs > 0)
         {
             issues.Add(new("target-peak-positive", "Sample peak mục tiêu không được lớn hơn 0 dBFS."));
+        }
+
+        if (string.IsNullOrWhiteSpace(PremiereRoutingProfile))
+        {
+            issues.Add(new("routing-profile-required", "Preset phải ghi rõ routing Premiere đã xác nhận."));
+        }
+
+        if (!double.IsFinite(PremiereCenterPanCompensationDb) ||
+            PremiereCenterPanCompensationDb is < 0 or > 6.1 ||
+            TargetSamplePeakDbfs + PremiereCenterPanCompensationDb > 0)
+        {
+            issues.Add(new(
+                "routing-compensation-invalid",
+                "Bù center-pan phải nằm trong 0–6,1 dB và không đẩy target trước routing vượt 0 dBFS."));
+        }
+
+        if (string.IsNullOrWhiteSpace(GainReferencePeakPolicy))
+        {
+            issues.Add(new(
+                "gain-reference-policy-required",
+                "Preset phải ghi rõ chính sách peak dùng để tính gain."));
         }
 
         if (MaximumBoostDb is < 0 or > 18)

@@ -43,8 +43,10 @@ Mỗi phase dùng branch và draft pull request riêng. Các thay đổi có ý 
 
 ## Gain và XML output
 
-- Đo sample peak trên vùng lời xác nhận.
-- `gainDb = -6 - measuredPeakDbFS`, boost tối đa `+18 dB`.
+- Đo sample peak trên vùng lời xác nhận, sau đó đối chiếu peak lớn nhất của các frame phrase thực sự Enabled sau khi căn theo frame XML; dùng giá trị lớn hơn làm tham chiếu gain để padding/biên frame không làm output nóng hơn target.
+- Profile routing đã xác nhận: `mono-center-equal-power-to-stereo`, suy hao `-3,0102999566 dB` khi Premiere export stem mono.
+- `gainDb = -6 - gainReferencePeakDbFS + 3,0102999566`, boost tổng vẫn tối đa `+18 dB`.
+- Phrase không bị cap dự kiến đạt gần `-6 dBFS` sau routing; phrase bị cap dự kiến bằng `measuredPeakDbFS + 18 - 3,0102999566`.
 - Speech dùng fragment Enabled cùng Audio Levels tĩnh.
 - Noise/bleed dùng fragment Disabled, không xóa khỏi timeline.
 - Clone video, sequence/track metadata và media references; tạo UUID/clip IDs mới.
@@ -65,7 +67,7 @@ Kết quả Premiere Pro 2026 ngày 2026-08-02: **đạt** sau vòng mở rộng
 - Synthetic tests cho XML, PCM, VAD, noise, bleed, overlap và file boundary.
 - `F:\demo\test HGE2.xml`: source trim và bảy track thực tế.
 - `F:\demo\test HGE.xml`: 19 WAV nối tiếp và xử lý dài.
-- 100% direct-speech interval đã gắn nhãn được giữ; ít nhất 90% noise/bleed rõ ràng được Disable; ambiguous không bị Disable.
+- Nếu có tập nhãn Mục tiêu hợp lệ: 100% direct-speech interval được giữ; ít nhất 90% noise/bleed rõ ràng được Disable; ambiguous không bị Disable. Chủ dự án đã miễn cổng nhãn này cho Phase 06 ngày 2026-08-04, nên báo cáo không tuyên bố ba tỷ lệ chưa đo.
 - Câu không bị cap đạt `-6.0 ± 0.1 dBFS` sau Premiere round-trip.
 - Mục tiêu trên i9-12900K: HGE2 dưới 15 phút, full HGE dưới 90 phút, RAM dưới 1.5 GB.
-- Bộ cài chạy trên Windows 10/11 x64 sạch, không Python và không Internet.
+- Gói self-contained chạy trên Windows 10/11 x64 mà không cần Python hoặc Internet. Pilot thực tế đã đạt trên Windows 11 khác và máy ảo Windows 10 x64 mới cài. Theo ma trận .NET 10 hiện hành của Microsoft, hỗ trợ upstream chính thức trên Windows 10 giới hạn ở các bản LTSC/Enterprise còn trong vòng đời; Home/Pro cũ là best-effort.

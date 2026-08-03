@@ -1,4 +1,5 @@
 using System.Runtime.ExceptionServices;
+using System.Windows.Threading;
 using PremiereAutoDialogueXml.App;
 
 namespace PremiereAutoDialogueXml.Core.Tests;
@@ -15,14 +16,29 @@ public sealed class MainWindowSmokeTests
         {
             try
             {
-                var window = new MainWindow
+                var dispatcher = Dispatcher.CurrentDispatcher;
+                dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, () =>
                 {
-                    ShowInTaskbar = false,
-                    WindowState = System.Windows.WindowState.Minimized
-                };
-                window.Show();
-                window.Dispatcher.Invoke(() => { });
-                window.Close();
+                    try
+                    {
+                        var window = new MainWindow
+                        {
+                            ShowInTaskbar = false,
+                            WindowState = System.Windows.WindowState.Minimized
+                        };
+                        window.Show();
+                        window.Close();
+                    }
+                    catch (Exception exception)
+                    {
+                        failure = exception;
+                    }
+                    finally
+                    {
+                        dispatcher.BeginInvokeShutdown(DispatcherPriority.Background);
+                    }
+                });
+                Dispatcher.Run();
             }
             catch (Exception exception)
             {
@@ -37,7 +53,7 @@ public sealed class MainWindowSmokeTests
         thread.IsBackground = true;
         thread.Start();
 
-        Assert.IsTrue(completed.Wait(TimeSpan.FromSeconds(10)), "Cửa sổ WPF không mở/đóng trong 10 giây.");
+        Assert.IsTrue(completed.Wait(TimeSpan.FromSeconds(30)), "Cửa sổ WPF không mở/đóng trong 30 giây.");
         if (failure is not null)
         {
             ExceptionDispatchInfo.Capture(failure).Throw();

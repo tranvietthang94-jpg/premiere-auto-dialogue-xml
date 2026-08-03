@@ -35,8 +35,12 @@ public sealed record PresetAudit(
     double BleedCorrelationThreshold,
     int BleedMaximumLagMilliseconds,
     double TargetSamplePeakDbfs,
+    string PremiereRoutingProfile,
+    double PremiereCenterPanCompensationDb,
+    string GainReferencePeakPolicy,
     double MaximumBoostDb,
-    int MaximumWorkers)
+    int MaximumWorkers,
+    bool PreserveVadNegativeHighEnergyConflicts)
 {
     public static PresetAudit From(DialogueProcessingPreset preset) => new(
         preset.Name,
@@ -50,8 +54,12 @@ public sealed record PresetAudit(
         preset.BleedCorrelationThreshold,
         preset.BleedMaximumLagMilliseconds,
         preset.TargetSamplePeakDbfs,
+        preset.PremiereRoutingProfile,
+        preset.PremiereCenterPanCompensationDb,
+        preset.GainReferencePeakPolicy,
         preset.MaximumBoostDb,
-        preset.MaximumWorkers);
+        preset.MaximumWorkers,
+        preset.PreserveVadNegativeHighEnergyConflicts);
 }
 
 public sealed record FragmentAudit(

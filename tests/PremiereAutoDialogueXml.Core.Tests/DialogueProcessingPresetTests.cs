@@ -21,6 +21,12 @@ public sealed class DialogueProcessingPresetTests
         Assert.AreEqual(0.80, preset.BleedCorrelationThreshold, 0.000001);
         Assert.AreEqual(12, preset.BleedMaximumLagMilliseconds);
         Assert.AreEqual(-6.0, preset.TargetSamplePeakDbfs, 0.000001);
+        Assert.AreEqual("mono-center-equal-power-to-stereo", preset.PremiereRoutingProfile);
+        Assert.AreEqual(3.010299956639812, preset.PremiereCenterPanCompensationDb, 0.000001);
+        Assert.AreEqual(
+            "max-direct-speech-and-frame-aligned-enabled-phrase-peak",
+            preset.GainReferencePeakPolicy);
+        Assert.IsTrue(preset.PreserveVadNegativeHighEnergyConflicts);
         Assert.AreEqual(18.0, preset.MaximumBoostDb, 0.000001);
         Assert.AreEqual(4, preset.MaximumWorkers);
         Assert.HasCount(0, preset.Validate());
@@ -32,6 +38,7 @@ public sealed class DialogueProcessingPresetTests
         var preset = DialogueProcessingPreset.Balanced with
         {
             VadThreshold = 1.2,
+            PremiereCenterPanCompensationDb = 7,
             MaximumBoostDb = 19,
             MaximumWorkers = 5
         };
@@ -39,7 +46,13 @@ public sealed class DialogueProcessingPresetTests
         var issues = preset.Validate();
 
         CollectionAssert.IsSubsetOf(
-            new[] { "vad-threshold-out-of-range", "boost-out-of-range", "worker-count-out-of-range" },
+            new[]
+            {
+                "vad-threshold-out-of-range",
+                "routing-compensation-invalid",
+                "boost-out-of-range",
+                "worker-count-out-of-range"
+            },
             issues.Select(issue => issue.Code).ToArray());
     }
 }

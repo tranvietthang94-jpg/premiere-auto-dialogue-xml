@@ -174,7 +174,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     public string PresetSummary =>
         $"VAD {Preset.VadThreshold:0.00} · lời tối thiểu {Preset.MinimumSpeechMilliseconds} ms · " +
         $"nghỉ tách câu {Preset.PhraseBreakMilliseconds} ms · padding {Preset.PaddingBeforeMilliseconds}/{Preset.PaddingAfterMilliseconds} ms · " +
-        $"peak {Preset.TargetSamplePeakDbfs:0.#} dBFS · boost tối đa +{Preset.MaximumBoostDb:0.#} dB · {Preset.MaximumWorkers} worker";
+        $"peak hậu routing {Preset.TargetSamplePeakDbfs:0.#} dBFS · bù center-pan +{Preset.PremiereCenterPanCompensationDb:0.00} dB · " +
+        $"boost tối đa +{Preset.MaximumBoostDb:0.#} dB · {Preset.MaximumWorkers} worker";
 
     public void SetXmlPath(string path)
     {

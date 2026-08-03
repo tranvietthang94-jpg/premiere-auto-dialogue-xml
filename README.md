@@ -2,7 +2,7 @@
 
 Ứng dụng Windows chạy hoàn toàn offline để chuẩn bị các line tiếng nghệ sĩ trước khi dựng trong Adobe Premiere Pro.
 
-Ứng dụng nhận một tệp Final Cut Pro XML do Premiere xuất, đọc đúng các đoạn WAV đang nằm trên timeline, nhận diện lời thoại, tắt vùng noise/bleed rõ ràng và cân sample peak từng cụm thoại về `-6 dBFS`. Kết quả là một XML mới để import ngược vào Premiere; XML, WAV và project gốc luôn được giữ nguyên.
+Ứng dụng nhận một tệp Final Cut Pro XML do Premiere xuất, đọc đúng các đoạn WAV đang nằm trên timeline, nhận diện lời thoại, tắt vùng noise/bleed rõ ràng và cân sample peak từng cụm thoại gần `-6 dBFS` sau routing mono-center đã xác nhận của Premiere. Kết quả là một XML mới để import ngược vào Premiere; XML, WAV và project gốc luôn được giữ nguyên.
 
 ## Phạm vi MVP
 
@@ -18,13 +18,20 @@
 - Không sửa hoặc ghi đè input.
 - Không commit media thật, project Premiere, log riêng tư hoặc output cục bộ.
 - Chỉ tạo XML cuối khi toàn bộ kiểm tra và phân tích đã hoàn tất.
-- `-6 dBFS` là sample peak của từng cụm lời, không phải LUFS, true peak hoặc cam kết cho Master bus.
+- `-6 dBFS` là sample peak từng cụm lời sau profile routing `mono-center-equal-power-to-stereo`; app dùng peak lớn hơn giữa lõi lời trực tiếp và các frame phrase thực sự được bật, bù `+3,0103 dB`, nhưng boost tổng vẫn giới hạn `+18 dB`.
+- Đây không phải LUFS, true peak, limiter hoặc cam kết cho toàn bộ Master bus.
 
 Kế hoạch triển khai và tiêu chí nghiệm thu nằm trong [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md).
 
 ## Trạng thái
 
-Phase 00–04 đã hoàn tất compatibility gate, nền tảng WPF, parser XML/WAV, phân tích Silero VAD/gain/bleed và XML/audit writer giao dịch. Phase 05 đã nối luồng bốn bước tiếng Việt, tiến độ, dừng an toàn, diagnostic có giới hạn và publish self-contained `win-x64`; installer và nghiệm thu Premiere thực tế vẫn thuộc Phase 06.
+Phase 00–06 đã hoàn tất. Candidate audit `1.3` đã qua Premiere round-trip A1–A7, kiểm tra phục hồi clip Disable, package self-contained, một lượt phân tích trên máy Windows 11 khác và một lượt phân tích trên máy ảo Windows 10 x64 mới cài. Cổng nhãn nghe Mục tiêu được chủ dự án miễn; vì vậy dự án không tuyên bố các tỷ lệ 100%/90%/0% chưa đo. Installer chưa được tạo.
+
+## Hệ điều hành mục tiêu
+
+- Windows 11 x64.
+- Windows 10 x64. [.NET 10 hiện được Microsoft hỗ trợ trên Windows 10 LTSC/Enterprise còn trong vòng đời](https://learn.microsoft.com/en-us/dotnet/core/install/windows); các bản Home/Pro đã hết vòng đời chỉ được coi là tương thích best-effort và vẫn phải qua test thực tế.
+- Bản phát hành là self-contained, không yêu cầu người dùng cài riêng .NET hoặc Python.
 
 Bằng chứng theo phase nằm trong thư mục [docs](docs).
 
@@ -52,4 +59,4 @@ Tạo publish folder và ZIP self-contained mới, không ghi đè artifact cũ:
 .\scripts\publish-win-x64.ps1
 ```
 
-Script kiểm runtime, ONNX native, license, Python/PDB và tạo `publish-manifest.json` chứa SHA-256 payload. ZIP Phase 05 chưa phải installer và chưa được coi là bản phát hành pilot.
+Script kiểm apphost, .NET/CoreCLR, WPF, ONNX native, model checksum, license, Python/PDB và tạo `publish-manifest.json` chứa SHA-256 payload. ZIP pilot chưa phải installer.

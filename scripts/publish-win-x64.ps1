@@ -13,6 +13,8 @@ $scriptDirectory = Split-Path -Parent $MyInvocation.MyCommand.Path
 $repositoryRoot = [System.IO.Path]::GetFullPath((Join-Path $scriptDirectory '..'))
 $projectPath = Join-Path $repositoryRoot 'src\PremiereAutoDialogueXml.App\PremiereAutoDialogueXml.App.csproj'
 $profilePath = Join-Path $repositoryRoot 'src\PremiereAutoDialogueXml.App\Properties\PublishProfiles\win-x64.pubxml'
+$modelPath = Join-Path $repositoryRoot 'models\silero-vad\v6.2.1\silero_vad.onnx'
+$expectedModelSha256 = '1A153A22F4509E292A94E67D6F9B85E8DEB25B4988682B7E174C65279D8788E3'
 $localDotnet = Join-Path $repositoryRoot '.tools\dotnet\dotnet.exe'
 $dotnet = if (Test-Path -LiteralPath $localDotnet -PathType Leaf) { $localDotnet } else { 'dotnet' }
 
@@ -28,6 +30,13 @@ else {
 
 if (-not (Test-Path -LiteralPath $profilePath -PathType Leaf)) {
     throw "The win-x64 publish profile was not found."
+}
+if (-not (Test-Path -LiteralPath $modelPath -PathType Leaf)) {
+    throw "The pinned Silero VAD model was not found."
+}
+$actualModelSha256 = (Get-FileHash -LiteralPath $modelPath -Algorithm SHA256).Hash
+if (-not $actualModelSha256.Equals($expectedModelSha256, [StringComparison]::OrdinalIgnoreCase)) {
+    throw "The pinned Silero VAD model checksum does not match the approved value."
 }
 
 [System.IO.Directory]::CreateDirectory($outputBase) | Out-Null
@@ -71,8 +80,19 @@ try {
         'PremiereAutoDialogueXml.Audio.dll',
         'PremiereAutoDialogueXml.Core.dll',
         'PremiereAutoDialogueXml.Output.dll',
+        'PremiereAutoDialogueXml.deps.json',
         'PremiereAutoDialogueXml.runtimeconfig.json',
+        'hostfxr.dll',
+        'hostpolicy.dll',
+        'coreclr.dll',
+        'clrjit.dll',
+        'System.Private.CoreLib.dll',
+        'PresentationCore.dll',
+        'PresentationFramework.dll',
+        'WindowsBase.dll',
         'Microsoft.ML.OnnxRuntime.dll',
+        'onnxruntime.dll',
+        'onnxruntime_providers_shared.dll',
         'THIRD-PARTY-NOTICES.txt',
         'licenses\Silero-VAD-MIT.txt'
     )
@@ -124,7 +144,7 @@ try {
         singleFile = $false
         installer = $false
         modelVersion = '6.2.1'
-        modelSha256 = '1A153A22F4509E292A94E67D6F9B85E8DEB25B4988682B7E174C65279D8788E3'
+        modelSha256 = $expectedModelSha256
         files = $payloadFiles
     }
     $manifestPath = Join-Path $publishDirectory 'publish-manifest.json'
