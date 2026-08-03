@@ -170,6 +170,57 @@ public sealed class TrackDialogueAnalyzerTests
     }
 
     [TestMethod]
+    public void AnalyzePreservesSustainedHighEnergyVadNegativeConflictAsAmbiguous()
+    {
+        using var fixture = TestAudioFixture.CreatePcm16(Enumerable.Repeat(0.01f, 19_200).ToArray());
+        var track = new PremiereAudioTrack(1, 1, [fixture.Clip("energy-conflict", 0, 10)]);
+        var observations = new[]
+        {
+            Observation(0, 1_536, 0.01f, -60f),
+            Observation(3_072, 4_608, 0.01f, -45f),
+            Observation(4_608, 6_144, 0.01f, -45f),
+            Observation(6_144, 7_680, 0.01f, -45f),
+            Observation(7_680, 9_216, 0.01f, -45f)
+        };
+
+        var result = Analyze(track, observations);
+
+        Assert.HasCount(0, result.Phrases);
+        Assert.IsTrue(result.Segments.Any(segment =>
+            segment.Status == AudioSegmentStatus.Ambiguous &&
+            segment.Reason == "ambiguous-energy-vad-conflict" &&
+            segment.TimelineStartSample <= 3_072 &&
+            segment.TimelineEndSample >= 9_216));
+        Assert.IsFalse(result.Segments.Any(segment =>
+            segment.Status == AudioSegmentStatus.Noise &&
+            segment.TimelineStartSample < 9_216 &&
+            segment.TimelineEndSample > 3_072));
+    }
+
+    [TestMethod]
+    public void AnalyzeDoesNotPreserveShortHighEnergyVadNegativeTransient()
+    {
+        using var fixture = TestAudioFixture.CreatePcm16(Enumerable.Repeat(0.01f, 19_200).ToArray());
+        var track = new PremiereAudioTrack(1, 1, [fixture.Clip("short-transient", 0, 10)]);
+        var observations = new[]
+        {
+            Observation(0, 1_536, 0.01f, -60f),
+            Observation(3_072, 4_608, 0.01f, -45f),
+            Observation(4_608, 6_144, 0.01f, -45f),
+            Observation(6_144, 7_680, 0.01f, -45f)
+        };
+
+        var result = Analyze(track, observations);
+
+        Assert.IsFalse(result.Segments.Any(segment =>
+            segment.Reason.StartsWith("ambiguous-energy-vad-conflict", StringComparison.Ordinal)));
+        Assert.IsTrue(result.Segments.Any(segment =>
+            segment.Status == AudioSegmentStatus.Noise &&
+            segment.TimelineStartSample < 7_680 &&
+            segment.TimelineEndSample > 3_072));
+    }
+
+    [TestMethod]
     public void AnalyzeSplitsOverlappingPaddingAtMidpointAndAmbiguousInheritsGain()
     {
         var samples = Enumerable.Repeat(0.001f, 115_200).ToArray();

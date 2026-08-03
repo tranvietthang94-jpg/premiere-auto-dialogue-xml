@@ -17,7 +17,7 @@ public sealed class TrackDialogueAnalyzer(TimelinePcmAccessor pcmAccessor)
         ArgumentNullException.ThrowIfNull(observations);
         ArgumentNullException.ThrowIfNull(preset);
 
-        var evidence = BuildEvidence(observations, preset);
+        var evidence = new AudioFrameEvidenceBuilder().Build(observations, preset);
         var minimumSpeechSamples = AudioMath.MillisecondsToSamples(preset.MinimumSpeechMilliseconds);
         var phraseBreakSamples = AudioMath.MillisecondsToSamples(preset.PhraseBreakMilliseconds);
         var candidateGroups = BuildVadGroups(evidence, phraseBreakSamples);
@@ -49,6 +49,9 @@ public sealed class TrackDialogueAnalyzer(TimelinePcmAccessor pcmAccessor)
         }
 
         ambiguous = MergeIntervals(ambiguous, maximumGapSamples: 0);
+        var energyVadConflicts = preset.PreserveVadNegativeHighEnergyConflicts
+            ? BuildEnergyVadConflictIntervals(evidence, minimumSpeechSamples)
+            : [];
         var phrases = BuildPhrases(track, confirmedGroups, preset, cancellationToken);
         phrases = ApplyNonOverlappingPadding(phrases, track, preset);
 
@@ -62,7 +65,7 @@ public sealed class TrackDialogueAnalyzer(TimelinePcmAccessor pcmAccessor)
             ? AudioMath.SilenceDbfs
             : confirmedFrameRms[confirmedFrameRms.Length / 2];
 
-        var segments = BuildClipSegments(track, phrases, ambiguous);
+        var segments = BuildClipSegments(track, phrases, ambiguous, energyVadConflicts);
         (phrases, segments) = ReconcileGainWithFrameAlignedOutput(
             track,
             phrases,
@@ -222,36 +225,8 @@ public sealed class TrackDialogueAnalyzer(TimelinePcmAccessor pcmAccessor)
         _ => 1
     };
 
-    private static IReadOnlyList<FrameEvidence> BuildEvidence(
-        IReadOnlyList<AudioFrameObservation> observations,
-        DialogueProcessingPreset preset)
-    {
-        var noiseFloor = new AdaptiveNoiseFloor();
-        var result = new List<FrameEvidence>(observations.Count);
-
-        foreach (var observation in observations)
-        {
-            var isVadSpeech = observation.ContainsMedia && observation.VadProbability >= preset.VadThreshold;
-            if (observation.ContainsMedia && !isVadSpeech)
-            {
-                noiseFloor.Observe(observation.RmsDbfs);
-            }
-
-            var aboveDirectThreshold =
-                observation.RmsDbfs >= noiseFloor.CurrentDbfs + preset.DirectVoiceAboveNoiseDb;
-            result.Add(new(
-                observation,
-                noiseFloor.CurrentDbfs,
-                isVadSpeech,
-                isVadSpeech && aboveDirectThreshold,
-                aboveDirectThreshold));
-        }
-
-        return result;
-    }
-
     private static IReadOnlyList<CandidateGroup> BuildVadGroups(
-        IReadOnlyList<FrameEvidence> evidence,
+        IReadOnlyList<AudioFrameEvidence> evidence,
         long phraseBreakSamples)
     {
         var groups = new List<CandidateGroup>();
@@ -281,6 +256,22 @@ public sealed class TrackDialogueAnalyzer(TimelinePcmAccessor pcmAccessor)
 
         return groups;
     }
+
+    private static IReadOnlyList<TimelineInterval> BuildEnergyVadConflictIntervals(
+        IReadOnlyList<AudioFrameEvidence> evidence,
+        long minimumSpeechSamples) =>
+        MergeIntervals(
+                evidence
+                    .Where(frame =>
+                        frame.Observation.ContainsMedia &&
+                        !frame.IsVadSpeech &&
+                        frame.IsAboveDirectEnergyThreshold)
+                    .Select(frame => new TimelineInterval(
+                        frame.Observation.TimelineStartSample,
+                        frame.Observation.TimelineEndSample)),
+                maximumGapSamples: 0)
+            .Where(interval => interval.Length >= minimumSpeechSamples)
+            .ToArray();
 
     private IReadOnlyList<DialoguePhrase> BuildPhrases(
         PremiereAudioTrack track,
@@ -375,7 +366,8 @@ public sealed class TrackDialogueAnalyzer(TimelinePcmAccessor pcmAccessor)
     private static IReadOnlyList<AnalyzedAudioSegment> BuildClipSegments(
         PremiereAudioTrack track,
         IReadOnlyList<DialoguePhrase> phrases,
-        IReadOnlyList<TimelineInterval> ambiguous)
+        IReadOnlyList<TimelineInterval> ambiguous,
+        IReadOnlyList<TimelineInterval> energyVadConflicts)
     {
         var segments = new List<AnalyzedAudioSegment>();
 
@@ -399,6 +391,12 @@ public sealed class TrackDialogueAnalyzer(TimelinePcmAccessor pcmAccessor)
                 AddBoundaryIfInside(boundaries, interval.EndSample, clipStart, clipEnd);
             }
 
+            foreach (var interval in energyVadConflicts)
+            {
+                AddBoundaryIfInside(boundaries, interval.StartSample, clipStart, clipEnd);
+                AddBoundaryIfInside(boundaries, interval.EndSample, clipStart, clipEnd);
+            }
+
             var ordered = boundaries.ToArray();
             for (var index = 0; index + 1 < ordered.Length; index++)
             {
@@ -407,7 +405,8 @@ public sealed class TrackDialogueAnalyzer(TimelinePcmAccessor pcmAccessor)
                 var midpoint = start + ((end - start) / 2);
                 var phrase = phrases.FirstOrDefault(
                     candidate => midpoint >= candidate.PaddedStartSample && midpoint < candidate.PaddedEndSample);
-                var isAmbiguous = ambiguous.Any(interval => interval.Contains(midpoint));
+                var isEnergyVadConflict = energyVadConflicts.Any(interval => interval.Contains(midpoint));
+                var isAmbiguous = isEnergyVadConflict || ambiguous.Any(interval => interval.Contains(midpoint));
                 var status = isAmbiguous
                     ? AudioSegmentStatus.Ambiguous
                     : phrase is null ? AudioSegmentStatus.Noise : AudioSegmentStatus.Speech;
@@ -417,6 +416,10 @@ public sealed class TrackDialogueAnalyzer(TimelinePcmAccessor pcmAccessor)
                 {
                     (AudioSegmentStatus.Speech, _, true) => "confirmed-direct-speech",
                     (AudioSegmentStatus.Speech, _, false) => "speech-padding",
+                    (AudioSegmentStatus.Ambiguous, true, _) when isEnergyVadConflict =>
+                        "ambiguous-energy-vad-conflict-near-speech",
+                    (AudioSegmentStatus.Ambiguous, false, _) when isEnergyVadConflict =>
+                        "ambiguous-energy-vad-conflict",
                     (AudioSegmentStatus.Ambiguous, true, _) => "ambiguous-near-speech",
                     (AudioSegmentStatus.Ambiguous, false, _) => "ambiguous-independent",
                     _ => "vad-negative-noise"
@@ -499,13 +502,6 @@ public sealed class TrackDialogueAnalyzer(TimelinePcmAccessor pcmAccessor)
         segments.Add(segment);
     }
 
-    private sealed record FrameEvidence(
-        AudioFrameObservation Observation,
-        float NoiseFloorDbfs,
-        bool IsVadSpeech,
-        bool IsDirectEvidence,
-        bool IsAboveDirectEnergyThreshold);
-
     private readonly record struct FrameAlignmentChoice(
         AnalyzedAudioSegment? Segment,
         int Priority,
@@ -517,15 +513,15 @@ public sealed class TrackDialogueAnalyzer(TimelinePcmAccessor pcmAccessor)
         long EndSample,
         long VadEvidenceSamples,
         long DirectEvidenceSamples,
-        IReadOnlyList<FrameEvidence> Frames);
+        IReadOnlyList<AudioFrameEvidence> Frames);
 
-    private sealed class CandidateGroupBuilder(FrameEvidence first)
+    private sealed class CandidateGroupBuilder(AudioFrameEvidence first)
     {
-        private readonly List<FrameEvidence> _frames = [first];
+        private readonly List<AudioFrameEvidence> _frames = [first];
 
         public long EndSample { get; private set; } = first.Observation.TimelineEndSample;
 
-        public void Add(FrameEvidence frame)
+        public void Add(AudioFrameEvidence frame)
         {
             _frames.Add(frame);
             EndSample = frame.Observation.TimelineEndSample;

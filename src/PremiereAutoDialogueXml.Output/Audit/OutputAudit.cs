@@ -39,7 +39,8 @@ public sealed record PresetAudit(
     double PremiereCenterPanCompensationDb,
     string GainReferencePeakPolicy,
     double MaximumBoostDb,
-    int MaximumWorkers)
+    int MaximumWorkers,
+    bool PreserveVadNegativeHighEnergyConflicts)
 {
     public static PresetAudit From(DialogueProcessingPreset preset) => new(
         preset.Name,
@@ -57,7 +58,8 @@ public sealed record PresetAudit(
         preset.PremiereCenterPanCompensationDb,
         preset.GainReferencePeakPolicy,
         preset.MaximumBoostDb,
-        preset.MaximumWorkers);
+        preset.MaximumWorkers,
+        preset.PreserveVadNegativeHighEnergyConflicts);
 }
 
 public sealed record FragmentAudit(

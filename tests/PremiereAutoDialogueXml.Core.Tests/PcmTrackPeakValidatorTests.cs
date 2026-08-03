@@ -197,7 +197,8 @@ public sealed class PcmTrackPeakValidatorTests
             PremiereCenterPanCompensationDb: premiereCenterPanCompensationDb,
             GainReferencePeakPolicy: "max-direct-speech-and-frame-aligned-enabled-phrase-peak",
             MaximumBoostDb: 18,
-            MaximumWorkers: 4),
+            MaximumWorkers: 4,
+            PreserveVadNegativeHighEnergyConflicts: false),
         Fragments: fragments,
         Markers: []);
 

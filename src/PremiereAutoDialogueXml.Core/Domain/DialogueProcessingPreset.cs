@@ -18,7 +18,8 @@ public sealed record DialogueProcessingPreset(
     double PremiereCenterPanCompensationDb,
     string GainReferencePeakPolicy,
     double MaximumBoostDb,
-    int MaximumWorkers)
+    int MaximumWorkers,
+    bool PreserveVadNegativeHighEnergyConflicts)
 {
     public static DialogueProcessingPreset Balanced { get; } = new(
         Name: "Cân bằng",
@@ -36,7 +37,8 @@ public sealed record DialogueProcessingPreset(
         PremiereCenterPanCompensationDb: 3.010299956639812,
         GainReferencePeakPolicy: "max-direct-speech-and-frame-aligned-enabled-phrase-peak",
         MaximumBoostDb: 18.0,
-        MaximumWorkers: 4);
+        MaximumWorkers: 4,
+        PreserveVadNegativeHighEnergyConflicts: true);
 
     public IReadOnlyList<ValidationIssue> Validate()
     {
