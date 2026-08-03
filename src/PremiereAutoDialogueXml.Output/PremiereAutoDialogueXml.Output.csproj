@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>PremiereAutoDialogueXml.Output</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\PremiereAutoDialogueXml.Audio\PremiereAutoDialogueXml.Audio.csproj" />
+    <ProjectReference Include="..\PremiereAutoDialogueXml.Core\PremiereAutoDialogueXml.Core.csproj" />
+  </ItemGroup>
+</Project>

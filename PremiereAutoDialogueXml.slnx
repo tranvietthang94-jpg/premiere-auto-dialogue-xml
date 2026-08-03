@@ -3,6 +3,7 @@
     <Project Path="src/PremiereAutoDialogueXml.App/PremiereAutoDialogueXml.App.csproj" />
     <Project Path="src/PremiereAutoDialogueXml.Audio/PremiereAutoDialogueXml.Audio.csproj" />
     <Project Path="src/PremiereAutoDialogueXml.Core/PremiereAutoDialogueXml.Core.csproj" />
+    <Project Path="src/PremiereAutoDialogueXml.Output/PremiereAutoDialogueXml.Output.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/PremiereAutoDialogueXml.Core.Tests/PremiereAutoDialogueXml.Core.Tests.csproj" />

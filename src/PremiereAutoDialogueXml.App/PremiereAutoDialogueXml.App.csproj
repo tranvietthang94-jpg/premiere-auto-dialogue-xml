@@ -9,5 +9,6 @@
   <ItemGroup>
     <ProjectReference Include="..\PremiereAutoDialogueXml.Audio\PremiereAutoDialogueXml.Audio.csproj" />
     <ProjectReference Include="..\PremiereAutoDialogueXml.Core\PremiereAutoDialogueXml.Core.csproj" />
+    <ProjectReference Include="..\PremiereAutoDialogueXml.Output\PremiereAutoDialogueXml.Output.csproj" />
   </ItemGroup>
 </Project>
