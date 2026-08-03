@@ -1,6 +1,6 @@
 # Phase 06 — báo cáo pilot HGE2
 
-Trạng thái: `incomplete`; candidate phương án B đầu tiên đạt gain/timing nhưng còn một phrase không cap nóng hơn target, candidate frame-safe đang chờ Premiere round-trip, không phát hành.
+Trạng thái: `incomplete`; candidate frame-safe đã đạt PCM round-trip A1, còn thiếu A2–A7 và các cổng pilot khác, không phát hành.
 
 Ngày ghi nhận: 2026-08-03.
 
@@ -74,11 +74,13 @@ Gain reference được sửa thành peak lớn hơn giữa lõi direct speech v
 
 Candidate mới dùng cùng input SHA-256 `09FD290C5CB8401DEF7EA9701433F7BD1799B0300ABA9244A8BF88C022A8C897`; SHA-256 XML và giá trị audit đều là `72EADDE9ED897A32BD11A4EFAD453FE5A77742E73A4BC69E2BEB1248B10D1AB8`, SHA-256 audit là `B570033C633B8D63156DF7E063020703C1FD3EA5187D8914D2A87CFB15167BB0`. Cấu trúc vẫn có 8.058 fragment/2.132 phrase; 1.197 phrase chạm cap, 3.271 marker. Toàn bộ 935 phrase không cap có predicted post-routing peak `-6 dBFS`. Đây vẫn là dự đoán cho candidate mới và cần thêm một PCM round-trip từ Premiere.
 
+Người vận hành đã import candidate frame-safe và export lại A1. WAV là mono integer PCM 48 kHz/24-bit, đủ 103.219.200 sample; SHA-256 `06EFCC2E38C34DBF2ED1875A0BD15EE1A79D998AF42E32670C6492D91CD0CC0B`. Validator source-linked đạt 252/252 phrase: cả 252 phrase khớp gain/timing, 71/71 phrase không cap đạt target, 181 phrase cap đều khớp predicted peak và không phrase nào nóng hơn `-6 dBFS`. Peak của nhóm không cap nằm từ `-6,000015` đến `-5,999978 dBFS`; phrase cap nóng nhất là `-6,225038 dBFS`. Median source-linked delta là `-0,000005 dB`, sai lệch tuyệt đối lớn nhất dưới `0,000023 dB`. Report SHA-256 là `E602E0800CBD914E9744B583A528D760FF73CE59AF4A8D4F19FF3339CB463292`. Cổng PCM A1 đạt.
+
 ## Các cổng còn thiếu
 
 - Lưu **FCP Translation Results** nếu Premiere có tạo và xác nhận không có lỗi làm mất audio.
 - Kiểm tra vài fragment speech/ambiguous/noise, marker và khả năng bật lại clip Disable.
-- Import XML frame-safe schema `1.2`, export lại A1 và yêu cầu source-linked PCM report đạt `-6.0 ± 0.1 dBFS` cho toàn bộ phrase không cap; phrase cap phải khớp predicted peak hậu routing và không nóng hơn target.
+- Export stem A2–A7 từ cùng sequence frame-safe và yêu cầu từng source-linked report đạt target/gain như A1.
 - Gắn nhãn đủ để tính 100% direct speech được giữ, ít nhất 90% clear noise/bleed bị Disable và 0% ambiguous bị Disable.
 - Chạy cổng **Dừng an toàn** và xác nhận không để XML/audit/tmp dở dang.
 - Chạy ZIP offline trên Windows 10 x64 và Windows 11 x64 sạch, không có .NET/Python cài sẵn.
