@@ -25,6 +25,9 @@ public sealed class PcmTrackPeakValidatorTests
         Assert.AreEqual(-6, report.Phrases[0].ExpectedRenderedPeakDbfs, 0.0001);
         Assert.AreEqual(-12, report.Phrases[1].ExpectedRenderedPeakDbfs, 0.0001);
         Assert.IsTrue(report.Phrases[1].GainWasCapped);
+        Assert.AreEqual(0, report.MedianObservedOffsetDb!.Value, 0.01);
+        Assert.AreEqual(2, report.PhrasesMatchingMedianOffset);
+        Assert.AreEqual(0, report.PhrasesOutsideMedianOffset);
     }
 
     [TestMethod]
@@ -41,6 +44,8 @@ public sealed class PcmTrackPeakValidatorTests
         Assert.AreEqual(1, report.FailedPhraseCount);
         Assert.AreEqual("peak-out-of-tolerance", report.Phrases[0].ResultReason);
         Assert.IsGreaterThan(1.9, report.Phrases[0].DeltaDb!.Value);
+        Assert.IsGreaterThan(1.9, report.MedianObservedOffsetDb!.Value);
+        Assert.AreEqual(1, report.PhrasesMatchingMedianOffset);
     }
 
     [TestMethod]

@@ -123,6 +123,9 @@ try
         validation.PhraseCount,
         validation.PassedPhraseCount,
         validation.FailedPhraseCount,
+        validation.MedianObservedOffsetDb,
+        validation.PhrasesMatchingMedianOffset,
+        validation.PhrasesOutsideMedianOffset,
         validation.AllWithinTolerance
     }, jsonOptions));
     return validation.AllWithinTolerance ? 0 : 1;

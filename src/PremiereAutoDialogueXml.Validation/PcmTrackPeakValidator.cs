@@ -30,6 +30,9 @@ public sealed record PcmTrackPeakValidationReport(
     int PhraseCount,
     int PassedPhraseCount,
     int FailedPhraseCount,
+    double? MedianObservedOffsetDb,
+    int PhrasesMatchingMedianOffset,
+    int PhrasesOutsideMedianOffset,
     bool AllWithinTolerance,
     IReadOnlyList<PhrasePeakValidation> Phrases);
 
@@ -153,6 +156,15 @@ public sealed class PcmTrackPeakValidator
 
         var ordered = results.OrderBy(result => result.TimelineStartFrame).ToArray();
         var passedCount = ordered.Count(result => result.WithinTolerance);
+        var finiteDeltas = ordered
+            .Where(result => result.DeltaDb is not null)
+            .Select(result => result.DeltaDb!.Value)
+            .Order()
+            .ToArray();
+        var medianOffset = Median(finiteDeltas);
+        var matchingMedianOffset = medianOffset is null
+            ? 0
+            : finiteDeltas.Count(delta => Math.Abs(delta - medianOffset.Value) <= toleranceDb);
         return new(
             trackIndex,
             renderedWave.SampleRate,
@@ -163,8 +175,24 @@ public sealed class PcmTrackPeakValidator
             ordered.Length,
             passedCount,
             ordered.Length - passedCount,
+            medianOffset,
+            matchingMedianOffset,
+            ordered.Length - matchingMedianOffset,
             passedCount == ordered.Length,
             ordered);
+    }
+
+    private static double? Median(IReadOnlyList<double> sortedValues)
+    {
+        if (sortedValues.Count == 0)
+        {
+            return null;
+        }
+
+        var middle = sortedValues.Count / 2;
+        return sortedValues.Count % 2 == 0
+            ? (sortedValues[middle - 1] + sortedValues[middle]) / 2d
+            : sortedValues[middle];
     }
 
     private static void ValidateWave(WaveFileInfo wave)
