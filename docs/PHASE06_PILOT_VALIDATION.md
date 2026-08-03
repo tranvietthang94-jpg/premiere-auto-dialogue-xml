@@ -63,6 +63,8 @@ Validator đọc streaming đúng các vùng `speech`, đo sample peak của t�
 
 Chạy A1 trước để xác nhận routing. Chỉ sau khi report A1 hợp lệ mới lặp A2–A7; không dùng một bản full mix để thay cho stem vì nhiều mic cộng lại sẽ làm sai peak từng phrase.
 
+`medianObservedOffsetDb` và số phrase cùng offset chỉ là chẩn đoán routing. Chúng không tự bù gain, không thay tolerance và không thể đổi `allWithinTolerance=false` thành đạt nếu chưa có quyết định routing rõ ràng.
+
 ## D. Nhãn HGE2
 
 Tập nhãn pilot phải có `track`, timeline `start/end`, loại `direct-speech`, `clear-noise`, `clear-bleed` hoặc `ambiguous`, và người xác nhận. Từ audit/XML output tính:
