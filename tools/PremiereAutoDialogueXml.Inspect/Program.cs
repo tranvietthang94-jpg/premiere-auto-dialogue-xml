@@ -2,12 +2,23 @@ using System.Text.Json;
 using PremiereAutoDialogueXml.Audio.Analysis;
 using PremiereAutoDialogueXml.Core.Domain;
 using PremiereAutoDialogueXml.Core.Xml;
+using PremiereAutoDialogueXml.Output;
 
-var analyzeAudio = args.Length > 0 && args[0].Equals("--analyze", StringComparison.OrdinalIgnoreCase);
-var xmlPaths = analyzeAudio ? args.Skip(1).ToArray() : args;
+var writeOutput = args.Length > 0 && args[0].Equals("--write", StringComparison.OrdinalIgnoreCase);
+var analyzeAudio = writeOutput || (args.Length > 0 && args[0].Equals("--analyze", StringComparison.OrdinalIgnoreCase));
+var xmlPaths = writeOutput
+    ? args.Skip(1).Take(1).ToArray()
+    : analyzeAudio ? args.Skip(1).ToArray() : args;
 if (xmlPaths.Length == 0)
 {
     Console.Error.WriteLine("Usage: PremiereAutoDialogueXml.Inspect [--analyze] <premiere.xml> [more.xml]");
+    Console.Error.WriteLine("       PremiereAutoDialogueXml.Inspect --write <premiere.xml> <existing-output-parent>");
+    return 2;
+}
+
+if (writeOutput && args.Length != 3)
+{
+    Console.Error.WriteLine("--write cần đúng một XML và một thư mục output cha đã tồn tại.");
     return 2;
 }
 
@@ -20,6 +31,7 @@ foreach (var xmlPath in xmlPaths)
     var project = result.Project;
     var clips = project?.Sequence.AudioTracks.SelectMany(track => track.Clips).ToList() ?? [];
     object? audioSummary = null;
+    object? outputSummary = null;
     if (analyzeAudio && result.CanProceed && project is not null)
     {
         var progress = new InlineProgress<AudioAnalysisProgress>(update =>
@@ -47,6 +59,24 @@ foreach (var xmlPath in xmlPaths)
                     .Where(segment => segment.Status == status)
                     .Sum(segment => segment.TimelineEndSample - segment.TimelineStartSample)) / 48_000d)
         };
+
+        if (writeOutput)
+        {
+            var output = await new OutputPackageWriter().WriteAsync(new(
+                project,
+                analysis,
+                DialogueProcessingPreset.Balanced,
+                args[2]));
+            outputSummary = new
+            {
+                RunDirectory = Path.GetFileName(output.RunDirectory),
+                Xml = Path.GetFileName(output.XmlPath),
+                Audit = Path.GetFileName(output.AuditPath),
+                output.OutputXmlSha256,
+                output.FragmentCount,
+                output.MarkerCount
+            };
+        }
     }
 
     var summary = new
@@ -62,6 +92,7 @@ foreach (var xmlPath in xmlPaths)
         result.WarningCount,
         result.ErrorCount,
         AudioAnalysis = audioSummary,
+        Output = outputSummary,
         Issues = result.Issues.Select(issue => new
         {
             Severity = issue.Severity.ToString(),

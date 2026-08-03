@@ -108,6 +108,25 @@ public sealed class OutputPackageWriterTests
         CollectionAssert.AreEqual(before, Directory.GetDirectories(fixture.Directory));
     }
 
+    [TestMethod]
+    public async Task WriteAsyncSanitizesReservedAndTrailingWindowsFileName()
+    {
+        using var fixture = PremiereXmlGeneratorTests.WriterFixture.Create();
+        var project = fixture.Project with
+        {
+            Sequence = fixture.Project.Sequence with { Name = "CON. " }
+        };
+
+        var result = await new OutputPackageWriter().WriteAsync(new(
+            project,
+            fixture.Analysis,
+            DialogueProcessingPreset.Balanced,
+            fixture.Directory));
+
+        Assert.AreEqual("_CON_AutoAudio.xml", Path.GetFileName(result.XmlPath));
+        Assert.IsTrue(Path.GetFileName(result.RunDirectory).StartsWith("_CON_AutoAudio_", StringComparison.Ordinal));
+    }
+
     private static string Hash(string path) =>
         Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path)));
 }

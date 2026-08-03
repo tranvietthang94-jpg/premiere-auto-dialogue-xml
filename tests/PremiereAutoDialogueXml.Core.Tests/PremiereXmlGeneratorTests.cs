@@ -115,6 +115,73 @@ public sealed class PremiereXmlGeneratorTests
         Assert.AreEqual("xml-source-changed", exception.Code);
     }
 
+    [TestMethod]
+    public void GenerateRejectsSegmentForUnknownSourceClip()
+    {
+        using var fixture = WriterFixture.Create();
+        var extra = fixture.Segment(0, 1, AudioSegmentStatus.Noise, null, null, "invalid") with
+        {
+            SourceClipId = "clip-not-in-project"
+        };
+        var analysis = fixture.Analysis with
+        {
+            Tracks = [fixture.Analysis.Tracks[0] with { Segments = [.. fixture.Analysis.Tracks[0].Segments, extra] }]
+        };
+
+        Assert.ThrowsExactly<InvalidDataException>(() => new PremiereXmlGenerator().Generate(fixture.Project, analysis));
+    }
+
+    [TestMethod]
+    public void GenerateRejectsPhraseFromAnotherTrack()
+    {
+        using var fixture = WriterFixture.Create();
+        var analysis = fixture.Analysis with
+        {
+            Tracks =
+            [
+                fixture.Analysis.Tracks[0] with
+                {
+                    Phrases = [fixture.Analysis.Tracks[0].Phrases[0] with { TrackIndex = 2 }]
+                }
+            ]
+        };
+
+        Assert.ThrowsExactly<InvalidDataException>(() => new PremiereXmlGenerator().Generate(fixture.Project, analysis));
+    }
+
+    [TestMethod]
+    public void GenerateRejectsSegmentWithUnknownPhrase()
+    {
+        using var fixture = WriterFixture.Create();
+        var segments = fixture.Analysis.Tracks[0].Segments.ToArray();
+        segments[1] = segments[1] with { PhraseId = "phrase-not-in-analysis" };
+        var analysis = fixture.Analysis with
+        {
+            Tracks = [fixture.Analysis.Tracks[0] with { Segments = segments }]
+        };
+
+        Assert.ThrowsExactly<InvalidDataException>(() => new PremiereXmlGenerator().Generate(fixture.Project, analysis));
+    }
+
+    [TestMethod]
+    public void GenerateRejectsPhraseWithoutAnySegment()
+    {
+        using var fixture = WriterFixture.Create();
+        var unused = fixture.Analysis.Tracks[0].Phrases[0] with { Id = "unused-phrase" };
+        var analysis = fixture.Analysis with
+        {
+            Tracks =
+            [
+                fixture.Analysis.Tracks[0] with
+                {
+                    Phrases = [.. fixture.Analysis.Tracks[0].Phrases, unused]
+                }
+            ]
+        };
+
+        Assert.ThrowsExactly<InvalidDataException>(() => new PremiereXmlGenerator().Generate(fixture.Project, analysis));
+    }
+
     internal sealed class WriterFixture : IDisposable
     {
         private WriterFixture(

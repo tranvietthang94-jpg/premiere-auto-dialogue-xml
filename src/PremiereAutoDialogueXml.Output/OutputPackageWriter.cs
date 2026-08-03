@@ -5,11 +5,20 @@ using System.Text.Json.Serialization;
 using System.Xml;
 using PremiereAutoDialogueXml.Output.Audit;
 using PremiereAutoDialogueXml.Output.Xml;
+using PremiereAutoDialogueXml.Output.Validation;
 
 namespace PremiereAutoDialogueXml.Output;
 
 public sealed class OutputPackageWriter
 {
+    private static readonly HashSet<string> ReservedWindowsFileNames =
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            "CON", "PRN", "AUX", "NUL",
+            "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9",
+            "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9"
+        };
+
     private static readonly JsonSerializerOptions AuditJsonOptions = new()
     {
         WriteIndented = true,
@@ -76,6 +85,10 @@ public sealed class OutputPackageWriter
 
             await WriteXmlAsync(generated.Document, xmlTempPath, cancellationToken);
             var outputXmlSha256 = await ComputeSha256Async(xmlTempPath, cancellationToken);
+            var reloadedOutput = PremiereAutoDialogueXml.Core.Xml.PremiereXmlDocumentLoader.LoadGeneratedOutput(
+                xmlTempPath,
+                outputXmlSha256);
+            new OutputXmlContractValidator().Validate(request.Project, generated, reloadedOutput.Document);
             var phrases = request.Analysis.Tracks
                 .SelectMany(track => track.Phrases)
                 .ToDictionary(phrase => phrase.Id, StringComparer.Ordinal);
@@ -97,6 +110,7 @@ public sealed class OutputPackageWriter
                 Markers: generated.Markers.Select(MarkerAudit.From).ToArray());
 
             await WriteAuditAsync(audit, auditTempPath, cancellationToken);
+            await ValidateWrittenAuditAsync(audit, auditTempPath, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             File.Move(xmlTempPath, xmlPath);
             File.Move(auditTempPath, auditPath);
@@ -177,6 +191,44 @@ public sealed class OutputPackageWriter
         await stream.FlushAsync(cancellationToken);
     }
 
+    private static async Task ValidateWrittenAuditAsync(
+        OutputAudit expected,
+        string path,
+        CancellationToken cancellationToken)
+    {
+        await using var stream = new FileStream(
+            path,
+            new FileStreamOptions
+            {
+                Access = FileAccess.Read,
+                Mode = FileMode.Open,
+                Share = FileShare.Read,
+                Options = FileOptions.Asynchronous | FileOptions.SequentialScan
+            });
+        var actual = await JsonSerializer.DeserializeAsync<OutputAudit>(
+            stream,
+            AuditJsonOptions,
+            cancellationToken) ?? throw new InvalidDataException("Không thể đọc lại audit vừa ghi.");
+        if (actual.SchemaVersion != expected.SchemaVersion ||
+            actual.RunId != expected.RunId ||
+            actual.CreatedAtUtc != expected.CreatedAtUtc ||
+            actual.SourceXmlFileName != expected.SourceXmlFileName ||
+            actual.SourceXmlSha256 != expected.SourceXmlSha256 ||
+            actual.OutputXmlFileName != expected.OutputXmlFileName ||
+            actual.OutputXmlSha256 != expected.OutputXmlSha256 ||
+            actual.SourceSequenceId != expected.SourceSequenceId ||
+            actual.OutputSequenceId != expected.OutputSequenceId ||
+            actual.OutputSequenceUuid != expected.OutputSequenceUuid ||
+            actual.OutputSequenceName != expected.OutputSequenceName ||
+            actual.Model != expected.Model ||
+            actual.Preset != expected.Preset ||
+            !actual.Fragments.SequenceEqual(expected.Fragments) ||
+            !actual.Markers.SequenceEqual(expected.Markers))
+        {
+            throw new InvalidDataException("Audit đọc lại không khớp dữ liệu kết quả trong bộ nhớ.");
+        }
+    }
+
     private static async Task<string> ComputeSha256Async(string path, CancellationToken cancellationToken)
     {
         await using var stream = new FileStream(
@@ -198,13 +250,25 @@ public sealed class OutputPackageWriter
         var sanitized = new string(value
             .Trim()
             .Select(character => invalid.Contains(character) ? '_' : character)
-            .ToArray());
+            .ToArray())
+            .TrimEnd(' ', '.');
+        if (sanitized.Length > 80)
+        {
+            sanitized = sanitized[..80].TrimEnd(' ', '.');
+        }
+
         if (string.IsNullOrWhiteSpace(sanitized))
         {
             sanitized = "Sequence";
         }
 
-        return sanitized.Length <= 80 ? sanitized : sanitized[..80];
+        var baseName = Path.GetFileNameWithoutExtension(sanitized);
+        if (ReservedWindowsFileNames.Contains(baseName))
+        {
+            sanitized = $"_{sanitized}";
+        }
+
+        return sanitized;
     }
 
     private static void DeleteIfExists(string path)

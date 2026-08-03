@@ -387,9 +387,69 @@ public sealed class PremiereXmlGenerator
         }
 
         var phraseIds = analysis.Tracks.SelectMany(track => track.Phrases).Select(phrase => phrase.Id).ToArray();
-        if (phraseIds.Distinct(StringComparer.Ordinal).Count() != phraseIds.Length)
+        if (phraseIds.Any(string.IsNullOrWhiteSpace) ||
+            phraseIds.Distinct(StringComparer.Ordinal).Count() != phraseIds.Length)
         {
-            throw new InvalidDataException("Phrase ID trong kết quả phân tích bị trùng.");
+            throw new InvalidDataException("Phrase ID trong kết quả phân tích bị trống hoặc trùng.");
+        }
+
+        foreach (var projectTrack in project.Sequence.AudioTracks)
+        {
+            var analysisTrack = analysis.Tracks.Single(track => track.TrackIndex == projectTrack.Index);
+            var sourceClipIds = projectTrack.Clips.Select(clip => clip.Id).ToHashSet(StringComparer.Ordinal);
+            if (analysisTrack.Phrases.Any(phrase => phrase.TrackIndex != projectTrack.Index) ||
+                analysisTrack.Segments.Any(segment => segment.TrackIndex != projectTrack.Index))
+            {
+                throw new InvalidDataException($"Kết quả phân tích track {projectTrack.Index} chứa quyết định của track khác.");
+            }
+
+            if (analysisTrack.Segments.Any(segment => !sourceClipIds.Contains(segment.SourceClipId)))
+            {
+                throw new InvalidDataException($"Kết quả phân tích track {projectTrack.Index} trỏ clip không thuộc XML nguồn.");
+            }
+
+            var trackPhraseIds = analysisTrack.Phrases.Select(phrase => phrase.Id).ToHashSet(StringComparer.Ordinal);
+            var referencedPhraseIds = analysisTrack.Segments
+                .Where(segment => segment.PhraseId is not null)
+                .Select(segment => segment.PhraseId!)
+                .ToHashSet(StringComparer.Ordinal);
+            if (!trackPhraseIds.SetEquals(referencedPhraseIds))
+            {
+                throw new InvalidDataException($"Phrase/segment trên track {projectTrack.Index} không tham chiếu đầy đủ lẫn nhau.");
+            }
+
+            foreach (var segment in analysisTrack.Segments)
+            {
+                var hasPhrase = segment.PhraseId is not null;
+                if (hasPhrase && !trackPhraseIds.Contains(segment.PhraseId!))
+                {
+                    throw new InvalidDataException($"Segment trên track {projectTrack.Index} trỏ phrase không tồn tại.");
+                }
+
+                if (segment.Status == AudioSegmentStatus.Speech && !hasPhrase)
+                {
+                    throw new InvalidDataException($"Segment speech trên track {projectTrack.Index} thiếu phrase.");
+                }
+
+                if (segment.Status is AudioSegmentStatus.Noise or AudioSegmentStatus.Bleed && hasPhrase)
+                {
+                    throw new InvalidDataException($"Segment noise/bleed trên track {projectTrack.Index} không được mang phrase.");
+                }
+
+                if (hasPhrase)
+                {
+                    var phrase = analysisTrack.Phrases.Single(item => item.Id == segment.PhraseId);
+                    if (segment.GainDb is null || !float.IsFinite(segment.GainDb.Value) ||
+                        Math.Abs(segment.GainDb.Value - phrase.AppliedGainDb) > 0.001f)
+                    {
+                        throw new InvalidDataException($"Gain segment/phrase trên track {projectTrack.Index} không khớp.");
+                    }
+                }
+                else if (segment.GainDb is { } gain && (!float.IsFinite(gain) || Math.Abs(gain) > 0.001f))
+                {
+                    throw new InvalidDataException($"Segment không có phrase trên track {projectTrack.Index} phải giữ unity gain.");
+                }
+            }
         }
     }
 

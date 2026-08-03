@@ -6,11 +6,23 @@ namespace PremiereAutoDialogueXml.Core.Xml;
 
 public static class PremiereXmlDocumentLoader
 {
-    private const long MaximumXmlBytes = 128L * 1024 * 1024;
+    private const long MaximumSourceXmlBytes = 128L * 1024 * 1024;
+    private const long MaximumGeneratedXmlBytes = 512L * 1024 * 1024;
     private const int PrologCharacterLimit = 4_096;
     private const string RequiredDocumentType = "<!DOCTYPE xmeml>";
 
     public static PremiereXmlSourceDocument Load(string xmlPath, string? expectedSha256 = null)
+        => LoadCore(xmlPath, expectedSha256, MaximumSourceXmlBytes);
+
+    public static PremiereXmlSourceDocument LoadGeneratedOutput(
+        string xmlPath,
+        string expectedSha256)
+        => LoadCore(xmlPath, expectedSha256, MaximumGeneratedXmlBytes);
+
+    private static PremiereXmlSourceDocument LoadCore(
+        string xmlPath,
+        string? expectedSha256,
+        long maximumXmlBytes)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(xmlPath);
         using var stream = new FileStream(
@@ -28,11 +40,11 @@ public static class PremiereXmlDocumentLoader
             throw new PremiereXmlLoadException("xml-empty", "Tệp XML đang trống.");
         }
 
-        if (stream.Length > MaximumXmlBytes)
+        if (stream.Length > maximumXmlBytes)
         {
             throw new PremiereXmlLoadException(
                 "xml-too-large",
-                $"XML vượt giới hạn an toàn {MaximumXmlBytes / 1024 / 1024} MB của MVP.");
+                $"XML vượt giới hạn an toàn {maximumXmlBytes / 1024 / 1024} MB của MVP.");
         }
 
         var sourceHash = Convert.ToHexString(SHA256.HashData(stream));
@@ -47,16 +59,16 @@ public static class PremiereXmlDocumentLoader
         stream.Position = 0;
         ValidatePremiereDocumentType(stream);
         stream.Position = 0;
-        return new(LoadDocument(stream), sourceHash);
+        return new(LoadDocument(stream, maximumXmlBytes), sourceHash);
     }
 
-    private static XDocument LoadDocument(Stream stream)
+    private static XDocument LoadDocument(Stream stream, long maximumXmlBytes)
     {
         var settings = new XmlReaderSettings
         {
             DtdProcessing = DtdProcessing.Ignore,
             XmlResolver = null,
-            MaxCharactersInDocument = MaximumXmlBytes,
+            MaxCharactersInDocument = maximumXmlBytes,
             IgnoreComments = false,
             IgnoreWhitespace = false,
             CloseInput = false

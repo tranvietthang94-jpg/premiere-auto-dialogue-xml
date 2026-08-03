@@ -7,5 +7,6 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\PremiereAutoDialogueXml.Audio\PremiereAutoDialogueXml.Audio.csproj" />
     <ProjectReference Include="..\..\src\PremiereAutoDialogueXml.Core\PremiereAutoDialogueXml.Core.csproj" />
+    <ProjectReference Include="..\..\src\PremiereAutoDialogueXml.Output\PremiereAutoDialogueXml.Output.csproj" />
   </ItemGroup>
 </Project>
