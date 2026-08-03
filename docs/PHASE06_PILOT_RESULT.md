@@ -96,6 +96,12 @@ App WPF build từ commit Phase 06 được mở trực tiếp, chọn `test HGE
 
 Hậu kiểm xác nhận thư mục gate vẫn có 0 entry: không XML, audit, `.tmp` hoặc thư mục run rỗng; process của build đã kết thúc. SHA-256 XML nguồn sau phép thử vẫn là `09FD290C5CB8401DEF7EA9701433F7BD1799B0300ABA9244A8BF88C022A8C897`. Bộ test Release sau thao tác đạt 90/90. Cổng dừng an toàn đạt.
 
+## Gói frame-safe cho máy sạch
+
+Candidate hiện tại đã được publish thành ZIP self-contained `win-x64`, chưa tạo installer. Gói có 410 file payload, không chứa Python hoặc PDB, model `6.2.1` có SHA-256 `1A153A22F4509E292A94E67D6F9B85E8DEB25B4988682B7E174C65279D8788E3`. ZIP dài 71.104.231 byte và có SHA-256 `22E1A3A016D0C078594D8464A695FBF12D3217488368121D01F54D5F752B59E5`.
+
+Máy phát triển hiện tại là Windows 11 Pro x64 và không có Windows Sandbox; vì vậy lượt chạy trên máy này không được dùng thay bằng chứng Windows 10/11 sạch. Gói vẫn chờ thử offline trên hai môi trường sạch, không cài .NET/Python và không có Internet.
+
 ## Các cổng còn thiếu
 
 - Lưu **FCP Translation Results** nếu Premiere có tạo và xác nhận không có lỗi làm mất audio.
