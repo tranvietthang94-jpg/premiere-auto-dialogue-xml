@@ -1,6 +1,6 @@
 # Phase 06 — báo cáo pilot HGE2
 
-Trạng thái: `incomplete`; candidate frame-safe đã đạt PCM round-trip A1, còn thiếu A2–A7 và các cổng pilot khác, không phát hành.
+Trạng thái: `incomplete`; candidate frame-safe đã đạt PCM round-trip A1–A7, còn thiếu nhãn nội dung, dừng an toàn và máy Windows sạch, không phát hành.
 
 Ngày ghi nhận: 2026-08-03.
 
@@ -76,11 +76,24 @@ Candidate mới dùng cùng input SHA-256 `09FD290C5CB8401DEF7EA9701433F7BD1799B
 
 Người vận hành đã import candidate frame-safe và export lại A1. WAV là mono integer PCM 48 kHz/24-bit, đủ 103.219.200 sample; SHA-256 `06EFCC2E38C34DBF2ED1875A0BD15EE1A79D998AF42E32670C6492D91CD0CC0B`. Validator source-linked đạt 252/252 phrase: cả 252 phrase khớp gain/timing, 71/71 phrase không cap đạt target, 181 phrase cap đều khớp predicted peak và không phrase nào nóng hơn `-6 dBFS`. Peak của nhóm không cap nằm từ `-6,000015` đến `-5,999978 dBFS`; phrase cap nóng nhất là `-6,225038 dBFS`. Median source-linked delta là `-0,000005 dB`, sai lệch tuyệt đối lớn nhất dưới `0,000023 dB`. Report SHA-256 là `E602E0800CBD914E9744B583A528D760FF73CE59AF4A8D4F19FF3339CB463292`. Cổng PCM A1 đạt.
 
+Người vận hành tiếp tục export A2–A7 từ cùng sequence, mỗi stem đều là mono integer PCM 48 kHz/24-bit và đủ 103.219.200 sample. Cả sáu report đều đạt:
+
+| Track | Phrase | Không cap | Cap | SHA-256 report |
+|---|---:|---:|---:|---|
+| A1 | 252 | 71 | 181 | `E602E0800CBD914E9744B583A528D760FF73CE59AF4A8D4F19FF3339CB463292` |
+| A2 | 286 | 69 | 217 | `F44BE9A3D1E2F53389A0DFA55738644696A89D3D892FC4AC3426C8912FB829AA` |
+| A3 | 389 | 143 | 246 | `4A8BFE65810F8C7E9CB2057AD4E1EDC80AAFB458B3DC831CDDFEAFBB92FB587B` |
+| A4 | 213 | 95 | 118 | `035598701A30E4D1F91EA6E91BDED0E632EE4ECB84C95470D2CFEFF802F46595` |
+| A5 | 360 | 248 | 112 | `3311175FED7DE02FD607C7762884E53906562A20003C56108633D9055D3FE9A4` |
+| A6 | 279 | 127 | 152 | `46723D116FA3879EB988FFE960CCF0C994B34C045BC89F2D2DF0A4C0DD1B66E2` |
+| A7 | 353 | 182 | 171 | `0B514680C0D26734030DB341D226C3CF910EDCF45F54D133331B009183364E38` |
+
+Tổng hợp A1–A7: 2.132/2.132 phrase đạt gain/timing; 935/935 phrase không cap đạt target; 1.197 phrase cap đều khớp predicted peak và không phrase nào nóng hơn `-6 dBFS`. Peak quan sát của nhóm không cap nằm từ `-6,000019` đến `-5,999974 dBFS`; phrase cap nóng nhất là `-6,004388 dBFS`. Sai lệch source-linked tuyệt đối lớn nhất của toàn bộ bảy track dưới `0,000027 dB`. Cổng PCM HGE2 A1–A7 đạt.
+
 ## Các cổng còn thiếu
 
 - Lưu **FCP Translation Results** nếu Premiere có tạo và xác nhận không có lỗi làm mất audio.
 - Kiểm tra vài fragment speech/ambiguous/noise, marker và khả năng bật lại clip Disable.
-- Export stem A2–A7 từ cùng sequence frame-safe và yêu cầu từng source-linked report đạt target/gain như A1.
 - Gắn nhãn đủ để tính 100% direct speech được giữ, ít nhất 90% clear noise/bleed bị Disable và 0% ambiguous bị Disable.
 - Chạy cổng **Dừng an toàn** và xác nhận không để XML/audit/tmp dở dang.
 - Chạy ZIP offline trên Windows 10 x64 và Windows 11 x64 sạch, không có .NET/Python cài sẵn.
