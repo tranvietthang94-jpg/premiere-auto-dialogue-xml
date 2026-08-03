@@ -43,9 +43,9 @@ Mỗi phase dùng branch và draft pull request riêng. Các thay đổi có ý 
 
 ## Gain và XML output
 
-- Đo sample peak trên vùng lời xác nhận.
+- Đo sample peak trên vùng lời xác nhận, sau đó đối chiếu peak lớn nhất của các frame phrase thực sự Enabled sau khi căn theo frame XML; dùng giá trị lớn hơn làm tham chiếu gain để padding/biên frame không làm output nóng hơn target.
 - Profile routing đã xác nhận: `mono-center-equal-power-to-stereo`, suy hao `-3,0102999566 dB` khi Premiere export stem mono.
-- `gainDb = -6 - measuredPeakDbFS + 3,0102999566`, boost tổng vẫn tối đa `+18 dB`.
+- `gainDb = -6 - gainReferencePeakDbFS + 3,0102999566`, boost tổng vẫn tối đa `+18 dB`.
 - Phrase không bị cap dự kiến đạt gần `-6 dBFS` sau routing; phrase bị cap dự kiến bằng `measuredPeakDbFS + 18 - 3,0102999566`.
 - Speech dùng fragment Enabled cùng Audio Levels tĩnh.
 - Noise/bleed dùng fragment Disabled, không xóa khỏi timeline.

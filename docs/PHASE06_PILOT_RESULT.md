@@ -1,6 +1,6 @@
 # Phase 06 — báo cáo pilot HGE2
 
-Trạng thái: `incomplete`; XML pilot cũ failed PCM, candidate phương án B đang chờ Premiere round-trip, không phát hành.
+Trạng thái: `incomplete`; candidate phương án B đầu tiên đạt gain/timing nhưng còn một phrase không cap nóng hơn target, candidate frame-safe đang chờ Premiere round-trip, không phát hành.
 
 Ngày ghi nhận: 2026-08-03.
 
@@ -62,11 +62,23 @@ Audit schema `1.1` ghi profile `mono-center-equal-power-to-stereo`, compensation
 
 Gói kiểm thử phương án B đã được publish dạng ZIP self-contained `win-x64`, chưa tạo installer. Gói có 410 file payload, không chứa Python hoặc PDB; kích thước ZIP là 71.101.669 byte và SHA-256 là `70CE44E1A1D5C7139C1964E6CED77361F3B58485E4573E3B4F00C8AB86589B71`. Manifest ghi model `6.2.1` với SHA-256 `1A153A22F4509E292A94E67D6F9B85E8DEB25B4988682B7E174C65279D8788E3`.
 
+### PCM của candidate phương án B đầu tiên
+
+Người vận hành import candidate và export lại A1 thành WAV mono integer PCM 48 kHz/24-bit, đủ 103.219.200 sample. SHA-256 WAV là `A44D924636643FEB6257BA965AD50E6E6D1298A4312C43CEF13ED3CF0E5E8451`.
+
+Validator source-linked xác nhận Premiere áp đúng gain/timing cho 252/252 phrase; median delta là `-0,000005 dB` và sai lệch tuyệt đối lớn nhất dưới `0,000023 dB`. Tuy nhiên cổng target nghiêm ngặt chỉ đạt 67/68 phrase không cap: `T01-P000141` render ở `-5,0345 dBFS`, nóng hơn target gần `0,97 dB`. Peak lớn nhất trong các phrase A1 là `-1,0098 dBFS` ở một phrase đã cap. Vì vậy candidate này không được chấp nhận dù nghe thử ban đầu tốt. Report validator schema `1.1` có SHA-256 `1E1CA3E29F181C8051EFF03BAD357379CB2B1BB325AA02BB2FC16F50E5949C49`.
+
+### Candidate frame-safe thay thế
+
+Gain reference được sửa thành peak lớn hơn giữa lõi direct speech và toàn bộ frame `speech`/`ambiguous-near-speech` Enabled của cùng phrase sau khi căn theo frame XML. Audit được nâng lên schema `1.2` và ghi policy `max-direct-speech-and-frame-aligned-enabled-phrase-peak`; validator cũng tách riêng gain conformance với target conformance để không thể báo đạt khi Premiere áp đúng gain nhưng output vẫn lệch `-6 dBFS`.
+
+Candidate mới dùng cùng input SHA-256 `09FD290C5CB8401DEF7EA9701433F7BD1799B0300ABA9244A8BF88C022A8C897`; SHA-256 XML và giá trị audit đều là `72EADDE9ED897A32BD11A4EFAD453FE5A77742E73A4BC69E2BEB1248B10D1AB8`, SHA-256 audit là `B570033C633B8D63156DF7E063020703C1FD3EA5187D8914D2A87CFB15167BB0`. Cấu trúc vẫn có 8.058 fragment/2.132 phrase; 1.197 phrase chạm cap, 3.271 marker. Toàn bộ 935 phrase không cap có predicted post-routing peak `-6 dBFS`. Đây vẫn là dự đoán cho candidate mới và cần thêm một PCM round-trip từ Premiere.
+
 ## Các cổng còn thiếu
 
 - Lưu **FCP Translation Results** nếu Premiere có tạo và xác nhận không có lỗi làm mất audio.
 - Kiểm tra vài fragment speech/ambiguous/noise, marker và khả năng bật lại clip Disable.
-- Import XML phương án B mới, export lại A1 và yêu cầu source-linked PCM report đạt `-6.0 ± 0.1 dBFS` cho phrase không cap; phrase cap phải khớp predicted peak hậu routing.
+- Import XML frame-safe schema `1.2`, export lại A1 và yêu cầu source-linked PCM report đạt `-6.0 ± 0.1 dBFS` cho toàn bộ phrase không cap; phrase cap phải khớp predicted peak hậu routing và không nóng hơn target.
 - Gắn nhãn đủ để tính 100% direct speech được giữ, ít nhất 90% clear noise/bleed bị Disable và 0% ambiguous bị Disable.
 - Chạy cổng **Dừng an toàn** và xác nhận không để XML/audit/tmp dở dang.
 - Chạy ZIP offline trên Windows 10 x64 và Windows 11 x64 sạch, không có .NET/Python cài sẵn.

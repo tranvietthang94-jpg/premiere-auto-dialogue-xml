@@ -54,7 +54,7 @@ Mất video/audio, media path đổi, duration/track count sai, Translation Resu
 
 Để phép đo ánh xạ được từng phrase trong audit, mỗi WAV pilot phải được export từ đầu sequence `00:00:00:00`, đủ chiều dài, chỉ Solo đúng một track A1–A7 và Mute các track còn lại. Dùng WAV mono integer PCM 48 kHz 16/24/32-bit; ưu tiên 24-bit. Giữ Mix ở `0.0 dB`, không thêm normalization, limiter, track effect hoặc Master effect. Nếu Premiere không cho xuất mono trực tiếp thì dừng và ghi nhận routing thay vì tự convert WAV sau export.
 
-Validator đọc streaming đúng các vùng `speech`, đo sample peak của từng phrase và so với `-6 dBFS` hoặc predicted peak khi gain bị cap. Report mới luôn chứa SHA-256 audit/WAV và không ghi đè file đã có:
+Validator đọc streaming các fragment `speech` và `ambiguous-near-speech` Enabled mang cùng phrase, đo sample peak của toàn phrase và kiểm tra riêng hai điều: Premiere có áp đúng gain/timing hay không, và phrase không cap có thực sự đạt `-6,0 ± 0,1 dBFS` hay không. Report mới luôn chứa SHA-256 audit/WAV và không ghi đè file đã có:
 
 ```powershell
 .\.tools\dotnet\dotnet.exe run --project tools\PremiereAutoDialogueXml.VerifyPcm -- `
@@ -65,7 +65,7 @@ Truyền đúng `source.xml` có SHA-256 khớp audit để validator đo lại 
 
 Chạy A1 trước để xác nhận routing. Chỉ sau khi report A1 hợp lệ mới lặp A2–A7; không dùng một bản full mix để thay cho stem vì nhiều mic cộng lại sẽ làm sai peak từng phrase.
 
-Audit schema `1.1` phải ghi profile `mono-center-equal-power-to-stereo` và `premiereCenterPanCompensationDb=3,0102999566`. Validator trừ đúng hệ số này khỏi predicted peak hậu routing; với XML mới, source-linked median delta phải gần `0 dB` và mọi phrase phải nằm trong tolerance. Audit `1.0` cũ không có bù và không được dùng để chứng minh phương án B.
+Audit schema `1.2` phải ghi profile `mono-center-equal-power-to-stereo`, `premiereCenterPanCompensationDb=3,0102999566` và policy `max-direct-speech-and-frame-aligned-enabled-phrase-peak`. Validator trừ đúng hệ số routing khỏi predicted peak hậu routing; source-linked gain delta phải nằm trong tolerance, toàn bộ phrase không cap phải đạt `-6,0 ± 0,1 dBFS`, còn phrase cap phải khớp predicted peak và không nóng hơn target. Audit `1.0` không có bù; audit `1.1` chưa có frame-safe gain reference, nên cả hai không được dùng để đóng cổng cuối.
 
 ## D. Nhãn HGE2
 

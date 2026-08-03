@@ -26,8 +26,8 @@ Wrapper bám đúng hợp đồng chính thức của model 16 kHz: mỗi khối
 - Source dài hơn timeline do làm tròn dưới một frame được crop theo timeline; source ngắn hơn được pad silence. Chênh lệch lớn hơn một frame đã bị Phase 02 từ chối.
 - Noise floor dùng cửa sổ thích nghi 512 block non-speech và percentile 20; direct speech phải vừa đạt VAD 0.50 vừa cao hơn floor ít nhất 10 dB trong tối thiểu 120 ms.
 - Các block VAD mạnh nhưng quá ngắn/yếu, cùng block sát threshold có năng lượng giọng, được giữ là `Ambiguous`; không bị Disable.
-- Các cụm speech cách nhau dưới 350 ms dùng một quyết định gain. Padding 200/300 ms không được tính vào peak; padding hai câu gần nhau được chặn tại midpoint để không có hai gain chồng nhau.
-- Peak được đo lại từ đúng source range của những block direct speech đã xác nhận. Gain yêu cầu là `-6 - peak dBFS`; boost trên +18 dB bị cap và phrase mang cờ audit.
+- Các cụm speech cách nhau dưới 350 ms dùng một quyết định gain. Padding hai câu gần nhau được chặn tại midpoint để không có hai gain chồng nhau.
+- Peak lõi được đo lại từ đúng source range của những block direct speech đã xác nhận. Sau khi căn quyết định segment theo frame XML, app đo thêm peak của toàn bộ frame `speech`/`ambiguous-near-speech` Enabled mang cùng phrase và dùng peak lớn hơn làm tham chiếu gain. Nhờ vậy padding hoặc biên frame không thể làm output nóng hơn target. Boost tổng trên +18 dB bị cap và phrase mang cờ audit.
 - Một phrase đi qua hai WAV vẫn có một ID/gain, nhưng segment giữ nguyên từng clip/source range để Phase 04 có thể viết XML không đổi media reference.
 
 ## Bleed và bằng chứng xung đột

@@ -18,7 +18,7 @@
 - Không sửa hoặc ghi đè input.
 - Không commit media thật, project Premiere, log riêng tư hoặc output cục bộ.
 - Chỉ tạo XML cuối khi toàn bộ kiểm tra và phân tích đã hoàn tất.
-- `-6 dBFS` là sample peak từng cụm lời sau profile routing `mono-center-equal-power-to-stereo`; app bù `+3,0103 dB` nhưng boost tổng vẫn giới hạn `+18 dB`.
+- `-6 dBFS` là sample peak từng cụm lời sau profile routing `mono-center-equal-power-to-stereo`; app dùng peak lớn hơn giữa lõi lời trực tiếp và các frame phrase thực sự được bật, bù `+3,0103 dB`, nhưng boost tổng vẫn giới hạn `+18 dB`.
 - Đây không phải LUFS, true peak, limiter hoặc cam kết cho toàn bộ Master bus.
 
 Kế hoạch triển khai và tiêu chí nghiệm thu nằm trong [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md).
