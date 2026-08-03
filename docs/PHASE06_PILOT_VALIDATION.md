@@ -65,7 +65,7 @@ Truyền đúng `source.xml` có SHA-256 khớp audit để validator đo lại 
 
 Chạy A1 trước để xác nhận routing. Chỉ sau khi report A1 hợp lệ mới lặp A2–A7; không dùng một bản full mix để thay cho stem vì nhiều mic cộng lại sẽ làm sai peak từng phrase.
 
-`medianObservedOffsetDb` và số phrase cùng offset chỉ là chẩn đoán routing. Chúng không tự bù gain, không thay tolerance và không thể đổi `allWithinTolerance=false` thành đạt nếu chưa có quyết định routing rõ ràng.
+Audit schema `1.1` phải ghi profile `mono-center-equal-power-to-stereo` và `premiereCenterPanCompensationDb=3,0102999566`. Validator trừ đúng hệ số này khỏi predicted peak hậu routing; với XML mới, source-linked median delta phải gần `0 dB` và mọi phrase phải nằm trong tolerance. Audit `1.0` cũ không có bù và không được dùng để chứng minh phương án B.
 
 ## D. Nhãn HGE2
 

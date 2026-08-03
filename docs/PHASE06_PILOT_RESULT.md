@@ -1,6 +1,6 @@
 # Phase 06 — báo cáo pilot HGE2
 
-Trạng thái: `failed` tại cổng PCM; đang điều tra routing, không phát hành.
+Trạng thái: `incomplete`; XML pilot cũ failed PCM, candidate phương án B đang chờ Premiere round-trip, không phát hành.
 
 Ngày ghi nhận: 2026-08-03.
 
@@ -50,13 +50,21 @@ Theo tiêu chí nghiêm ngặt hiện tại, 0/252 phrase nằm trong `±0,1 dB`
 
 Validator .NET chạy lại với XML/media nguồn có SHA-256 khớp audit và đo đúng source range của từng fragment: 252/252 phrase cùng theo offset `-3,010304 dB`, không còn outlier; biên độ sai lệch giữa các phrase nhỏ hơn `0,00005 dB`. Kết quả này xác nhận gain và timing A1 qua XML/Premiere nhất quán, đồng thời cho thấy offset là biến đổi routing chung chứ không phải lỗi gain ngẫu nhiên.
 
-Offset gần `-3,0103 dB` phù hợp với center-pan/downmix mono của Premiere, nhưng target hậu routing vẫn chưa đạt `-6 dBFS`. Không tự động cộng bù gain, không nới tolerance và không đổi trạng thái thành passed trước quyết định routing rõ ràng. Report source-linked được giữ ngoài Git; SHA-256 report là `0FF41BDE11413440160BB61AEECBEA97743F6335AE97B9DA604C28DD36C302D8`.
+Offset gần `-3,0103 dB` phù hợp với center-pan/downmix mono của Premiere, nhưng target hậu routing của XML pilot cũ chưa đạt `-6 dBFS`. Lượt cũ không được âm thầm nới tolerance hoặc đổi trạng thái thành passed. Report source-linked được giữ ngoài Git; SHA-256 report là `0FF41BDE11413440160BB61AEECBEA97743F6335AE97B9DA604C28DD36C302D8`.
+
+## Quyết định phương án B
+
+Ngày 2026-08-03, người vận hành chọn target gần `-6 dBFS` sau routing Premiere. Bản sửa phải cộng bù `+3,0102999566 dB` vào gain yêu cầu, giữ nguyên trần boost tổng `+18 dB`, ghi profile/hệ số vào audit schema `1.1` và tạo XML pilot mới. XML/WAV/audit pilot cũ vẫn bất biến và chỉ còn giá trị làm bằng chứng trước sửa.
+
+Candidate phương án B đã được tạo từ đúng `test HGE2.xml` trong một run mới. SHA-256 input vẫn là `09FD290C5CB8401DEF7EA9701433F7BD1799B0300ABA9244A8BF88C022A8C897`; SHA-256 XML candidate và giá trị audit đều là `416B21677C699003DC324197211079C71FAC12FA260C2A655D173A0907F52BC3`.
+
+Audit schema `1.1` ghi profile `mono-center-equal-power-to-stereo`, compensation `3,010299956639812 dB`, target hậu routing `-6 dBFS` và boost tối đa `+18 dB`. Candidate vẫn có 8.058 fragment/2.132 phrase; số phrase chạm cap tăng từ 882 lên 1.208 và marker tăng từ 2.956 lên 3.282. Mẫu phrase không cap đều có predicted post-routing peak `-6 dBFS`. Đây mới là dự đoán/audit; chưa thay thế bằng chứng PCM từ Premiere.
 
 ## Các cổng còn thiếu
 
 - Lưu **FCP Translation Results** nếu Premiere có tạo và xác nhận không có lỗi làm mất audio.
 - Kiểm tra vài fragment speech/ambiguous/noise, marker và khả năng bật lại clip Disable.
-- Quyết định target nằm trước hay sau center-pan `-3,0103 dB`; chỉ sau đó mới chọn bù gain hoặc giữ hành vi hiện tại và chạy lại cổng PCM.
+- Import XML phương án B mới, export lại A1 và yêu cầu source-linked PCM report đạt `-6.0 ± 0.1 dBFS` cho phrase không cap; phrase cap phải khớp predicted peak hậu routing.
 - Gắn nhãn đủ để tính 100% direct speech được giữ, ít nhất 90% clear noise/bleed bị Disable và 0% ambiguous bị Disable.
 - Chạy cổng **Dừng an toàn** và xác nhận không để XML/audit/tmp dở dang.
 - Chạy ZIP offline trên Windows 10 x64 và Windows 11 x64 sạch, không có .NET/Python cài sẵn.
