@@ -50,6 +50,19 @@ Mất video/audio, media path đổi, duration/track count sai, Translation Resu
 - Ghi riêng track/range/phrase ID và checksum WAV export. Không dùng waveform display hoặc hộp Audio Gain làm bằng chứng thay PCM.
 - Kết quả này không phải LUFS, true peak, limiter, Master-bus hoặc delivery-ceiling guarantee.
 
+### Hợp đồng stem PCM pilot
+
+Để phép đo ánh xạ được từng phrase trong audit, mỗi WAV pilot phải được export từ đầu sequence `00:00:00:00`, đủ chiều dài, chỉ Solo đúng một track A1–A7 và Mute các track còn lại. Dùng WAV mono integer PCM 48 kHz 16/24/32-bit; ưu tiên 24-bit. Giữ Mix ở `0.0 dB`, không thêm normalization, limiter, track effect hoặc Master effect. Nếu Premiere không cho xuất mono trực tiếp thì dừng và ghi nhận routing thay vì tự convert WAV sau export.
+
+Validator đọc streaming đúng các vùng `speech`, đo sample peak của từng phrase và so với `-6 dBFS` hoặc predicted peak khi gain bị cap. Report mới luôn chứa SHA-256 audit/WAV và không ghi đè file đã có:
+
+```powershell
+.\.tools\dotnet\dotnet.exe run --project tools\PremiereAutoDialogueXml.VerifyPcm -- `
+  <audit.json> <track-number> <full-sequence-mono-48k.wav> <new-report.json>
+```
+
+Chạy A1 trước để xác nhận routing. Chỉ sau khi report A1 hợp lệ mới lặp A2–A7; không dùng một bản full mix để thay cho stem vì nhiều mic cộng lại sẽ làm sai peak từng phrase.
+
 ## D. Nhãn HGE2
 
 Tập nhãn pilot phải có `track`, timeline `start/end`, loại `direct-speech`, `clear-noise`, `clear-bleed` hoặc `ambiguous`, và người xác nhận. Từ audit/XML output tính:
