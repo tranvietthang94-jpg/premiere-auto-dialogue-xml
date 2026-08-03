@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFramework>net10.0-windows</TargetFramework>
     <IsPackable>false</IsPackable>
   </PropertyGroup>
   <ItemGroup>
@@ -10,6 +10,7 @@
     <ProjectReference Include="..\..\src\PremiereAutoDialogueXml.Audio\PremiereAutoDialogueXml.Audio.csproj" />
     <ProjectReference Include="..\..\src\PremiereAutoDialogueXml.Core\PremiereAutoDialogueXml.Core.csproj" />
     <ProjectReference Include="..\..\src\PremiereAutoDialogueXml.Output\PremiereAutoDialogueXml.Output.csproj" />
+    <ProjectReference Include="..\..\src\PremiereAutoDialogueXml.App\PremiereAutoDialogueXml.App.csproj" />
   </ItemGroup>
   <ItemGroup>
     <Using Include="Microsoft.VisualStudio.TestTools.UnitTesting" />

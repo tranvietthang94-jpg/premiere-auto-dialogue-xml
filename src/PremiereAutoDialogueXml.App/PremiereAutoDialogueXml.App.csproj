@@ -5,10 +5,22 @@
     <UseWPF>true</UseWPF>
     <RootNamespace>PremiereAutoDialogueXml.App</RootNamespace>
     <AssemblyName>PremiereAutoDialogueXml</AssemblyName>
+    <Product>Premiere Auto Dialogue XML</Product>
+    <Version>0.1.0</Version>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\PremiereAutoDialogueXml.Audio\PremiereAutoDialogueXml.Audio.csproj" />
     <ProjectReference Include="..\PremiereAutoDialogueXml.Core\PremiereAutoDialogueXml.Core.csproj" />
     <ProjectReference Include="..\PremiereAutoDialogueXml.Output\PremiereAutoDialogueXml.Output.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="..\..\docs\THIRD_PARTY_NOTICES.md"
+             Link="THIRD-PARTY-NOTICES.txt"
+             CopyToOutputDirectory="PreserveNewest"
+             CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="..\..\models\silero-vad\v6.2.1\LICENSE.txt"
+             Link="licenses\Silero-VAD-MIT.txt"
+             CopyToOutputDirectory="PreserveNewest"
+             CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>
