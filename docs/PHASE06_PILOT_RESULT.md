@@ -60,6 +60,8 @@ Candidate phương án B đã được tạo từ đúng `test HGE2.xml` trong m
 
 Audit schema `1.1` ghi profile `mono-center-equal-power-to-stereo`, compensation `3,010299956639812 dB`, target hậu routing `-6 dBFS` và boost tối đa `+18 dB`. Candidate vẫn có 8.058 fragment/2.132 phrase; số phrase chạm cap tăng từ 882 lên 1.208 và marker tăng từ 2.956 lên 3.282. Mẫu phrase không cap đều có predicted post-routing peak `-6 dBFS`. Đây mới là dự đoán/audit; chưa thay thế bằng chứng PCM từ Premiere.
 
+Gói kiểm thử phương án B đã được publish dạng ZIP self-contained `win-x64`, chưa tạo installer. Gói có 410 file payload, không chứa Python hoặc PDB; kích thước ZIP là 71.101.669 byte và SHA-256 là `70CE44E1A1D5C7139C1964E6CED77361F3B58485E4573E3B4F00C8AB86589B71`. Manifest ghi model `6.2.1` với SHA-256 `1A153A22F4509E292A94E67D6F9B85E8DEB25B4988682B7E174C65279D8788E3`.
+
 ## Các cổng còn thiếu
 
 - Lưu **FCP Translation Results** nếu Premiere có tạo và xác nhận không có lỗi làm mất audio.
