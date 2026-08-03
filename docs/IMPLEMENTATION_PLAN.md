@@ -67,7 +67,7 @@ Kết quả Premiere Pro 2026 ngày 2026-08-02: **đạt** sau vòng mở rộng
 - Synthetic tests cho XML, PCM, VAD, noise, bleed, overlap và file boundary.
 - `F:\demo\test HGE2.xml`: source trim và bảy track thực tế.
 - `F:\demo\test HGE.xml`: 19 WAV nối tiếp và xử lý dài.
-- 100% direct-speech interval đã gắn nhãn được giữ; ít nhất 90% noise/bleed rõ ràng được Disable; ambiguous không bị Disable.
+- Nếu có tập nhãn Mục tiêu hợp lệ: 100% direct-speech interval được giữ; ít nhất 90% noise/bleed rõ ràng được Disable; ambiguous không bị Disable. Chủ dự án đã miễn cổng nhãn này cho Phase 06 ngày 2026-08-04, nên báo cáo không tuyên bố ba tỷ lệ chưa đo.
 - Câu không bị cap đạt `-6.0 ± 0.1 dBFS` sau Premiere round-trip.
 - Mục tiêu trên i9-12900K: HGE2 dưới 15 phút, full HGE dưới 90 phút, RAM dưới 1.5 GB.
-- Bộ cài chạy trên Windows 10/11 x64 sạch, không Python và không Internet.
+- Gói self-contained chạy trên Windows 10/11 x64 mà không cần Python hoặc Internet. Phạm vi Windows 10 được giữ lại; cần một lượt test thực tế trước installer. Theo ma trận .NET 10 hiện hành của Microsoft, hỗ trợ upstream chính thức trên Windows 10 giới hạn ở các bản LTSC/Enterprise còn trong vòng đời; Home/Pro cũ là best-effort.

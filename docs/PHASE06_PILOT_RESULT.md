@@ -1,6 +1,6 @@
 # Phase 06 — báo cáo pilot HGE2
 
-Trạng thái: `incomplete`; candidate audit `1.3` đã giữ đúng M19, đạt PCM round-trip A1–A7, import không hiện cảnh báo Translation Results, clip Disable bật lại nghe được audio gốc và phân tích thành công trên một máy Windows 11 khác. Ngày 2026-08-04, chủ dự án quyết định bỏ cổng nghe nhãn Mục tiêu; vì vậy báo cáo không tuyên bố ba tỷ lệ 100%/90%/0% dựa trên nhãn người nghe. Cổng self-contained/Windows 11 đạt; còn quyết định phạm vi Windows 10 trước khi phát hành.
+Trạng thái: `incomplete`; candidate audit `1.3` đã giữ đúng M19, đạt PCM round-trip A1–A7, import không hiện cảnh báo Translation Results, clip Disable bật lại nghe được audio gốc và phân tích thành công trên một máy Windows 11 khác. Ngày 2026-08-04, chủ dự án quyết định bỏ cổng nghe nhãn Mục tiêu; vì vậy báo cáo không tuyên bố ba tỷ lệ 100%/90%/0% dựa trên nhãn người nghe. Cổng self-contained/Windows 11 đạt; chủ dự án giữ Windows 10 trong phạm vi nên còn thiếu một lượt test Windows 10 trước khi phát hành.
 
 Ngày ghi nhận mới nhất: 2026-08-04.
 
@@ -131,8 +131,8 @@ Build chứa lớp bảo vệ VAD/năng lượng đã được publish thành ZI
 ## Các cổng còn thiếu
 
 - Kiểm tra marker `Cần kiểm tra` tại một fragment energy/VAD conflict nếu cần thêm bằng chứng giao diện.
-- Chạy ZIP candidate `1.3` trên Windows 10 x64 nếu vẫn giữ Windows 10 trong phạm vi phát hành.
+- Chạy ZIP candidate `1.3` trên Windows 10 x64 và ghi phiên bản/edition bằng `winver`, cùng kết quả mở app, kiểm tra XML, phân tích và tạo XML/audit.
 
 Nhãn Mục tiêu đã được chủ dự án miễn ngày 2026-08-04. Việc miễn cổng này không được diễn giải thành đã đạt 100% direct speech, 90% clear noise/bleed hoặc 0% ambiguous bị Disable.
 
-Không tạo installer và không merge Phase 06 cho đến khi quyết định phạm vi Windows 10 được chốt.
+Không tạo installer và không merge Phase 06 cho đến khi lượt thử Windows 10 đạt.

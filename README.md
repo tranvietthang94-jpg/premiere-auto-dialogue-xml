@@ -25,7 +25,13 @@ Kế hoạch triển khai và tiêu chí nghiệm thu nằm trong [docs/IMPLEMEN
 
 ## Trạng thái
 
-Phase 00–04 đã hoàn tất compatibility gate, nền tảng WPF, parser XML/WAV, phân tích Silero VAD/gain/bleed và XML/audit writer giao dịch. Phase 05 đã nối luồng bốn bước tiếng Việt, tiến độ, dừng an toàn, diagnostic có giới hạn và publish self-contained `win-x64`; installer và nghiệm thu Premiere thực tế vẫn thuộc Phase 06.
+Phase 00–05 đã hoàn tất. Candidate Phase 06 đã qua Premiere round-trip A1–A7, kiểm tra phục hồi clip Disable, package self-contained và một lượt phân tích trên máy Windows 11 khác. Phạm vi phát hành vẫn gồm Windows 10 x64; vì vậy Phase 06 còn chờ một lượt chạy thực tế trên Windows 10 trước khi tạo installer.
+
+## Hệ điều hành mục tiêu
+
+- Windows 11 x64.
+- Windows 10 x64. [.NET 10 hiện được Microsoft hỗ trợ trên Windows 10 LTSC/Enterprise còn trong vòng đời](https://learn.microsoft.com/en-us/dotnet/core/install/windows); các bản Home/Pro đã hết vòng đời chỉ được coi là tương thích best-effort và vẫn phải qua test thực tế.
+- Bản phát hành là self-contained, không yêu cầu người dùng cài riêng .NET hoặc Python.
 
 Bằng chứng theo phase nằm trong thư mục [docs](docs).
 
@@ -53,4 +59,4 @@ Tạo publish folder và ZIP self-contained mới, không ghi đè artifact cũ:
 .\scripts\publish-win-x64.ps1
 ```
 
-Script kiểm runtime, ONNX native, license, Python/PDB và tạo `publish-manifest.json` chứa SHA-256 payload. ZIP Phase 05 chưa phải installer và chưa được coi là bản phát hành pilot.
+Script kiểm apphost, .NET/CoreCLR, WPF, ONNX native, model checksum, license, Python/PDB và tạo `publish-manifest.json` chứa SHA-256 payload. ZIP pilot chưa phải installer.
