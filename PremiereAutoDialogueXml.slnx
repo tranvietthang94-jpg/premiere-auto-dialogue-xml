@@ -4,11 +4,13 @@
     <Project Path="src/PremiereAutoDialogueXml.Audio/PremiereAutoDialogueXml.Audio.csproj" />
     <Project Path="src/PremiereAutoDialogueXml.Core/PremiereAutoDialogueXml.Core.csproj" />
     <Project Path="src/PremiereAutoDialogueXml.Output/PremiereAutoDialogueXml.Output.csproj" />
+    <Project Path="src/PremiereAutoDialogueXml.Validation/PremiereAutoDialogueXml.Validation.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/PremiereAutoDialogueXml.Core.Tests/PremiereAutoDialogueXml.Core.Tests.csproj" />
   </Folder>
   <Folder Name="/tools/">
     <Project Path="tools/PremiereAutoDialogueXml.Inspect/PremiereAutoDialogueXml.Inspect.csproj" />
+    <Project Path="tools/PremiereAutoDialogueXml.VerifyPcm/PremiereAutoDialogueXml.VerifyPcm.csproj" />
   </Folder>
 </Solution>

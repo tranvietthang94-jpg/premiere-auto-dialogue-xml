@@ -1,0 +1,201 @@
+using PremiereAutoDialogueXml.Audio.Analysis;
+using PremiereAutoDialogueXml.Audio.Pcm;
+using PremiereAutoDialogueXml.Core.Media;
+using PremiereAutoDialogueXml.Output.Audit;
+
+namespace PremiereAutoDialogueXml.Validation;
+
+public sealed record PhrasePeakValidation(
+    string PhraseId,
+    int TrackIndex,
+    long TimelineStartFrame,
+    long TimelineEndFrame,
+    int SpeechFragmentCount,
+    bool GainWasCapped,
+    double MeasuredSourcePeakDbfs,
+    double AppliedGainDb,
+    double ExpectedRenderedPeakDbfs,
+    double? ObservedRenderedPeakDbfs,
+    double? DeltaDb,
+    bool WithinTolerance,
+    string ResultReason);
+
+public sealed record PcmTrackPeakValidationReport(
+    int TrackIndex,
+    int SampleRate,
+    int ValidBitsPerSample,
+    long SampleFrameCount,
+    double ToleranceDb,
+    int SpeechFragmentCount,
+    int PhraseCount,
+    int PassedPhraseCount,
+    int FailedPhraseCount,
+    bool AllWithinTolerance,
+    IReadOnlyList<PhrasePeakValidation> Phrases);
+
+public sealed class PcmTrackPeakValidator
+{
+    private const int SupportedFrameRate = 25;
+    private const int SupportedSampleRate = 48_000;
+    private const int SamplesPerVideoFrame = SupportedSampleRate / SupportedFrameRate;
+
+    private readonly PcmWaveSampleReader _sampleReader;
+
+    public PcmTrackPeakValidator(PcmWaveSampleReader? sampleReader = null)
+    {
+        _sampleReader = sampleReader ?? new PcmWaveSampleReader();
+    }
+
+    public PcmTrackPeakValidationReport Validate(
+        OutputAudit audit,
+        WaveFileInfo renderedWave,
+        int trackIndex,
+        double toleranceDb = 0.1,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(audit);
+        ArgumentNullException.ThrowIfNull(renderedWave);
+
+        if (trackIndex <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(trackIndex), "Số track phải bắt đầu từ 1.");
+        }
+
+        if (!double.IsFinite(toleranceDb) || toleranceDb <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(toleranceDb), "Sai số peak phải lớn hơn 0 dB.");
+        }
+
+        ValidateWave(renderedWave);
+
+        var speechFragments = audit.Fragments
+            .Where(fragment =>
+                fragment.TrackIndex == trackIndex &&
+                fragment.Status == AudioSegmentStatus.Speech &&
+                fragment.Enabled &&
+                !string.IsNullOrWhiteSpace(fragment.PhraseId))
+            .OrderBy(fragment => fragment.TimelineStartFrame)
+            .ToArray();
+
+        if (speechFragments.Length == 0)
+        {
+            throw new InvalidDataException($"Audit không có fragment speech Enabled trên track A{trackIndex}.");
+        }
+
+        var results = new List<PhrasePeakValidation>();
+        foreach (var phraseGroup in speechFragments.GroupBy(fragment => fragment.PhraseId!, StringComparer.Ordinal))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var fragments = phraseGroup.OrderBy(fragment => fragment.TimelineStartFrame).ToArray();
+            ValidatePhraseAudit(phraseGroup.Key, fragments);
+
+            var first = fragments[0];
+            var measuredPeakDbfs = first.MeasuredPeakDbfs!.Value;
+            var appliedGainDb = first.AppliedGainDb!.Value;
+            var expectedPeakDbfs = first.GainWasCapped
+                ? measuredPeakDbfs + appliedGainDb
+                : audit.Preset.TargetSamplePeakDbfs;
+            var maximumAbsoluteSample = 0f;
+
+            foreach (var fragment in fragments)
+            {
+                var startSample = checked(fragment.TimelineStartFrame * SamplesPerVideoFrame);
+                var endSample = checked(fragment.TimelineEndFrame * SamplesPerVideoFrame);
+                if (startSample < 0 || endSample <= startSample)
+                {
+                    throw new InvalidDataException(
+                        $"Phrase {phraseGroup.Key} có vùng timeline không hợp lệ " +
+                        $"[{fragment.TimelineStartFrame}, {fragment.TimelineEndFrame}).");
+                }
+
+                if (endSample > renderedWave.SampleFrameCount)
+                {
+                    throw new InvalidDataException(
+                        $"WAV kết xuất kết thúc trước phrase {phraseGroup.Key} trên A{trackIndex}; " +
+                        "hãy export từ đầu sequence và không cắt đuôi.");
+                }
+
+                _sampleReader.ReadRange(
+                    renderedWave,
+                    startSample,
+                    endSample - startSample,
+                    samples =>
+                    {
+                        foreach (var sample in samples.Span)
+                        {
+                            maximumAbsoluteSample = Math.Max(maximumAbsoluteSample, Math.Abs(sample));
+                        }
+                    },
+                    cancellationToken);
+            }
+
+            var observedPeakDbfs = maximumAbsoluteSample > 0
+                ? 20d * Math.Log10(maximumAbsoluteSample)
+                : (double?)null;
+            var deltaDb = observedPeakDbfs - expectedPeakDbfs;
+            var withinTolerance = deltaDb is not null && Math.Abs(deltaDb.Value) <= toleranceDb;
+
+            results.Add(new(
+                phraseGroup.Key,
+                trackIndex,
+                fragments.Min(fragment => fragment.TimelineStartFrame),
+                fragments.Max(fragment => fragment.TimelineEndFrame),
+                fragments.Length,
+                first.GainWasCapped,
+                measuredPeakDbfs,
+                appliedGainDb,
+                expectedPeakDbfs,
+                observedPeakDbfs,
+                deltaDb,
+                withinTolerance,
+                observedPeakDbfs is null ? "rendered-silence" : withinTolerance ? "within-tolerance" : "peak-out-of-tolerance"));
+        }
+
+        var ordered = results.OrderBy(result => result.TimelineStartFrame).ToArray();
+        var passedCount = ordered.Count(result => result.WithinTolerance);
+        return new(
+            trackIndex,
+            renderedWave.SampleRate,
+            renderedWave.ValidBitsPerSample,
+            renderedWave.SampleFrameCount,
+            toleranceDb,
+            speechFragments.Length,
+            ordered.Length,
+            passedCount,
+            ordered.Length - passedCount,
+            passedCount == ordered.Length,
+            ordered);
+    }
+
+    private static void ValidateWave(WaveFileInfo wave)
+    {
+        if (wave.ChannelCount != 1 || wave.SampleRate != SupportedSampleRate)
+        {
+            throw new InvalidDataException("PCM pilot phải là WAV mono 48 kHz export từ đầu sequence.");
+        }
+
+        if (wave.ContainerBitsPerSample is not (16 or 24 or 32) ||
+            wave.ValidBitsPerSample is not (16 or 24 or 32) ||
+            wave.ValidBitsPerSample > wave.ContainerBitsPerSample)
+        {
+            throw new InvalidDataException("PCM pilot phải là integer PCM 16/24/32-bit.");
+        }
+    }
+
+    private static void ValidatePhraseAudit(string phraseId, IReadOnlyList<FragmentAudit> fragments)
+    {
+        var first = fragments[0];
+        if (first.MeasuredPeakDbfs is null || first.AppliedGainDb is null)
+        {
+            throw new InvalidDataException($"Phrase {phraseId} thiếu peak/gain trong audit.");
+        }
+
+        if (fragments.Any(fragment =>
+                fragment.MeasuredPeakDbfs != first.MeasuredPeakDbfs ||
+                fragment.AppliedGainDb != first.AppliedGainDb ||
+                fragment.GainWasCapped != first.GainWasCapped))
+        {
+            throw new InvalidDataException($"Phrase {phraseId} không dùng một quyết định gain thống nhất.");
+        }
+    }
+}

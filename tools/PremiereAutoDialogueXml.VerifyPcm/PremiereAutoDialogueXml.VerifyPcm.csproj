@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>PremiereAutoDialogueXml.VerifyPcm</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\PremiereAutoDialogueXml.Core\PremiereAutoDialogueXml.Core.csproj" />
+    <ProjectReference Include="..\..\src\PremiereAutoDialogueXml.Output\PremiereAutoDialogueXml.Output.csproj" />
+    <ProjectReference Include="..\..\src\PremiereAutoDialogueXml.Validation\PremiereAutoDialogueXml.Validation.csproj" />
+  </ItemGroup>
+</Project>
