@@ -90,6 +90,8 @@ Chạy ZIP trên Windows 10 x64 và Windows 11 x64 sạch:
 - app mở, kiểm tra fixture, bắt đầu/dừng và xuất được;
 - không tạo installer hoặc release public trước khi cả hai môi trường đạt.
 
+Kết quả ngày 2026-08-04: app đã phân tích thành công trên một máy Windows 11 khác. Máy thử không xác định được trạng thái cài sẵn .NET/Python hoặc Internet, nhưng kiểm tra package độc lập xác nhận đủ .NET/CoreCLR, WPF, ONNX Runtime, model và giấy phép; 410/410 payload khớp manifest. Vì vậy cổng self-contained và vận hành Windows 11 được chấp nhận. Windows 10 chưa được thử và chỉ còn là cổng bắt buộc nếu tiếp tục nằm trong phạm vi phát hành.
+
 ## Quyết định cuối
 
 Report chỉ có ba trạng thái:

@@ -1,6 +1,6 @@
 # Phase 06 — báo cáo pilot HGE2
 
-Trạng thái: `incomplete`; candidate audit `1.3` đã giữ đúng M19, đạt PCM round-trip A1–A7, import không hiện cảnh báo Translation Results và clip Disable bật lại nghe được audio gốc. Ngày 2026-08-04, chủ dự án quyết định bỏ cổng nghe nhãn Mục tiêu; vì vậy báo cáo không tuyên bố ba tỷ lệ 100%/90%/0% dựa trên nhãn người nghe. Còn thiếu kiểm thử trên máy Windows sạch; không phát hành.
+Trạng thái: `incomplete`; candidate audit `1.3` đã giữ đúng M19, đạt PCM round-trip A1–A7, import không hiện cảnh báo Translation Results, clip Disable bật lại nghe được audio gốc và phân tích thành công trên một máy Windows 11 khác. Ngày 2026-08-04, chủ dự án quyết định bỏ cổng nghe nhãn Mục tiêu; vì vậy báo cáo không tuyên bố ba tỷ lệ 100%/90%/0% dựa trên nhãn người nghe. Cổng self-contained/Windows 11 đạt; còn quyết định phạm vi Windows 10 trước khi phát hành.
 
 Ngày ghi nhận mới nhất: 2026-08-04.
 
@@ -116,7 +116,13 @@ Hậu kiểm xác nhận thư mục gate vẫn có 0 entry: không XML, audit, `
 
 Candidate audit `1.2` đã được publish thành ZIP self-contained `win-x64`, chưa tạo installer. Gói có 410 file payload, không chứa Python hoặc PDB, model `6.2.1` có SHA-256 `1A153A22F4509E292A94E67D6F9B85E8DEB25B4988682B7E174C65279D8788E3`. ZIP dài 71.104.231 byte và có SHA-256 `22E1A3A016D0C078594D8464A695FBF12D3217488368121D01F54D5F752B59E5`. Gói này là bằng chứng lịch sử trước lớp bảo vệ mới và không còn là gói dùng để đóng cổng phát hành.
 
-Máy phát triển hiện tại là Windows 11 Pro x64 và không có Windows Sandbox; vì vậy lượt chạy trên máy này không được dùng thay bằng chứng Windows 10/11 sạch. Gói vẫn chờ thử offline trên hai môi trường sạch, không cài .NET/Python và không có Internet.
+Máy phát triển hiện tại là Windows 11 Pro x64 và không có Windows Sandbox; vì vậy lượt chạy trên máy này không được dùng thay bằng chứng máy khác.
+
+Ngày 2026-08-04, người vận hành chép đúng ZIP candidate audit `1.3` sang một máy Windows 11 khác và xác nhận app phân tích thành công. Trạng thái cài sẵn .NET/Python và kết nối Internet trên máy đó không được xác định, nên bằng chứng này xác nhận vận hành thực tế trên Windows 11 nhưng không được mô tả là phép thử môi trường sạch tuyệt đối.
+
+Đối chiếu package độc lập xác nhận 410/410 payload file khớp kích thước và SHA-256 trong manifest, không thiếu hoặc sai file. Runtime config ghi `Microsoft.NETCore.App 10.0.10` và `Microsoft.WindowsDesktop.App 10.0.10` dưới `includedFrameworks`; gói có apphost, hostfxr, hostpolicy, CoreCLR, WPF, ONNX Runtime CPU native, model Silero nhúng đã tự kiểm checksum khi tải, third-party notice và giấy phép Silero. Không có Python hoặc PDB. Kết hợp với lượt phân tích thành công trên máy Windows 11 khác, cổng đầy đủ phụ thuộc/self-contained đạt; Windows 10 vẫn chưa được thử.
+
+Script publish được siết để kiểm checksum model nguồn và từ chối tạo ZIP nếu thiếu apphost, hostfxr, hostpolicy, CoreCLR, WPF, ONNX Runtime native hoặc file pháp lý. Lượt publish kiểm chứng sau thay đổi tạo 410 payload file, ZIP dài 71.104.826 byte, SHA-256 `5C01D2E7DA7E44BCD9A76E1879D22FE25F1FF5E3EF1861C07E6BA34A67DDF900`; bộ test Release đạt 93/93. Thay đổi này chỉ siết cổng đóng gói, không đổi logic phân tích đã được thử trên máy Windows 11 khác.
 
 ## Gói candidate audit 1.3
 
@@ -125,8 +131,8 @@ Build chứa lớp bảo vệ VAD/năng lượng đã được publish thành ZI
 ## Các cổng còn thiếu
 
 - Kiểm tra marker `Cần kiểm tra` tại một fragment energy/VAD conflict nếu cần thêm bằng chứng giao diện.
-- Chạy ZIP candidate `1.3` đã publish ở chế độ offline trên Windows 10 x64 và Windows 11 x64 sạch, không có .NET/Python cài sẵn.
+- Chạy ZIP candidate `1.3` trên Windows 10 x64 nếu vẫn giữ Windows 10 trong phạm vi phát hành.
 
 Nhãn Mục tiêu đã được chủ dự án miễn ngày 2026-08-04. Việc miễn cổng này không được diễn giải thành đã đạt 100% direct speech, 90% clear noise/bleed hoặc 0% ambiguous bị Disable.
 
-Không tạo installer và không merge Phase 06 cho đến khi cổng Windows sạch có đủ bằng chứng.
+Không tạo installer và không merge Phase 06 cho đến khi quyết định phạm vi Windows 10 được chốt.
