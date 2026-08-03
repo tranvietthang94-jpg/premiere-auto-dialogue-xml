@@ -58,8 +58,10 @@ Validator đọc streaming đúng các vùng `speech`, đo sample peak của t�
 
 ```powershell
 .\.tools\dotnet\dotnet.exe run --project tools\PremiereAutoDialogueXml.VerifyPcm -- `
-  <audit.json> <track-number> <full-sequence-mono-48k.wav> <new-report.json>
+  <audit.json> <track-number> <full-sequence-mono-48k.wav> <new-report.json> [source.xml]
 ```
+
+Truyền đúng `source.xml` có SHA-256 khớp audit để validator đo lại peak trên source range đã làm tròn theo fragment XML. Cách này tách được sai lệch gain/timing thật khỏi chênh lệch giữa lõi speech và biên video frame.
 
 Chạy A1 trước để xác nhận routing. Chỉ sau khi report A1 hợp lệ mới lặp A2–A7; không dùng một bản full mix để thay cho stem vì nhiều mic cộng lại sẽ làm sai peak từng phrase.
 

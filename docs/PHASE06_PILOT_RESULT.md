@@ -46,15 +46,17 @@ Ba ảnh timeline Premiere được nhận và giữ ngoài Git. SHA-256 lần l
 
 Người vận hành đã export một stem A1 đủ sequence từ Premiere. Validator xác nhận WAV là mono integer PCM 48 kHz/24-bit, dài đúng 103.219.200 sample (`00:35:50:10` ở 25 fps). SHA-256 WAV là `B38CF1F4188B79C9C2302EA42F2E44DDE1A5BCF10BAC2204E8FB7279C7E63167`.
 
-Theo tiêu chí nghiêm ngặt hiện tại, 0/252 phrase nằm trong `±0,1 dB` quanh peak kỳ vọng nên cổng PCM không đạt. Median sai lệch là `-3,010304 dB`; 237/252 phrase (94,0%) nằm trong `±0,1 dB` quanh chính offset này, gồm 106/112 phrase không cap và 131/140 phrase bị cap. Còn 15 phrase là outlier sau khi tách offset chung.
+Theo tiêu chí nghiêm ngặt hiện tại, 0/252 phrase nằm trong `±0,1 dB` quanh peak kỳ vọng nên cổng PCM không đạt. Median sai lệch là `-3,010304 dB`; 237/252 phrase (94,0%) nằm trong `±0,1 dB` quanh chính offset này, gồm 106/112 phrase không cap và 131/140 phrase bị cap. Mười lăm chênh lệch ban đầu xuất hiện vì peak audit đo lõi speech còn XML phải áp gain trên fragment đã làm tròn theo video frame.
 
-Offset gần `-3,0103 dB` là bằng chứng mạnh cho hệ số center-pan/downmix mono của Premiere, nhưng đây vẫn chỉ là suy luận cho đến khi routing được xác nhận. Không tự động cộng bù gain, không nới tolerance và không đổi trạng thái thành passed. Report chẩn đoán được giữ ngoài Git; SHA-256 report là `CD33FC373B2E227ED18AC95F184E42E7FA70CFB825DA073E04AC188D7FEBB13A`.
+Validator .NET chạy lại với XML/media nguồn có SHA-256 khớp audit và đo đúng source range của từng fragment: 252/252 phrase cùng theo offset `-3,010304 dB`, không còn outlier; biên độ sai lệch giữa các phrase nhỏ hơn `0,00005 dB`. Kết quả này xác nhận gain và timing A1 qua XML/Premiere nhất quán, đồng thời cho thấy offset là biến đổi routing chung chứ không phải lỗi gain ngẫu nhiên.
+
+Offset gần `-3,0103 dB` phù hợp với center-pan/downmix mono của Premiere, nhưng target hậu routing vẫn chưa đạt `-6 dBFS`. Không tự động cộng bù gain, không nới tolerance và không đổi trạng thái thành passed trước quyết định routing rõ ràng. Report source-linked được giữ ngoài Git; SHA-256 report là `0FF41BDE11413440160BB61AEECBEA97743F6335AE97B9DA604C28DD36C302D8`.
 
 ## Các cổng còn thiếu
 
 - Lưu **FCP Translation Results** nếu Premiere có tạo và xác nhận không có lỗi làm mất audio.
 - Kiểm tra vài fragment speech/ambiguous/noise, marker và khả năng bật lại clip Disable.
-- Xác nhận routing/pan gây offset `-3,0103 dB`, điều tra 15 outlier và chạy lại cổng PCM trước khi quyết định có bù gain hay giữ hành vi hiện tại.
+- Quyết định target nằm trước hay sau center-pan `-3,0103 dB`; chỉ sau đó mới chọn bù gain hoặc giữ hành vi hiện tại và chạy lại cổng PCM.
 - Gắn nhãn đủ để tính 100% direct speech được giữ, ít nhất 90% clear noise/bleed bị Disable và 0% ambiguous bị Disable.
 - Chạy cổng **Dừng an toàn** và xác nhận không để XML/audit/tmp dở dang.
 - Chạy ZIP offline trên Windows 10 x64 và Windows 11 x64 sạch, không có .NET/Python cài sẵn.
