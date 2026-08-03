@@ -47,7 +47,9 @@ public sealed class PremiereXmlGeneratorTests
         Assert.HasCount(1, clipItems[1].Elements("filter"));
         Assert.HasCount(1, clipItems[2].Elements("filter"));
         Assert.HasCount(0, clipItems[3].Elements("filter"));
-        Assert.IsTrue(clipItems[1].Elements("filter").Single().Descendants("value").Single().Value.StartsWith("1.99526", StringComparison.Ordinal));
+        Assert.AreEqual(
+            "2.821726937",
+            clipItems[1].Elements("filter").Single().Descendants("value").Single().Value);
 
         Assert.AreEqual(fixture.VideoFingerprint, WriterFixture.Fingerprint(sequence.Element("media")!.Element("video")!));
         Assert.HasCount(1, generated.Markers.Where(marker => marker.Name == "Cần kiểm tra"));
@@ -60,10 +62,11 @@ public sealed class PremiereXmlGeneratorTests
     public void GenerateFrameAlignmentNeverDisablesFrameTouchedBySpeech()
     {
         using var fixture = WriterFixture.Create();
+        var phrase = fixture.Analysis.Tracks[0].Phrases[0];
         var segments = new[]
         {
             fixture.Segment(0, 1_000, AudioSegmentStatus.Noise, null, null, "noise"),
-            fixture.Segment(1_000, 3_000, AudioSegmentStatus.Speech, "T01-P000001", 6, "confirmed-direct-speech"),
+            fixture.Segment(1_000, 3_000, AudioSegmentStatus.Speech, phrase.Id, phrase.AppliedGainDb, "confirmed-direct-speech"),
             fixture.Segment(3_000, 19_200, AudioSegmentStatus.Noise, null, null, "noise")
         };
         var analysis = fixture.Analysis with
@@ -244,6 +247,7 @@ public sealed class PremiereXmlGeneratorTests
                 xmlPath,
                 sourceHash,
                 new("sequence-source", "11111111-1111-1111-1111-111111111111", "Show", 25, 10, 2, 48_000, [track]));
+            var compensatedGain = (float)(6 + DialogueProcessingPreset.Balanced.PremiereCenterPanCompensationDb);
             var phrase = new DialoguePhrase(
                 "T01-P000001",
                 1,
@@ -252,8 +256,8 @@ public sealed class PremiereXmlGeneratorTests
                 3_840,
                 15_360,
                 -12,
-                gainWasCapped ? 24 : 6,
-                gainWasCapped ? 18 : 6,
+                gainWasCapped ? 24 : compensatedGain,
+                gainWasCapped ? 18 : compensatedGain,
                 gainWasCapped);
             var fixture = new WriterFixture(directory, project, null!, string.Empty);
             var segments = new[]

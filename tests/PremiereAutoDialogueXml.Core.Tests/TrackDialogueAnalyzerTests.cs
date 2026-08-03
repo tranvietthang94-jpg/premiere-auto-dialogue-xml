@@ -32,7 +32,12 @@ public sealed class TrackDialogueAnalyzerTests
         Assert.AreEqual(5_760L, phrase.PaddedStartSample);
         Assert.AreEqual(35_904L, phrase.PaddedEndSample);
         Assert.AreEqual(-12.0412f, phrase.MeasuredPeakDbfs, 0.002f);
-        Assert.AreEqual(6.0412f, phrase.AppliedGainDb, 0.002f);
+        Assert.AreEqual(9.0515f, phrase.AppliedGainDb, 0.002f);
+        Assert.AreEqual(
+            -6f,
+            phrase.MeasuredPeakDbfs + phrase.AppliedGainDb -
+            (float)DialogueProcessingPreset.Balanced.PremiereCenterPanCompensationDb,
+            0.002f);
         Assert.IsFalse(phrase.GainWasCapped);
         Assert.IsTrue(result.Segments.Any(segment => segment.Status == AudioSegmentStatus.Speech));
         Assert.IsTrue(result.Segments.Any(segment => segment.Status == AudioSegmentStatus.Noise));

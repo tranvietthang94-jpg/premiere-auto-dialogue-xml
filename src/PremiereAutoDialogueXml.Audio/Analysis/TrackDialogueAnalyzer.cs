@@ -152,7 +152,10 @@ public sealed class TrackDialogueAnalyzer(TimelinePcmAccessor pcmAccessor)
                     cancellationToken))
                 .DefaultIfEmpty(AudioMath.SilenceDbfs)
                 .Max();
-            var requiredGain = (float)(preset.TargetSamplePeakDbfs - peakDbfs);
+            var requiredGain = (float)(
+                preset.TargetSamplePeakDbfs -
+                peakDbfs +
+                preset.PremiereCenterPanCompensationDb);
             var appliedGain = MathF.Min(requiredGain, (float)preset.MaximumBoostDb);
 
             phrases.Add(new(

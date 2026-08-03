@@ -103,9 +103,16 @@ public sealed class PcmTrackPeakValidator
             var first = fragments[0];
             var measuredPeakDbfs = first.MeasuredPeakDbfs!.Value;
             var appliedGainDb = first.AppliedGainDb!.Value;
-            var expectedPeakDbfs = first.GainWasCapped
-                ? measuredPeakDbfs + appliedGainDb
-                : audit.Preset.TargetSamplePeakDbfs;
+            var expectedPeakDbfs =
+                measuredPeakDbfs +
+                appliedGainDb -
+                audit.Preset.PremiereCenterPanCompensationDb;
+            if (!first.GainWasCapped &&
+                Math.Abs(expectedPeakDbfs - audit.Preset.TargetSamplePeakDbfs) > 0.001)
+            {
+                throw new InvalidDataException(
+                    $"Phrase {phraseGroup.Key} không đạt target hậu routing theo gain trong audit.");
+            }
             var maximumAbsoluteSample = 0f;
             var maximumAbsoluteSourceSample = 0f;
 
@@ -165,9 +172,14 @@ public sealed class PcmTrackPeakValidator
             var frameRoundedSourcePeakDbfs = sourceMediaByFileId is not null && maximumAbsoluteSourceSample > 0
                 ? 20d * Math.Log10(maximumAbsoluteSourceSample)
                 : (double?)null;
-            var sourceDerivedExpectedPeakDbfs = frameRoundedSourcePeakDbfs + appliedGainDb;
+            var sourceDerivedExpectedPeakDbfs =
+                frameRoundedSourcePeakDbfs +
+                appliedGainDb -
+                audit.Preset.PremiereCenterPanCompensationDb;
             var sourceDerivedDeltaDb = observedPeakDbfs - sourceDerivedExpectedPeakDbfs;
-            var withinTolerance = deltaDb is not null && Math.Abs(deltaDb.Value) <= toleranceDb;
+            var withinTolerance = sourceMediaByFileId is not null
+                ? sourceDerivedDeltaDb is not null && Math.Abs(sourceDerivedDeltaDb.Value) <= toleranceDb
+                : deltaDb is not null && Math.Abs(deltaDb.Value) <= toleranceDb;
 
             results.Add(new(
                 phraseGroup.Key,

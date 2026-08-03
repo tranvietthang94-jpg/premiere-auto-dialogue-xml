@@ -35,6 +35,8 @@ public sealed record PresetAudit(
     double BleedCorrelationThreshold,
     int BleedMaximumLagMilliseconds,
     double TargetSamplePeakDbfs,
+    string PremiereRoutingProfile,
+    double PremiereCenterPanCompensationDb,
     double MaximumBoostDb,
     int MaximumWorkers)
 {
@@ -50,6 +52,8 @@ public sealed record PresetAudit(
         preset.BleedCorrelationThreshold,
         preset.BleedMaximumLagMilliseconds,
         preset.TargetSamplePeakDbfs,
+        preset.PremiereRoutingProfile,
+        preset.PremiereCenterPanCompensationDb,
         preset.MaximumBoostDb,
         preset.MaximumWorkers);
 }

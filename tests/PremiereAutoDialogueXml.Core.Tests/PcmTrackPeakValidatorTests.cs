@@ -81,9 +81,9 @@ public sealed class PcmTrackPeakValidatorTests
     public void ValidateSourceLinkedComparisonSeparatesRoutingOffsetFromFramePeak()
     {
         using var source = TemporaryWave.Create(-12, -30);
-        using var rendered = TemporaryWave.Create(-9.0103, -15.0103);
-        var audit = Audit(
-            Fragment("T01-P000001", startFrame: 0, endFrame: 1, measuredPeakDbfs: -12, appliedGainDb: 6),
+        using var rendered = TemporaryWave.Create(-6, -15.0103);
+        var audit = AuditWithCompensation(
+            Fragment("T01-P000001", startFrame: 0, endFrame: 1, measuredPeakDbfs: -12, appliedGainDb: 9.0103),
             Fragment("T01-P000002", startFrame: 1, endFrame: 2, measuredPeakDbfs: -30, appliedGainDb: 18, gainWasCapped: true));
 
         var report = new PcmTrackPeakValidator().Validate(
@@ -96,15 +96,24 @@ public sealed class PcmTrackPeakValidatorTests
             });
 
         Assert.IsTrue(report.UsedSourceMedia);
-        Assert.AreEqual(-3.0103, report.SourceDerivedMedianOffsetDb!.Value, 0.01);
+        Assert.IsTrue(report.AllWithinTolerance);
+        Assert.AreEqual(0, report.SourceDerivedMedianOffsetDb!.Value, 0.01);
         Assert.AreEqual(2, report.SourceDerivedPhrasesMatchingMedianOffset);
         Assert.AreEqual(0, report.SourceDerivedPhrasesOutsideMedianOffset);
         Assert.AreEqual(-6, report.Phrases[0].SourceDerivedExpectedRenderedPeakDbfs!.Value, 0.01);
-        Assert.AreEqual(-3.0103, report.Phrases[0].SourceDerivedDeltaDb!.Value, 0.01);
+        Assert.AreEqual(0, report.Phrases[0].SourceDerivedDeltaDb!.Value, 0.01);
     }
 
-    private static OutputAudit Audit(params FragmentAudit[] fragments) => new(
-        SchemaVersion: "1.0",
+    private static OutputAudit Audit(params FragmentAudit[] fragments) =>
+        AuditCore(premiereCenterPanCompensationDb: 0, fragments);
+
+    private static OutputAudit AuditWithCompensation(params FragmentAudit[] fragments) =>
+        AuditCore(premiereCenterPanCompensationDb: 3.010299956639812, fragments);
+
+    private static OutputAudit AuditCore(
+        double premiereCenterPanCompensationDb,
+        params FragmentAudit[] fragments) => new(
+        SchemaVersion: premiereCenterPanCompensationDb == 0 ? "1.0" : "1.1",
         RunId: "pilot-run",
         CreatedAtUtc: DateTimeOffset.UnixEpoch,
         SourceXmlFileName: "source.xml",
@@ -128,6 +137,8 @@ public sealed class PcmTrackPeakValidatorTests
             BleedCorrelationThreshold: 0.8,
             BleedMaximumLagMilliseconds: 12,
             TargetSamplePeakDbfs: -6,
+            PremiereRoutingProfile: "mono-center-equal-power-to-stereo",
+            PremiereCenterPanCompensationDb: premiereCenterPanCompensationDb,
             MaximumBoostDb: 18,
             MaximumWorkers: 4),
         Fragments: fragments,

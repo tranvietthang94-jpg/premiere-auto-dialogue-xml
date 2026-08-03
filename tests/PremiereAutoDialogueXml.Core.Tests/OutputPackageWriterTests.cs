@@ -36,12 +36,23 @@ public sealed class OutputPackageWriterTests
 
         using var audit = JsonDocument.Parse(await File.ReadAllTextAsync(result.AuditPath));
         var root = audit.RootElement;
+        Assert.AreEqual("1.1", root.GetProperty("schemaVersion").GetString());
         Assert.AreEqual(fixture.Project.SourceXmlSha256, root.GetProperty("sourceXmlSha256").GetString());
         Assert.AreEqual(result.OutputXmlSha256, root.GetProperty("outputXmlSha256").GetString());
         Assert.AreEqual("6.2.1", root.GetProperty("model").GetProperty("version").GetString());
+        Assert.AreEqual(
+            "mono-center-equal-power-to-stereo",
+            root.GetProperty("preset").GetProperty("premiereRoutingProfile").GetString());
+        Assert.AreEqual(
+            3.010299956639812,
+            root.GetProperty("preset").GetProperty("premiereCenterPanCompensationDb").GetDouble(),
+            0.000001);
         Assert.AreEqual(4, root.GetProperty("fragments").GetArrayLength());
         Assert.AreEqual("speech", root.GetProperty("fragments")[1].GetProperty("status").GetString());
-        Assert.AreEqual(6d, root.GetProperty("fragments")[1].GetProperty("appliedGainDb").GetDouble(), 0.001);
+        Assert.AreEqual(
+            9.010299956639812,
+            root.GetProperty("fragments")[1].GetProperty("appliedGainDb").GetDouble(),
+            0.001);
 
         var xmlStart = await File.ReadAllTextAsync(result.XmlPath);
         StringAssert.Contains(xmlStart, "<!DOCTYPE xmeml>");
