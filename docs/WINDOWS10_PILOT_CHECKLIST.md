@@ -2,6 +2,8 @@
 
 Mục tiêu: xác nhận gói portable mở, phân tích và xuất kết quả trên Windows 10. Không cần cài Premiere, .NET hoặc Python cho lượt thử này.
 
+Trạng thái ngày 2026-08-04: `passed`. Người vận hành dùng Oracle VirtualBox với Windows 10 x64 mới cài; app mở bình thường, từ chối an toàn khi thiếu 7 WAV và phân tích bình thường sau khi media được chép đủ. Edition/build cụ thể không được chụp, nên kết quả là bằng chứng tương thích pilot chứ không mở rộng thành tuyên bố hỗ trợ upstream cho mọi edition Windows 10.
+
 ## Chuẩn bị
 
 1. Dùng ZIP candidate mới nhất có SHA-256 `5C01D2E7DA7E44BCD9A76E1879D22FE25F1FF5E3EF1861C07E6BA34A67DDF900`.

@@ -25,7 +25,7 @@ Kế hoạch triển khai và tiêu chí nghiệm thu nằm trong [docs/IMPLEMEN
 
 ## Trạng thái
 
-Phase 00–05 đã hoàn tất. Candidate Phase 06 đã qua Premiere round-trip A1–A7, kiểm tra phục hồi clip Disable, package self-contained và một lượt phân tích trên máy Windows 11 khác. Phạm vi phát hành vẫn gồm Windows 10 x64; vì vậy Phase 06 còn chờ một lượt chạy thực tế trên Windows 10 trước khi tạo installer.
+Phase 00–06 đã hoàn tất. Candidate audit `1.3` đã qua Premiere round-trip A1–A7, kiểm tra phục hồi clip Disable, package self-contained, một lượt phân tích trên máy Windows 11 khác và một lượt phân tích trên máy ảo Windows 10 x64 mới cài. Cổng nhãn nghe Mục tiêu được chủ dự án miễn; vì vậy dự án không tuyên bố các tỷ lệ 100%/90%/0% chưa đo. Installer chưa được tạo.
 
 ## Hệ điều hành mục tiêu
 

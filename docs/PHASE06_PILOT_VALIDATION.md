@@ -90,9 +90,11 @@ Chạy ZIP trên Windows 10 x64 và Windows 11 x64 sạch:
 - app mở, kiểm tra fixture, bắt đầu/dừng và xuất được;
 - không tạo installer hoặc release public trước khi cả hai môi trường đạt.
 
-Kết quả ngày 2026-08-04: app đã phân tích thành công trên một máy Windows 11 khác. Máy thử không xác định được trạng thái cài sẵn .NET/Python hoặc Internet, nhưng kiểm tra package độc lập xác nhận đủ .NET/CoreCLR, WPF, ONNX Runtime, model và giấy phép; 410/410 payload khớp manifest. Vì vậy cổng self-contained và vận hành Windows 11 được chấp nhận. Chủ dự án quyết định tiếp tục hỗ trợ Windows 10, nên lượt thử Windows 10 vẫn là cổng bắt buộc.
+Kết quả ngày 2026-08-04: app đã phân tích thành công trên một máy Windows 11 khác. Máy thử không xác định được trạng thái cài sẵn .NET/Python hoặc Internet, nhưng kiểm tra package độc lập xác nhận đủ .NET/CoreCLR, WPF, ONNX Runtime, model và giấy phép; 410/410 payload khớp manifest. Vì vậy cổng self-contained và vận hành Windows 11 được chấp nhận. Chủ dự án quyết định tiếp tục hỗ trợ Windows 10 và đã thực hiện lượt thử riêng được ghi bên dưới.
 
 [Ma trận hỗ trợ hiện hành của Microsoft](https://learn.microsoft.com/en-us/dotnet/core/install/windows) giới hạn .NET 10 trên Windows 10 ở các bản LTSC/Enterprise còn trong vòng đời. Nếu thử trên Windows 10 Home/Pro đã hết vòng đời, kết quả chỉ xác nhận tương thích best-effort của app, không được mô tả là hỗ trợ upstream chính thức của Microsoft.
+
+Kết quả bổ sung: người vận hành cài mới Windows 10 x64 trong Oracle VirtualBox. App mở bình thường; khi media chưa được chép, validation báo đúng 7 lỗi `media-missing`, khóa phân tích và không tạo output. Sau khi chép đủ media, người vận hành xác nhận app hoạt động và phân tích bình thường. Edition/build không được chụp nên kết luận chỉ là tương thích Windows 10 x64 ở mức pilot. Cổng Windows 10 đạt.
 
 ## Quyết định cuối
 
@@ -101,3 +103,5 @@ Report chỉ có ba trạng thái:
 - `passed`: mọi cổng bắt buộc có bằng chứng.
 - `failed`: có sai lệch Premiere/audio/safety; dừng phát hành.
 - `incomplete`: thiếu import, PCM hoặc máy sạch; không được đổi thành passed bằng suy luận. Cổng nhãn chỉ được bỏ khi báo cáo ghi rõ quyết định miễn và không tuyên bố các tỷ lệ chưa đo.
+
+Quyết định Phase 06: `passed`. Cổng nhãn Mục tiêu được miễn có ghi nhận; các tỷ lệ chưa đo không được tuyên bố.
