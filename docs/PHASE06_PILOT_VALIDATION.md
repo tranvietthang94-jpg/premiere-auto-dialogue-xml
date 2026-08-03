@@ -1,0 +1,76 @@
+# Phase 06 — pilot Premiere và Windows sạch
+
+## Nguyên tắc
+
+Phase 06 chỉ chấp nhận bằng chứng tạo từ đúng ZIP/audit/XML pilot. Không suy diễn từ unit test, XML structure hoặc Phase 00 sang toàn bộ HGE2. Installer chỉ được tạo sau khi các cổng bắt buộc đạt.
+
+Toàn bộ media, ảnh chụp, Premiere project, Translation Results, PCM export và report có đường dẫn riêng tư nằm trong `private-artifacts/phase06-pilot/` và không commit. Chỉ báo cáo đã làm sạch, script validator và fixture tổng hợp mới được đưa vào Git.
+
+## A. Chạy app pilot
+
+1. Giải nén ZIP self-contained Phase 05 vào thư mục mới.
+2. Ghi SHA-256 ZIP, phiên bản Windows, trạng thái Internet, và máy có/không có .NET/Python cài sẵn.
+3. Mở `PremiereAutoDialogueXml.exe`; xác nhận không tải thêm thành phần và không có telemetry/network request.
+4. Chọn XML HGE2 cùng thư mục output pilot mới; chạy **Kiểm tra XML và media**.
+5. Xác nhận sequence 25 fps, stereo master, 7 track/7 WAV và 7 warning metadata 16/24-bit dự kiến; không có error.
+6. Chạy **Phân tích và xuất kết quả**, ghi elapsed time/peak RAM và giữ XML/audit output.
+7. So SHA-256 XML nguồn trước/sau; phải giống nhau. So SHA-256 XML output thật với audit; phải giống nhau.
+
+### Cổng dừng an toàn
+
+Chạy một lượt riêng, bấm **Dừng an toàn** trong khi đang phân tích rồi đóng app:
+
+- worker phải kết thúc trước khi cửa sổ đóng;
+- không có XML/audit cuối, `.tmp` hoặc thư mục run rỗng mới;
+- XML/WAV nguồn không đổi;
+- cancellation không tạo diagnostic lỗi.
+
+## B. Import Premiere Pro
+
+1. Tạo project pilot riêng; không dùng hoặc save đè project show.
+2. Import `<sequence>_AutoAudio.xml` do app vừa tạo.
+3. Lưu toàn bộ nội dung/ảnh **FCP Translation Results**.
+4. Xác nhận sequence `<tên gốc> - AUTO AUDIO` mở được, video còn nguyên, duration `53.760` frame (`00:35:50:10` ở 25 fps), đủ 7 audio track và media tự link đúng file.
+5. Kiểm tra các loại fragment:
+   - speech/ambiguous vẫn Enabled;
+   - noise/bleed đã xác nhận bị Disable nhưng còn clip để bật lại;
+   - marker **Cần kiểm tra** và **Gain đã giới hạn +18 dB** nằm đúng vùng;
+   - source trim đầu/cuối và ranh giới fragment không tạo gap/overlap nghe thấy.
+6. Bật/tắt vài fragment Disable và kiểm tra editor có thể phục hồi audio gốc.
+
+Mất video/audio, media path đổi, duration/track count sai, Translation Results báo lỗi mất audio, hoặc Premiere crash là lỗi chặn; không tạo installer.
+
+## C. Peak sau Premiere
+
+- Export PCM 48 kHz, không normalization/limiter/effect bổ sung.
+- Với phrase không bị cap, sample peak sau round-trip phải `-6.0 ± 0.1 dBFS` theo routing đã xác nhận.
+- Phrase bị cap phải khớp predicted peak từ audit, không được báo là đạt `-6 dBFS` nếu source quá nhỏ.
+- Ghi riêng track/range/phrase ID và checksum WAV export. Không dùng waveform display hoặc hộp Audio Gain làm bằng chứng thay PCM.
+- Kết quả này không phải LUFS, true peak, limiter, Master-bus hoặc delivery-ceiling guarantee.
+
+## D. Nhãn HGE2
+
+Tập nhãn pilot phải có `track`, timeline `start/end`, loại `direct-speech`, `clear-noise`, `clear-bleed` hoặc `ambiguous`, và người xác nhận. Từ audit/XML output tính:
+
+- 100% thời lượng direct speech đã gắn nhãn được giữ Enabled;
+- ít nhất 90% thời lượng clear noise/bleed bị Disable;
+- 0% vùng ambiguous bị Disable.
+
+Không có nhãn thì chỉ được báo số lượng VAD/fragment/marker, không được tuyên bố đạt ba tỷ lệ trên.
+
+## E. Máy Windows sạch
+
+Chạy ZIP trên Windows 10 x64 và Windows 11 x64 sạch:
+
+- không cài .NET, Python hoặc model ngoài gói;
+- ngắt Internet trước lần mở đầu;
+- app mở, kiểm tra fixture, bắt đầu/dừng và xuất được;
+- không tạo installer hoặc release public trước khi cả hai môi trường đạt.
+
+## Quyết định cuối
+
+Report chỉ có ba trạng thái:
+
+- `passed`: mọi cổng bắt buộc có bằng chứng.
+- `failed`: có sai lệch Premiere/audio/safety; dừng phát hành.
+- `incomplete`: thiếu import, PCM, nhãn hoặc máy sạch; không được đổi thành passed bằng suy luận.
