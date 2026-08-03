@@ -174,7 +174,7 @@
                     </Grid>
 
                     <ProgressBar Grid.Row="1" Margin="0,18,0,7" Height="12" Minimum="0" Maximum="100"
-                                 Value="{Binding ProgressPercent}" />
+                                 Value="{Binding ProgressPercent, Mode=OneWay}" />
                     <TextBlock Grid.Row="2" Foreground="#58667A" TextWrapping="Wrap"
                                Text="{Binding ProgressMessage}" />
 

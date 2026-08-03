@@ -24,9 +24,9 @@ Kế hoạch triển khai và tiêu chí nghiệm thu nằm trong [docs/IMPLEMEN
 
 ## Trạng thái
 
-Phase 00 đã đạt round-trip Premiere Pro 2026 cho Disable, source trim và gain đến `+18 dB`. Phase 01 đã hoàn thành nền tảng .NET/WPF. Phase 02 đã đọc đạt cả HGE2 (7 WAV) và HGE đầy đủ (19 WAV), gồm Unicode path, source trim, frame rounding và một WAV có đuôi PCM lẻ; chưa quét nội dung audio hoặc tạo XML đầu ra.
+Phase 00–04 đã hoàn tất compatibility gate, nền tảng WPF, parser XML/WAV, phân tích Silero VAD/gain/bleed và XML/audit writer giao dịch. Phase 05 đã nối luồng bốn bước tiếng Việt, tiến độ, dừng an toàn, diagnostic có giới hạn và publish self-contained `win-x64`; installer và nghiệm thu Premiere thực tế vẫn thuộc Phase 06.
 
-Bằng chứng Phase 02 nằm trong [docs/PHASE02_XML_MEDIA_PARSER.md](docs/PHASE02_XML_MEDIA_PARSER.md).
+Bằng chứng theo phase nằm trong thư mục [docs](docs).
 
 ## Build dành cho phát triển
 
@@ -39,3 +39,17 @@ dotnet test PremiereAutoDialogueXml.slnx --configuration Release --no-build
 ```
 
 SDK cài cục bộ trong `.tools/` được Git bỏ qua. CI chạy cùng phiên bản SDK trên `windows-latest`.
+
+Chạy app phát triển:
+
+```powershell
+dotnet run --project src/PremiereAutoDialogueXml.App --configuration Release
+```
+
+Tạo publish folder và ZIP self-contained mới, không ghi đè artifact cũ:
+
+```powershell
+.\scripts\publish-win-x64.ps1
+```
+
+Script kiểm runtime, ONNX native, license, Python/PDB và tạo `publish-manifest.json` chứa SHA-256 payload. ZIP Phase 05 chưa phải installer và chưa được coi là bản phát hành pilot.

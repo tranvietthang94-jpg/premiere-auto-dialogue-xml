@@ -37,3 +37,7 @@ jobs:
 
       - name: Test
         run: dotnet test PremiereAutoDialogueXml.slnx --configuration Release --no-build --logger "trx;LogFileName=tests.trx"
+
+      - name: Validate self-contained win-x64 publish
+        shell: pwsh
+        run: ./scripts/publish-win-x64.ps1 -OutputRoot "$env:RUNNER_TEMP/padx-publish"

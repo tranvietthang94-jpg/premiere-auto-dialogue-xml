@@ -37,3 +37,19 @@ Luồng chính chỉ hiển thị thông tin editor cần để quyết định 
 - Publish `win-x64` self-contained chạy được khi `dotnet` không có trong `PATH`.
 - Smoke test app mở được, kiểm tra fixture XML, bắt đầu/dừng an toàn và không để output dở dang.
 - Không gọi kết quả Phase 05 là đã nghiệm thu Premiere; import, nghe, Translation Results và máy Windows sạch thuộc Phase 06.
+
+## Bằng chứng hiện tại
+
+- `dotnet format --verify-no-changes`: đạt.
+- `dotnet build -c Release`: đạt, 0 warning/0 error.
+- `dotnet test -c Release`: 82/82 test đạt; gồm state machine success/cancel/failure/concurrency, diagnostic transaction và smoke test mở/đóng cửa sổ trên STA thread.
+- Mở thật bản build đã phát hiện và sửa binding `ProgressBar` hai chiều vào property chỉ đọc; sau sửa, cả bản build và executable self-contained đều mở/đóng đúng.
+- Kiểm tra trực quan: đủ bốn bước, trạng thái nút ban đầu đúng, cuộn được, phần kỹ thuật mở được và hộp chọn XML mở/hủy không tạo output.
+- Publish local `win-x64`:
+  - 410 payload file; runtimeconfig chứa .NETCore + WindowsDesktop self-contained.
+  - Không Python, PDB hoặc installer; có ONNX Runtime native, third-party notice và license Silero.
+  - ZIP 71.101.296 byte, 411 entry tính cả manifest.
+  - ZIP SHA-256 `DCD2EC940873DF6A6811EC1981D7AFEFD2E7321A0CC5E2BFFF32BF9C4BC5D837`.
+  - Manifest ghi `installer=false`, model 6.2.1 và checksum `1A153A22F4509E292A94E67D6F9B85E8DEB25B4988682B7E174C65279D8788E3`.
+
+Artifact local nằm trong `artifacts/` bị Git ignore. CI phải chạy lại test và script publish trên Windows trước khi Phase 05 được merge.
