@@ -1,6 +1,6 @@
 # Phase 06 — đánh giá nhãn Context và lớp bảo vệ VAD/năng lượng
 
-Trạng thái: `incomplete`; dữ liệu nghe ngày 2026-08-04 cung cấp bằng chứng vận hành hữu ích nhưng không được dùng trực tiếp để đóng cổng nhãn Mục tiêu.
+Trạng thái: `closed-with-waiver`; dữ liệu nghe ngày 2026-08-04 cung cấp bằng chứng vận hành hữu ích nhưng không được dùng trực tiếp để tính các tỷ lệ nhãn Mục tiêu. Chủ dự án đã miễn cổng nghe Mục tiêu ngày 2026-08-04.
 
 ## Phạm vi dữ liệu người vận hành
 
@@ -110,4 +110,4 @@ Ngày 2026-08-04, người vận hành xác nhận:
 - Premiere không hiện cửa sổ **FCP Translation Results** khi import candidate audit `1.3`; không có cảnh báo dịch XML hiển thị để lưu. Bằng chứng này được ghi đúng là “không có cửa sổ/cảnh báo hiển thị”, không được mô tả thành một report mà Premiere không tạo.
 - Một clip đang Disable được bật lại thủ công và audio gốc nghe bình thường. Cổng phục hồi non-destructive đạt; app không xóa audio nguồn khỏi timeline.
 
-Hai xác nhận trên cùng việc M19 nghe được và PCM A1–A7 đạt đóng phần import/khả năng phục hồi của candidate `1.3`. Cổng nhãn Mục tiêu và máy Windows sạch vẫn độc lập, chưa đạt.
+Hai xác nhận trên cùng việc M19 nghe được và PCM A1–A7 đạt đóng phần import/khả năng phục hồi của candidate `1.3`. Cổng nhãn Mục tiêu đã được chủ dự án miễn; các tỷ lệ 100%/90%/0% tương ứng không được tuyên bố. Cổng máy Windows sạch vẫn chưa đạt.

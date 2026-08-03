@@ -69,6 +69,8 @@ Audit schema `1.3` phải ghi profile `mono-center-equal-power-to-stereo`, `prem
 
 ## D. Nhãn HGE2
 
+Quyết định Phase 06 ngày 2026-08-04: chủ dự án miễn cổng nghe riêng khoảng Mục tiêu. Dữ liệu Context và ghi chú vẫn là bằng chứng điều tra đã dẫn đến lớp bảo vệ M19, nhưng không được dùng để tuyên bố đạt các tỷ lệ bên dưới.
+
 Tập nhãn pilot phải có `track`, timeline `start/end`, loại `direct-speech`, `clear-noise`, `clear-bleed` hoặc `ambiguous`, và người xác nhận. Từ audit/XML output tính:
 
 - 100% thời lượng direct speech đã gắn nhãn được giữ Enabled;
@@ -94,4 +96,4 @@ Report chỉ có ba trạng thái:
 
 - `passed`: mọi cổng bắt buộc có bằng chứng.
 - `failed`: có sai lệch Premiere/audio/safety; dừng phát hành.
-- `incomplete`: thiếu import, PCM, nhãn hoặc máy sạch; không được đổi thành passed bằng suy luận.
+- `incomplete`: thiếu import, PCM hoặc máy sạch; không được đổi thành passed bằng suy luận. Cổng nhãn chỉ được bỏ khi báo cáo ghi rõ quyết định miễn và không tuyên bố các tỷ lệ chưa đo.

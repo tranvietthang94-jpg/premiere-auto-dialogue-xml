@@ -1,6 +1,6 @@
 # Phase 06 — báo cáo pilot HGE2
 
-Trạng thái: `incomplete`; candidate audit `1.3` đã giữ đúng M19, đạt PCM round-trip A1–A7, import không hiện cảnh báo Translation Results và clip Disable bật lại nghe được audio gốc. Còn thiếu nhãn Mục tiêu và máy Windows sạch; không phát hành.
+Trạng thái: `incomplete`; candidate audit `1.3` đã giữ đúng M19, đạt PCM round-trip A1–A7, import không hiện cảnh báo Translation Results và clip Disable bật lại nghe được audio gốc. Ngày 2026-08-04, chủ dự án quyết định bỏ cổng nghe nhãn Mục tiêu; vì vậy báo cáo không tuyên bố ba tỷ lệ 100%/90%/0% dựa trên nhãn người nghe. Còn thiếu kiểm thử trên máy Windows sạch; không phát hành.
 
 Ngày ghi nhận mới nhất: 2026-08-04.
 
@@ -120,12 +120,13 @@ Máy phát triển hiện tại là Windows 11 Pro x64 và không có Windows Sa
 
 ## Gói candidate audit 1.3
 
-Build chứa lớp bảo vệ VAD/năng lượng đã được publish thành ZIP self-contained `win-x64`, chưa tạo installer. Gói có 410 payload file, không có Python/PDB, dài 71.105.313 byte và có SHA-256 `AAB87C47250792CC16C3FC23CB3226453D15AE012FA0F0AF003D81F1CBAFE1AF`. Manifest ghi đúng model `6.2.1` và SHA-256 model đã ghim. Gói này thay gói audit `1.2` cho các lượt pilot tiếp theo nhưng vẫn chưa có bằng chứng Windows sạch hoặc Premiere round-trip.
+Build chứa lớp bảo vệ VAD/năng lượng đã được publish thành ZIP self-contained `win-x64`, chưa tạo installer. Gói có 410 payload file, không có Python/PDB, dài 71.105.313 byte và có SHA-256 `AAB87C47250792CC16C3FC23CB3226453D15AE012FA0F0AF003D81F1CBAFE1AF`. Manifest ghi đúng model `6.2.1` và SHA-256 model đã ghim. Gói này thay gói audit `1.2`, đã qua Premiere round-trip A1–A7 và chỉ còn thiếu bằng chứng Windows sạch.
 
 ## Các cổng còn thiếu
 
 - Kiểm tra marker `Cần kiểm tra` tại một fragment energy/VAD conflict nếu cần thêm bằng chứng giao diện.
-- Gắn nhãn đúng khoảng Mục tiêu để tính 100% direct speech được giữ, ít nhất 90% clear noise/bleed bị Disable và 0% ambiguous bị Disable.
-- Publish ZIP candidate `1.3`, rồi chạy offline trên Windows 10 x64 và Windows 11 x64 sạch, không có .NET/Python cài sẵn.
+- Chạy ZIP candidate `1.3` đã publish ở chế độ offline trên Windows 10 x64 và Windows 11 x64 sạch, không có .NET/Python cài sẵn.
 
-Không tạo installer và không merge Phase 06 cho đến khi các cổng bắt buộc có đủ bằng chứng.
+Nhãn Mục tiêu đã được chủ dự án miễn ngày 2026-08-04. Việc miễn cổng này không được diễn giải thành đã đạt 100% direct speech, 90% clear noise/bleed hoặc 0% ambiguous bị Disable.
+
+Không tạo installer và không merge Phase 06 cho đến khi cổng Windows sạch có đủ bằng chứng.
