@@ -98,6 +98,36 @@ public sealed class TrackDialogueAnalyzerTests
     }
 
     [TestMethod]
+    public void AnalyzeUsesHotterFrameAlignedPhrasePeakAsGainReference()
+    {
+        var samples = Enumerable.Repeat(0.001f, 38_400).ToArray();
+        Array.Fill(samples, 0.25f, 10_000, 6_144);
+        samples[7_000] = 0.5f;
+        using var fixture = TestAudioFixture.CreatePcm16(samples);
+        var track = new PremiereAudioTrack(1, 1, [fixture.Clip("frame-peak", 0, 20)]);
+        var observations = new[]
+        {
+            Observation(0, 1_536, 0.01f, -60f),
+            Observation(10_000, 11_536, 0.90f, -12f),
+            Observation(11_536, 13_072, 0.90f, -12f),
+            Observation(13_072, 14_608, 0.90f, -12f),
+            Observation(14_608, 16_144, 0.90f, -12f)
+        };
+
+        var result = Analyze(track, observations);
+
+        Assert.HasCount(1, result.Phrases);
+        var phrase = result.Phrases[0];
+        Assert.AreEqual(-6.0206f, phrase.MeasuredPeakDbfs, 0.002f);
+        Assert.AreEqual(3.0309f, phrase.AppliedGainDb, 0.002f);
+        Assert.AreEqual(
+            -6f,
+            phrase.MeasuredPeakDbfs + phrase.AppliedGainDb -
+            (float)DialogueProcessingPreset.Balanced.PremiereCenterPanCompensationDb,
+            0.002f);
+    }
+
+    [TestMethod]
     public void AnalyzePreservesShortVadEventAsAmbiguous()
     {
         using var fixture = TestAudioFixture.CreatePcm16(Enumerable.Repeat(0.1f, 9_600).ToArray());

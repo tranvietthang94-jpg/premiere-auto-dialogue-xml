@@ -20,6 +20,9 @@ public sealed record PhrasePeakValidation(
     double? FrameRoundedSourcePeakDbfs,
     double? SourceDerivedExpectedRenderedPeakDbfs,
     double? SourceDerivedDeltaDb,
+    double? TargetDeltaDb,
+    bool GainWithinTolerance,
+    bool TargetWithinTolerance,
     bool WithinTolerance,
     string ResultReason);
 
@@ -33,6 +36,9 @@ public sealed record PcmTrackPeakValidationReport(
     int PhraseCount,
     int PassedPhraseCount,
     int FailedPhraseCount,
+    int UncappedPhraseCount,
+    int TargetPassedPhraseCount,
+    int TargetFailedPhraseCount,
     double? MedianObservedOffsetDb,
     int PhrasesMatchingMedianOffset,
     int PhrasesOutsideMedianOffset,
@@ -82,8 +88,8 @@ public sealed class PcmTrackPeakValidator
         var speechFragments = audit.Fragments
             .Where(fragment =>
                 fragment.TrackIndex == trackIndex &&
-                fragment.Status == AudioSegmentStatus.Speech &&
                 fragment.Enabled &&
+                fragment.Status is AudioSegmentStatus.Speech or AudioSegmentStatus.Ambiguous &&
                 !string.IsNullOrWhiteSpace(fragment.PhraseId))
             .OrderBy(fragment => fragment.TimelineStartFrame)
             .ToArray();
@@ -177,9 +183,21 @@ public sealed class PcmTrackPeakValidator
                 appliedGainDb -
                 audit.Preset.PremiereCenterPanCompensationDb;
             var sourceDerivedDeltaDb = observedPeakDbfs - sourceDerivedExpectedPeakDbfs;
-            var withinTolerance = sourceMediaByFileId is not null
+            var gainWithinTolerance = sourceMediaByFileId is not null
                 ? sourceDerivedDeltaDb is not null && Math.Abs(sourceDerivedDeltaDb.Value) <= toleranceDb
                 : deltaDb is not null && Math.Abs(deltaDb.Value) <= toleranceDb;
+            var targetDeltaDb = observedPeakDbfs - audit.Preset.TargetSamplePeakDbfs;
+            var targetWithinTolerance = !first.GainWasCapped &&
+                targetDeltaDb is not null &&
+                Math.Abs(targetDeltaDb.Value) <= toleranceDb;
+            var withinTolerance = gainWithinTolerance && (first.GainWasCapped || targetWithinTolerance);
+            var resultReason = observedPeakDbfs is null
+                ? "rendered-silence"
+                : !gainWithinTolerance
+                    ? "gain-out-of-tolerance"
+                    : !first.GainWasCapped && !targetWithinTolerance
+                        ? "uncapped-target-out-of-tolerance"
+                        : "within-tolerance";
 
             results.Add(new(
                 phraseGroup.Key,
@@ -196,12 +214,17 @@ public sealed class PcmTrackPeakValidator
                 frameRoundedSourcePeakDbfs,
                 sourceDerivedExpectedPeakDbfs,
                 sourceDerivedDeltaDb,
+                targetDeltaDb,
+                gainWithinTolerance,
+                targetWithinTolerance,
                 withinTolerance,
-                observedPeakDbfs is null ? "rendered-silence" : withinTolerance ? "within-tolerance" : "peak-out-of-tolerance"));
+                resultReason));
         }
 
         var ordered = results.OrderBy(result => result.TimelineStartFrame).ToArray();
         var passedCount = ordered.Count(result => result.WithinTolerance);
+        var uncapped = ordered.Where(result => !result.GainWasCapped).ToArray();
+        var targetPassedCount = uncapped.Count(result => result.TargetWithinTolerance);
         var finiteDeltas = ordered
             .Where(result => result.DeltaDb is not null)
             .Select(result => result.DeltaDb!.Value)
@@ -230,6 +253,9 @@ public sealed class PcmTrackPeakValidator
             ordered.Length,
             passedCount,
             ordered.Length - passedCount,
+            uncapped.Length,
+            targetPassedCount,
+            uncapped.Length - targetPassedCount,
             medianOffset,
             matchingMedianOffset,
             ordered.Length - matchingMedianOffset,

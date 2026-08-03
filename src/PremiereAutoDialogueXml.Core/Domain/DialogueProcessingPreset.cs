@@ -16,6 +16,7 @@ public sealed record DialogueProcessingPreset(
     double TargetSamplePeakDbfs,
     string PremiereRoutingProfile,
     double PremiereCenterPanCompensationDb,
+    string GainReferencePeakPolicy,
     double MaximumBoostDb,
     int MaximumWorkers)
 {
@@ -33,6 +34,7 @@ public sealed record DialogueProcessingPreset(
         TargetSamplePeakDbfs: -6.0,
         PremiereRoutingProfile: "mono-center-equal-power-to-stereo",
         PremiereCenterPanCompensationDb: 3.010299956639812,
+        GainReferencePeakPolicy: "max-direct-speech-and-frame-aligned-enabled-phrase-peak",
         MaximumBoostDb: 18.0,
         MaximumWorkers: 4);
 
@@ -92,6 +94,13 @@ public sealed record DialogueProcessingPreset(
             issues.Add(new(
                 "routing-compensation-invalid",
                 "Bù center-pan phải nằm trong 0–6,1 dB và không đẩy target trước routing vượt 0 dBFS."));
+        }
+
+        if (string.IsNullOrWhiteSpace(GainReferencePeakPolicy))
+        {
+            issues.Add(new(
+                "gain-reference-policy-required",
+                "Preset phải ghi rõ chính sách peak dùng để tính gain."));
         }
 
         if (MaximumBoostDb is < 0 or > 18)

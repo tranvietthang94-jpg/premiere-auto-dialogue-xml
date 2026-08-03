@@ -36,7 +36,7 @@ public sealed class OutputPackageWriterTests
 
         using var audit = JsonDocument.Parse(await File.ReadAllTextAsync(result.AuditPath));
         var root = audit.RootElement;
-        Assert.AreEqual("1.1", root.GetProperty("schemaVersion").GetString());
+        Assert.AreEqual("1.2", root.GetProperty("schemaVersion").GetString());
         Assert.AreEqual(fixture.Project.SourceXmlSha256, root.GetProperty("sourceXmlSha256").GetString());
         Assert.AreEqual(result.OutputXmlSha256, root.GetProperty("outputXmlSha256").GetString());
         Assert.AreEqual("6.2.1", root.GetProperty("model").GetProperty("version").GetString());
@@ -47,6 +47,9 @@ public sealed class OutputPackageWriterTests
             3.010299956639812,
             root.GetProperty("preset").GetProperty("premiereCenterPanCompensationDb").GetDouble(),
             0.000001);
+        Assert.AreEqual(
+            "max-direct-speech-and-frame-aligned-enabled-phrase-peak",
+            root.GetProperty("preset").GetProperty("gainReferencePeakPolicy").GetString());
         Assert.AreEqual(4, root.GetProperty("fragments").GetArrayLength());
         Assert.AreEqual("speech", root.GetProperty("fragments")[1].GetProperty("status").GetString());
         Assert.AreEqual(

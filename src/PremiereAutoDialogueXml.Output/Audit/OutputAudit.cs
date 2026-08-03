@@ -37,6 +37,7 @@ public sealed record PresetAudit(
     double TargetSamplePeakDbfs,
     string PremiereRoutingProfile,
     double PremiereCenterPanCompensationDb,
+    string GainReferencePeakPolicy,
     double MaximumBoostDb,
     int MaximumWorkers)
 {
@@ -54,6 +55,7 @@ public sealed record PresetAudit(
         preset.TargetSamplePeakDbfs,
         preset.PremiereRoutingProfile,
         preset.PremiereCenterPanCompensationDb,
+        preset.GainReferencePeakPolicy,
         preset.MaximumBoostDb,
         preset.MaximumWorkers);
 }

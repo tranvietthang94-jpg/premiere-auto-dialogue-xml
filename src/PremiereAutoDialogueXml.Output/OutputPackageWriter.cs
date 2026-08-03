@@ -93,7 +93,7 @@ public sealed class OutputPackageWriter
                 .SelectMany(track => track.Phrases)
                 .ToDictionary(phrase => phrase.Id, StringComparer.Ordinal);
             var audit = new OutputAudit(
-                SchemaVersion: "1.1",
+                SchemaVersion: "1.2",
                 RunId: runId,
                 CreatedAtUtc: generatedAt,
                 SourceXmlFileName: Path.GetFileName(request.Project.SourceXmlPath),

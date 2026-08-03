@@ -63,8 +63,164 @@ public sealed class TrackDialogueAnalyzer(TimelinePcmAccessor pcmAccessor)
             : confirmedFrameRms[confirmedFrameRms.Length / 2];
 
         var segments = BuildClipSegments(track, phrases, ambiguous);
+        (phrases, segments) = ReconcileGainWithFrameAlignedOutput(
+            track,
+            phrases,
+            segments,
+            preset,
+            cancellationToken);
         return new(track.Index, observations.Count, phrases, segments, learnedVoiceRms);
     }
+
+    private (IReadOnlyList<DialoguePhrase> Phrases, IReadOnlyList<AnalyzedAudioSegment> Segments)
+        ReconcileGainWithFrameAlignedOutput(
+            PremiereAudioTrack track,
+            IReadOnlyList<DialoguePhrase> phrases,
+            IReadOnlyList<AnalyzedAudioSegment> segments,
+            DialogueProcessingPreset preset,
+            CancellationToken cancellationToken)
+    {
+        var intervalsByPhrase = BuildFrameAlignedPhraseIntervals(track, segments, cancellationToken);
+        var updatedPhrases = new DialoguePhrase[phrases.Count];
+
+        for (var index = 0; index < phrases.Count; index++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var phrase = phrases[index];
+            var frameAlignedPeakDbfs = intervalsByPhrase.TryGetValue(phrase.Id, out var intervals)
+                ? intervals
+                    .Select(interval => pcmAccessor.MeasureSamplePeakDbfs(
+                        track,
+                        interval.StartSample,
+                        interval.EndSample,
+                        cancellationToken))
+                    .DefaultIfEmpty(AudioMath.SilenceDbfs)
+                    .Max()
+                : AudioMath.SilenceDbfs;
+            var gainReferencePeakDbfs = MathF.Max(phrase.MeasuredPeakDbfs, frameAlignedPeakDbfs);
+            var requiredGainDb = (float)(
+                preset.TargetSamplePeakDbfs -
+                gainReferencePeakDbfs +
+                preset.PremiereCenterPanCompensationDb);
+            var appliedGainDb = MathF.Min(requiredGainDb, (float)preset.MaximumBoostDb);
+
+            updatedPhrases[index] = phrase with
+            {
+                MeasuredPeakDbfs = gainReferencePeakDbfs,
+                RequiredGainDb = requiredGainDb,
+                AppliedGainDb = appliedGainDb,
+                GainWasCapped = requiredGainDb > preset.MaximumBoostDb
+            };
+        }
+
+        var gainsByPhrase = updatedPhrases.ToDictionary(phrase => phrase.Id, StringComparer.Ordinal);
+        var updatedSegments = segments
+            .Select(segment => segment.PhraseId is not null && gainsByPhrase.TryGetValue(segment.PhraseId, out var phrase)
+                ? segment with { GainDb = phrase.AppliedGainDb }
+                : segment)
+            .ToArray();
+        return (updatedPhrases, updatedSegments);
+    }
+
+    private static IReadOnlyDictionary<string, IReadOnlyList<TimelineInterval>> BuildFrameAlignedPhraseIntervals(
+        PremiereAudioTrack track,
+        IReadOnlyList<AnalyzedAudioSegment> segments,
+        CancellationToken cancellationToken)
+    {
+        var intervalsByPhrase = new Dictionary<string, List<TimelineInterval>>(StringComparer.Ordinal);
+
+        foreach (var clip in track.Clips)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var frameCountLong = clip.TimelineEndFrame - clip.TimelineStartFrame;
+            if (frameCountLong <= 0 || frameCountLong > int.MaxValue)
+            {
+                throw new InvalidDataException($"Clip '{clip.Id}' có duration frame không hỗ trợ.");
+            }
+
+            var frameCount = checked((int)frameCountLong);
+            var choices = new FrameAlignmentChoice[frameCount];
+            var clipStartSample = AudioMath.FramesToSamples(clip.TimelineStartFrame);
+            foreach (var segment in segments
+                         .Where(segment => segment.SourceClipId == clip.Id)
+                         .OrderBy(segment => segment.TimelineStartSample))
+            {
+                var startOffset = Math.Max(0, segment.TimelineStartSample - clipStartSample);
+                var endOffset = Math.Min(
+                    checked(frameCountLong * AudioMath.SamplesPerSequenceFrame),
+                    segment.TimelineEndSample - clipStartSample);
+                var firstFrame = checked((int)(startOffset / AudioMath.SamplesPerSequenceFrame));
+                var lastFrameExclusive = checked((int)Math.Min(
+                    frameCountLong,
+                    (endOffset + AudioMath.SamplesPerSequenceFrame - 1) /
+                    AudioMath.SamplesPerSequenceFrame));
+                var priority = FramePriority(segment.Status);
+
+                for (var frame = firstFrame; frame < lastFrameExclusive; frame++)
+                {
+                    var frameStart = checked((long)frame * AudioMath.SamplesPerSequenceFrame);
+                    var frameEnd = frameStart + AudioMath.SamplesPerSequenceFrame;
+                    var overlap = Math.Max(
+                        0,
+                        Math.Min(endOffset, frameEnd) - Math.Max(startOffset, frameStart));
+                    var existing = choices[frame];
+                    if (!existing.IsAssigned ||
+                        priority > existing.Priority ||
+                        (priority == existing.Priority && overlap > existing.OverlapSamples))
+                    {
+                        choices[frame] = new(segment, priority, overlap, IsAssigned: true);
+                    }
+                }
+            }
+
+            if (choices.Any(choice => !choice.IsAssigned))
+            {
+                throw new InvalidDataException($"Phân tích không phủ kín toàn bộ frame của clip '{clip.Id}'.");
+            }
+
+            for (var frame = 0; frame < choices.Length; frame++)
+            {
+                var segment = choices[frame].Segment!;
+                if (segment.PhraseId is null ||
+                    segment.Status is not (AudioSegmentStatus.Speech or AudioSegmentStatus.Ambiguous))
+                {
+                    continue;
+                }
+
+                var frameStartSample = AudioMath.FramesToSamples(clip.TimelineStartFrame + frame);
+                var interval = new TimelineInterval(
+                    frameStartSample,
+                    frameStartSample + AudioMath.SamplesPerSequenceFrame);
+                if (!intervalsByPhrase.TryGetValue(segment.PhraseId, out var phraseIntervals))
+                {
+                    phraseIntervals = [];
+                    intervalsByPhrase.Add(segment.PhraseId, phraseIntervals);
+                }
+
+                if (phraseIntervals.Count > 0 && phraseIntervals[^1].EndSample == interval.StartSample)
+                {
+                    phraseIntervals[^1] = new(phraseIntervals[^1].StartSample, interval.EndSample);
+                }
+                else
+                {
+                    phraseIntervals.Add(interval);
+                }
+            }
+        }
+
+        return intervalsByPhrase.ToDictionary(
+            pair => pair.Key,
+            pair => (IReadOnlyList<TimelineInterval>)pair.Value,
+            StringComparer.Ordinal);
+    }
+
+    private static int FramePriority(AudioSegmentStatus status) => status switch
+    {
+        AudioSegmentStatus.Ambiguous => 4,
+        AudioSegmentStatus.Speech => 3,
+        AudioSegmentStatus.Bleed => 2,
+        _ => 1
+    };
 
     private static IReadOnlyList<FrameEvidence> BuildEvidence(
         IReadOnlyList<AudioFrameObservation> observations,
@@ -349,6 +505,12 @@ public sealed class TrackDialogueAnalyzer(TimelinePcmAccessor pcmAccessor)
         bool IsVadSpeech,
         bool IsDirectEvidence,
         bool IsAboveDirectEnergyThreshold);
+
+    private readonly record struct FrameAlignmentChoice(
+        AnalyzedAudioSegment? Segment,
+        int Priority,
+        long OverlapSamples,
+        bool IsAssigned);
 
     private sealed record CandidateGroup(
         long StartSample,

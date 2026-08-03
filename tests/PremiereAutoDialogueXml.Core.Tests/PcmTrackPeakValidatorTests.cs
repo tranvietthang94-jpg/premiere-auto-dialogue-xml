@@ -22,6 +22,9 @@ public sealed class PcmTrackPeakValidatorTests
         Assert.IsTrue(report.AllWithinTolerance);
         Assert.AreEqual(2, report.PhraseCount);
         Assert.AreEqual(2, report.PassedPhraseCount);
+        Assert.AreEqual(1, report.UncappedPhraseCount);
+        Assert.AreEqual(1, report.TargetPassedPhraseCount);
+        Assert.AreEqual(0, report.TargetFailedPhraseCount);
         Assert.AreEqual(-6, report.Phrases[0].ExpectedRenderedPeakDbfs, 0.0001);
         Assert.AreEqual(-12, report.Phrases[1].ExpectedRenderedPeakDbfs, 0.0001);
         Assert.IsTrue(report.Phrases[1].GainWasCapped);
@@ -42,7 +45,7 @@ public sealed class PcmTrackPeakValidatorTests
         Assert.IsFalse(report.AllWithinTolerance);
         Assert.AreEqual(0, report.PassedPhraseCount);
         Assert.AreEqual(1, report.FailedPhraseCount);
-        Assert.AreEqual("peak-out-of-tolerance", report.Phrases[0].ResultReason);
+        Assert.AreEqual("gain-out-of-tolerance", report.Phrases[0].ResultReason);
         Assert.IsGreaterThan(1.9, report.Phrases[0].DeltaDb!.Value);
         Assert.IsGreaterThan(1.9, report.MedianObservedOffsetDb!.Value);
         Assert.AreEqual(1, report.PhrasesMatchingMedianOffset);
@@ -78,6 +81,33 @@ public sealed class PcmTrackPeakValidatorTests
     }
 
     [TestMethod]
+    public void ValidateIncludesAmbiguousNearSpeechThatInheritsPhraseGain()
+    {
+        using var wave = TemporaryWave.Create(-6, -3, -1);
+        var audit = Audit(
+            Fragment("T01-P000001", startFrame: 0, endFrame: 1, measuredPeakDbfs: -12, appliedGainDb: 6),
+            Fragment(
+                "T01-P000001",
+                startFrame: 1,
+                endFrame: 2,
+                measuredPeakDbfs: -12,
+                appliedGainDb: 6,
+                status: AudioSegmentStatus.Ambiguous),
+            Fragment(
+                null,
+                startFrame: 2,
+                endFrame: 3,
+                status: AudioSegmentStatus.Ambiguous));
+
+        var report = new PcmTrackPeakValidator().Validate(audit, wave.Info, trackIndex: 1);
+
+        Assert.AreEqual(2, report.SpeechFragmentCount);
+        Assert.AreEqual(1, report.PhraseCount);
+        Assert.AreEqual(-3, report.Phrases[0].ObservedRenderedPeakDbfs!.Value, 0.01);
+        Assert.IsFalse(report.AllWithinTolerance);
+    }
+
+    [TestMethod]
     public void ValidateSourceLinkedComparisonSeparatesRoutingOffsetFromFramePeak()
     {
         using var source = TemporaryWave.Create(-12, -30);
@@ -102,6 +132,32 @@ public sealed class PcmTrackPeakValidatorTests
         Assert.AreEqual(0, report.SourceDerivedPhrasesOutsideMedianOffset);
         Assert.AreEqual(-6, report.Phrases[0].SourceDerivedExpectedRenderedPeakDbfs!.Value, 0.01);
         Assert.AreEqual(0, report.Phrases[0].SourceDerivedDeltaDb!.Value, 0.01);
+    }
+
+    [TestMethod]
+    public void ValidateSourceLinkedGainMatchStillFailsUncappedTargetMiss()
+    {
+        using var source = TemporaryWave.Create(-11);
+        using var rendered = TemporaryWave.Create(-5);
+        var audit = AuditWithCompensation(
+            Fragment("T01-P000001", startFrame: 0, endFrame: 1, measuredPeakDbfs: -12, appliedGainDb: 9.0103));
+
+        var report = new PcmTrackPeakValidator().Validate(
+            audit,
+            rendered.Info,
+            trackIndex: 1,
+            sourceMediaByFileId: new Dictionary<string, WaveFileInfo>(StringComparer.Ordinal)
+            {
+                ["file-1"] = source.Info
+            });
+
+        Assert.IsTrue(report.Phrases[0].GainWithinTolerance);
+        Assert.IsFalse(report.Phrases[0].TargetWithinTolerance);
+        Assert.IsFalse(report.Phrases[0].WithinTolerance);
+        Assert.AreEqual("uncapped-target-out-of-tolerance", report.Phrases[0].ResultReason);
+        Assert.AreEqual(0, report.TargetPassedPhraseCount);
+        Assert.AreEqual(1, report.TargetFailedPhraseCount);
+        Assert.IsFalse(report.AllWithinTolerance);
     }
 
     private static OutputAudit Audit(params FragmentAudit[] fragments) =>
@@ -139,6 +195,7 @@ public sealed class PcmTrackPeakValidatorTests
             TargetSamplePeakDbfs: -6,
             PremiereRoutingProfile: "mono-center-equal-power-to-stereo",
             PremiereCenterPanCompensationDb: premiereCenterPanCompensationDb,
+            GainReferencePeakPolicy: "max-direct-speech-and-frame-aligned-enabled-phrase-peak",
             MaximumBoostDb: 18,
             MaximumWorkers: 4),
         Fragments: fragments,

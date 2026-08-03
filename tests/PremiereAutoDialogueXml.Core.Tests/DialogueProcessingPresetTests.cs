@@ -23,6 +23,9 @@ public sealed class DialogueProcessingPresetTests
         Assert.AreEqual(-6.0, preset.TargetSamplePeakDbfs, 0.000001);
         Assert.AreEqual("mono-center-equal-power-to-stereo", preset.PremiereRoutingProfile);
         Assert.AreEqual(3.010299956639812, preset.PremiereCenterPanCompensationDb, 0.000001);
+        Assert.AreEqual(
+            "max-direct-speech-and-frame-aligned-enabled-phrase-peak",
+            preset.GainReferencePeakPolicy);
         Assert.AreEqual(18.0, preset.MaximumBoostDb, 0.000001);
         Assert.AreEqual(4, preset.MaximumWorkers);
         Assert.HasCount(0, preset.Validate());
