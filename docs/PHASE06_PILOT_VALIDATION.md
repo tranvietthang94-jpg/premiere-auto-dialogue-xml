@@ -1,5 +1,7 @@
 # Phase 06 — pilot Premiere và Windows sạch
 
+Báo cáo bằng chứng hiện tại: [PHASE06_PILOT_RESULT.md](PHASE06_PILOT_RESULT.md).
+
 ## Nguyên tắc
 
 Phase 06 chỉ chấp nhận bằng chứng tạo từ đúng ZIP/audit/XML pilot. Không suy diễn từ unit test, XML structure hoặc Phase 00 sang toàn bộ HGE2. Installer chỉ được tạo sau khi các cổng bắt buộc đạt.
