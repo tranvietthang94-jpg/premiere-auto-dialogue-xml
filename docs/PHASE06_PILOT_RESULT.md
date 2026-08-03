@@ -1,8 +1,8 @@
 # Phase 06 — báo cáo pilot HGE2
 
-Trạng thái: `incomplete`; candidate frame-safe đã đạt PCM round-trip A1–A7 và dừng an toàn, còn thiếu nhãn nội dung và máy Windows sạch, không phát hành.
+Trạng thái: `incomplete`; candidate frame-safe audit `1.2` đã đạt PCM round-trip A1–A7 và dừng an toàn, nhưng review Context phát hiện một xung đột VAD/năng lượng cần bảo vệ. Candidate audit `1.3` thay thế chưa qua Premiere; còn thiếu nhãn Mục tiêu và máy Windows sạch, không phát hành.
 
-Ngày ghi nhận: 2026-08-03.
+Ngày ghi nhận mới nhất: 2026-08-04.
 
 Báo cáo này chỉ chứa bằng chứng đã làm sạch. XML, WAV, project Premiere, ảnh chụp và audit đầy đủ được giữ ngoài Git trong `private-artifacts/phase06-pilot/`.
 
@@ -90,23 +90,40 @@ Người vận hành tiếp tục export A2–A7 từ cùng sequence, mỗi stem
 
 Tổng hợp A1–A7: 2.132/2.132 phrase đạt gain/timing; 935/935 phrase không cap đạt target; 1.197 phrase cap đều khớp predicted peak và không phrase nào nóng hơn `-6 dBFS`. Peak quan sát của nhóm không cap nằm từ `-6,000019` đến `-5,999974 dBFS`; phrase cap nóng nhất là `-6,004388 dBFS`. Sai lệch source-linked tuyệt đối lớn nhất của toàn bộ bảy track dưới `0,000027 dB`. Cổng PCM HGE2 A1–A7 đạt.
 
+Kết quả trên chỉ đóng cổng PCM cho candidate audit `1.2`. Sau review nội dung, candidate này trở thành bằng chứng lịch sử và không còn là build dự kiến phát hành.
+
+## Review Context và candidate audit 1.3
+
+Người vận hành đã điền đủ 63 dòng nghe mù và viết timecode chi tiết, nhưng chỉ đánh giá toàn khoảng Context thay vì cô lập Mục tiêu. Vì vậy 18 nhãn `L`, 29 nhãn `N` và 16 nhãn `M` không được dùng trực tiếp để tính ba tỷ lệ nghiệm thu.
+
+Các ghi chú vẫn phát hiện `M19` trên A3 có lời tại `00:07:28:15` nằm trong fragment noise Disable. Chẩn đoán đúng XML/media cho thấy VAD cao nhất chỉ `0,07245`, trong khi bốn block liên tiếp 128 ms cao hơn noise floor 11–14 dB và A3 lớn hơn mọi mic khác tại thời điểm đó. App được harden để giữ chuỗi VAD âm/năng lượng cao liên tục ít nhất 120 ms thành `ambiguous`, Enabled và marker `Cần kiểm tra`; transient ngắn hơn vẫn là noise.
+
+Candidate audit `1.3` mới dùng cùng input SHA-256; XML output có SHA-256 `5ADF7F4717E8A06330B6F0A73F6C1AED4FCC444FA63101A7A3BD995A015CEDCD`, audit có SHA-256 `95C8C430861757FA1341A57180D6B3188F4F793C28232CA30F47AB732B20B182`. Candidate có 10.468 fragment, 4.775 marker, 2.132 phrase và 1.885 fragment energy/VAD conflict đều Enabled. `M19` được giữ tại frame `11214–11218`. Runtime khoảng 30,0 giây, peak working set 169,4 MB, input không đổi, 7 warning metadata dự kiến và 0 error.
+
+Ba phrase trên A3/A4/A5 đổi gain từ `0,143–0,291 dB` do frame Enabled mới tham gia phép đo frame-safe; 2.129 phrase còn lại không đổi và toàn bộ 935 phrase không cap vẫn dự đoán đúng `-6 dBFS`. Vì XML/audit đã thay đổi, PCM cũ không được gắn sang candidate `1.3`. Chi tiết: [PHASE06_CONTEXT_LABEL_REVIEW.md](PHASE06_CONTEXT_LABEL_REVIEW.md).
+
 ## Dừng an toàn trên app thật
 
 App WPF build từ commit Phase 06 được mở trực tiếp, chọn `test HGE2.xml` và một thư mục gate trống riêng. Sau khi kiểm tra XML/media đạt, phân tích được bắt đầu và quan sát thấy nhiều worker đang chạy; người kiểm thử bấm **Dừng an toàn** khi trạng thái đang ở bước phân tích. UI chuyển sang `Đã dừng` và `Không tạo output dở`, sau đó cửa sổ đóng bình thường.
 
 Hậu kiểm xác nhận thư mục gate vẫn có 0 entry: không XML, audit, `.tmp` hoặc thư mục run rỗng; process của build đã kết thúc. SHA-256 XML nguồn sau phép thử vẫn là `09FD290C5CB8401DEF7EA9701433F7BD1799B0300ABA9244A8BF88C022A8C897`. Bộ test Release sau thao tác đạt 90/90. Cổng dừng an toàn đạt.
 
-## Gói frame-safe cho máy sạch
+## Gói frame-safe cũ cho máy sạch
 
-Candidate hiện tại đã được publish thành ZIP self-contained `win-x64`, chưa tạo installer. Gói có 410 file payload, không chứa Python hoặc PDB, model `6.2.1` có SHA-256 `1A153A22F4509E292A94E67D6F9B85E8DEB25B4988682B7E174C65279D8788E3`. ZIP dài 71.104.231 byte và có SHA-256 `22E1A3A016D0C078594D8464A695FBF12D3217488368121D01F54D5F752B59E5`.
+Candidate audit `1.2` đã được publish thành ZIP self-contained `win-x64`, chưa tạo installer. Gói có 410 file payload, không chứa Python hoặc PDB, model `6.2.1` có SHA-256 `1A153A22F4509E292A94E67D6F9B85E8DEB25B4988682B7E174C65279D8788E3`. ZIP dài 71.104.231 byte và có SHA-256 `22E1A3A016D0C078594D8464A695FBF12D3217488368121D01F54D5F752B59E5`. Gói này là bằng chứng lịch sử trước lớp bảo vệ mới và không còn là gói dùng để đóng cổng phát hành.
 
 Máy phát triển hiện tại là Windows 11 Pro x64 và không có Windows Sandbox; vì vậy lượt chạy trên máy này không được dùng thay bằng chứng Windows 10/11 sạch. Gói vẫn chờ thử offline trên hai môi trường sạch, không cài .NET/Python và không có Internet.
 
+## Gói candidate audit 1.3
+
+Build chứa lớp bảo vệ VAD/năng lượng đã được publish thành ZIP self-contained `win-x64`, chưa tạo installer. Gói có 410 payload file, không có Python/PDB, dài 71.105.313 byte và có SHA-256 `AAB87C47250792CC16C3FC23CB3226453D15AE012FA0F0AF003D81F1CBAFE1AF`. Manifest ghi đúng model `6.2.1` và SHA-256 model đã ghim. Gói này thay gói audit `1.2` cho các lượt pilot tiếp theo nhưng vẫn chưa có bằng chứng Windows sạch hoặc Premiere round-trip.
+
 ## Các cổng còn thiếu
 
-- Lưu **FCP Translation Results** nếu Premiere có tạo và xác nhận không có lỗi làm mất audio.
-- Kiểm tra vài fragment speech/ambiguous/noise, marker và khả năng bật lại clip Disable.
-- Gắn nhãn đủ để tính 100% direct speech được giữ, ít nhất 90% clear noise/bleed bị Disable và 0% ambiguous bị Disable.
-- Chạy ZIP offline trên Windows 10 x64 và Windows 11 x64 sạch, không có .NET/Python cài sẵn.
+- Import XML audit `1.3`, lưu **FCP Translation Results** nếu Premiere có tạo và xác nhận không có lỗi làm mất audio.
+- Kiểm tra fragment energy/VAD conflict, marker, ranh giới M19 và khả năng bật lại clip Disable.
+- Export PCM A1–A7 từ đúng candidate `1.3` và chạy validator gắn với audit mới; không tái sử dụng report audit `1.2`.
+- Gắn nhãn đúng khoảng Mục tiêu để tính 100% direct speech được giữ, ít nhất 90% clear noise/bleed bị Disable và 0% ambiguous bị Disable.
+- Publish ZIP candidate `1.3`, rồi chạy offline trên Windows 10 x64 và Windows 11 x64 sạch, không có .NET/Python cài sẵn.
 
 Không tạo installer và không merge Phase 06 cho đến khi các cổng bắt buộc có đủ bằng chứng.

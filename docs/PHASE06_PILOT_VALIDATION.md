@@ -65,7 +65,7 @@ Truyền đúng `source.xml` có SHA-256 khớp audit để validator đo lại 
 
 Chạy A1 trước để xác nhận routing. Chỉ sau khi report A1 hợp lệ mới lặp A2–A7; không dùng một bản full mix để thay cho stem vì nhiều mic cộng lại sẽ làm sai peak từng phrase.
 
-Audit schema `1.2` phải ghi profile `mono-center-equal-power-to-stereo`, `premiereCenterPanCompensationDb=3,0102999566` và policy `max-direct-speech-and-frame-aligned-enabled-phrase-peak`. Validator trừ đúng hệ số routing khỏi predicted peak hậu routing; source-linked gain delta phải nằm trong tolerance, toàn bộ phrase không cap phải đạt `-6,0 ± 0,1 dBFS`, còn phrase cap phải khớp predicted peak và không nóng hơn target. Audit `1.0` không có bù; audit `1.1` chưa có frame-safe gain reference, nên cả hai không được dùng để đóng cổng cuối.
+Audit schema `1.3` phải ghi profile `mono-center-equal-power-to-stereo`, `premiereCenterPanCompensationDb=3,0102999566`, policy `max-direct-speech-and-frame-aligned-enabled-phrase-peak` và `preserveVadNegativeHighEnergyConflicts=true`. Validator trừ đúng hệ số routing khỏi predicted peak hậu routing; source-linked gain delta phải nằm trong tolerance, toàn bộ phrase không cap phải đạt `-6,0 ±0,1 dBFS`, còn phrase cap phải khớp predicted peak và không nóng hơn target. Audit `1.0` không có bù, `1.1` chưa có frame-safe gain reference và `1.2` chưa có lớp bảo vệ xung đột VAD/năng lượng, nên không được dùng để đóng cổng của candidate hiện tại.
 
 ## D. Nhãn HGE2
 
@@ -76,6 +76,8 @@ Tập nhãn pilot phải có `track`, timeline `start/end`, loại `direct-speec
 - 0% vùng ambiguous bị Disable.
 
 Không có nhãn thì chỉ được báo số lượng VAD/fragment/marker, không được tuyên bố đạt ba tỷ lệ trên.
+
+Người nghe phải nghe Context để định vị nhưng gắn nhãn riêng đúng khoảng Mục tiêu. Nhãn chỉ mô tả toàn Context không được đưa vào mẫu số nghiệm thu. Ghi chú có timecode vẫn được dùng làm bằng chứng điều tra ranh giới hoặc VAD, nhưng mọi suy luận phải được ghi riêng và không âm thầm đổi thành nhãn Mục tiêu.
 
 ## E. Máy Windows sạch
 
