@@ -1,6 +1,6 @@
 # Phase 06 — báo cáo pilot HGE2
 
-Trạng thái: `incomplete`; candidate frame-safe đã đạt PCM round-trip A1–A7, còn thiếu nhãn nội dung, dừng an toàn và máy Windows sạch, không phát hành.
+Trạng thái: `incomplete`; candidate frame-safe đã đạt PCM round-trip A1–A7 và dừng an toàn, còn thiếu nhãn nội dung và máy Windows sạch, không phát hành.
 
 Ngày ghi nhận: 2026-08-03.
 
@@ -90,12 +90,17 @@ Người vận hành tiếp tục export A2–A7 từ cùng sequence, mỗi stem
 
 Tổng hợp A1–A7: 2.132/2.132 phrase đạt gain/timing; 935/935 phrase không cap đạt target; 1.197 phrase cap đều khớp predicted peak và không phrase nào nóng hơn `-6 dBFS`. Peak quan sát của nhóm không cap nằm từ `-6,000019` đến `-5,999974 dBFS`; phrase cap nóng nhất là `-6,004388 dBFS`. Sai lệch source-linked tuyệt đối lớn nhất của toàn bộ bảy track dưới `0,000027 dB`. Cổng PCM HGE2 A1–A7 đạt.
 
+## Dừng an toàn trên app thật
+
+App WPF build từ commit Phase 06 được mở trực tiếp, chọn `test HGE2.xml` và một thư mục gate trống riêng. Sau khi kiểm tra XML/media đạt, phân tích được bắt đầu và quan sát thấy nhiều worker đang chạy; người kiểm thử bấm **Dừng an toàn** khi trạng thái đang ở bước phân tích. UI chuyển sang `Đã dừng` và `Không tạo output dở`, sau đó cửa sổ đóng bình thường.
+
+Hậu kiểm xác nhận thư mục gate vẫn có 0 entry: không XML, audit, `.tmp` hoặc thư mục run rỗng; process của build đã kết thúc. SHA-256 XML nguồn sau phép thử vẫn là `09FD290C5CB8401DEF7EA9701433F7BD1799B0300ABA9244A8BF88C022A8C897`. Bộ test Release sau thao tác đạt 90/90. Cổng dừng an toàn đạt.
+
 ## Các cổng còn thiếu
 
 - Lưu **FCP Translation Results** nếu Premiere có tạo và xác nhận không có lỗi làm mất audio.
 - Kiểm tra vài fragment speech/ambiguous/noise, marker và khả năng bật lại clip Disable.
 - Gắn nhãn đủ để tính 100% direct speech được giữ, ít nhất 90% clear noise/bleed bị Disable và 0% ambiguous bị Disable.
-- Chạy cổng **Dừng an toàn** và xác nhận không để XML/audit/tmp dở dang.
 - Chạy ZIP offline trên Windows 10 x64 và Windows 11 x64 sạch, không có .NET/Python cài sẵn.
 
 Không tạo installer và không merge Phase 06 cho đến khi các cổng bắt buộc có đủ bằng chứng.
