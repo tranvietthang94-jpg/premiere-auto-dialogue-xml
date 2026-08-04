@@ -13,6 +13,7 @@ permissions:
 env:
   DOTNET_CLI_TELEMETRY_OPTOUT: "1"
   DOTNET_NOLOGO: "1"
+  INNO_SETUP_VERSION: "7.0.2"
 
 jobs:
   build-and-test:
@@ -41,3 +42,53 @@ jobs:
       - name: Validate self-contained win-x64 publish
         shell: pwsh
         run: ./scripts/publish-win-x64.ps1 -OutputRoot "$env:RUNNER_TEMP/padx-publish"
+
+      - name: Download and verify Inno Setup 7
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $downloadDirectory = Join-Path $env:RUNNER_TEMP 'inno-setup-download'
+          $installDirectory = Join-Path $env:RUNNER_TEMP 'inno-setup-7'
+          New-Item -ItemType Directory -Path $downloadDirectory | Out-Null
+          $tag = 'is-' + $env:INNO_SETUP_VERSION.Replace('.', '_')
+          $fileName = "innosetup-$env:INNO_SETUP_VERSION-x64.exe"
+          gh release download $tag --repo jrsoftware/issrc --pattern $fileName --dir $downloadDirectory
+          if ($LASTEXITCODE -ne 0) { throw 'Unable to download the pinned Inno Setup release.' }
+          $downloadPath = Join-Path $downloadDirectory $fileName
+          gh release verify-asset $tag $downloadPath --repo jrsoftware/issrc
+          if ($LASTEXITCODE -ne 0) { throw 'Inno Setup release attestation verification failed.' }
+          $arguments = @('/VERYSILENT', '/CURRENTUSER', '/NORESTART', '/SUPPRESSMSGBOXES', "/DIR=`"$installDirectory`"")
+          $process = Start-Process -FilePath $downloadPath -ArgumentList $arguments -Wait -PassThru -WindowStyle Hidden
+          if ($process.ExitCode -ne 0) { throw "Inno Setup installation failed with exit code $($process.ExitCode)." }
+          $isccPath = Join-Path $installDirectory 'ISCC.exe'
+          if (-not (Test-Path -LiteralPath $isccPath -PathType Leaf)) { throw 'ISCC.exe was not installed.' }
+          "INNO_SETUP_ISCC=$isccPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Build and test Windows installer
+        shell: pwsh
+        run: |
+          $installerRoot = Join-Path $env:RUNNER_TEMP 'padx-installer'
+          ./scripts/build-installer.ps1 -OutputRoot $installerRoot -IsccPath $env:INNO_SETUP_ISCC | Out-Host
+          $runDirectories = @(Get-ChildItem -LiteralPath $installerRoot -Directory)
+          if ($runDirectories.Count -ne 1) { throw 'Expected exactly one installer run directory.' }
+          $releaseDirectory = Join-Path $runDirectories[0].FullName 'release'
+          $installers = @(Get-ChildItem -LiteralPath $releaseDirectory -File -Filter '*-Setup-*-win-x64.exe')
+          $payloadManifests = @(Get-ChildItem -LiteralPath (Join-Path $runDirectories[0].FullName 'payload') -Recurse -File -Filter 'publish-manifest.json')
+          if ($installers.Count -ne 1 -or $payloadManifests.Count -ne 1) { throw 'Installer build outputs are incomplete.' }
+          ./scripts/test-installer.ps1 `
+            -InstallerPath $installers[0].FullName `
+            -PayloadManifestPath $payloadManifests[0].FullName `
+            -ReportPath (Join-Path $releaseDirectory 'installer-test-report.json') `
+            -TestRoot (Join-Path $env:RUNNER_TEMP 'padx-installer-test') | Out-Host
+          $artifactDirectory = Join-Path $env:RUNNER_TEMP 'padx-installer-release'
+          New-Item -ItemType Directory -Path $artifactDirectory | Out-Null
+          Get-ChildItem -LiteralPath $releaseDirectory | Copy-Item -Destination $artifactDirectory -Recurse
+
+      - name: Upload verified Windows installer
+        uses: actions/upload-artifact@v7
+        with:
+          name: PremiereAutoDialogueXml-installer-${{ github.sha }}
+          path: ${{ runner.temp }}/padx-installer-release/*
+          if-no-files-found: error
+          retention-days: 14

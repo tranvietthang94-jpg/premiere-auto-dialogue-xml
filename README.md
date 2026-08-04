@@ -25,7 +25,7 @@ Kế hoạch triển khai và tiêu chí nghiệm thu nằm trong [docs/IMPLEMEN
 
 ## Trạng thái
 
-Phase 00–06 đã hoàn tất. Candidate audit `1.3` đã qua Premiere round-trip A1–A7, kiểm tra phục hồi clip Disable, package self-contained, một lượt phân tích trên máy Windows 11 khác và một lượt phân tích trên máy ảo Windows 10 x64 mới cài. Cổng nhãn nghe Mục tiêu được chủ dự án miễn; vì vậy dự án không tuyên bố các tỷ lệ 100%/90%/0% chưa đo. Installer chưa được tạo.
+Phase 00–07 đã hoàn tất. Candidate audit `1.3` đã qua Premiere round-trip A1–A7, kiểm tra phục hồi clip Disable, package self-contained, một lượt phân tích trên máy Windows 11 khác và một lượt phân tích trên máy ảo Windows 10 x64 mới cài. Cổng nhãn nghe Mục tiêu được chủ dự án miễn; vì vậy dự án không tuyên bố các tỷ lệ 100%/90%/0% chưa đo. Installer Inno Setup self-contained đã qua cài/mở/phân tích trên máy nội bộ; máy đích cũng xác nhận đúng signer Authenticode tự ký `Premiere Auto Dialogue XML Internal`.
 
 ## Hệ điều hành mục tiêu
 
@@ -60,3 +60,5 @@ Tạo publish folder và ZIP self-contained mới, không ghi đè artifact cũ:
 ```
 
 Script kiểm apphost, .NET/CoreCLR, WPF, ONNX native, model checksum, license, Python/PDB và tạo `publish-manifest.json` chứa SHA-256 payload. ZIP pilot chưa phải installer.
+
+Tài liệu cài đặt nằm tại [docs/CAI_DAT_WINDOWS.md](docs/CAI_DAT_WINDOWS.md). Quy trình tự ký nội bộ và giới hạn tin cậy nằm tại [docs/INTERNAL_CODE_SIGNING.md](docs/INTERNAL_CODE_SIGNING.md).
