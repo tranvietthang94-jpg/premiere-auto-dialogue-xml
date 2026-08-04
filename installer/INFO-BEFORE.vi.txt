@@ -1,0 +1,8 @@
+Premiere Auto Dialogue XML hoạt động hoàn toàn offline và không yêu cầu cài riêng .NET, Python hoặc model.
+
+Ứng dụng luôn tạo XML và audit mới. XML, WAV và project Premiere gốc không bị sửa hoặc ghi đè.
+
+Mức -6 dBFS là sample peak theo từng cụm lời sau profile routing Premiere đã kiểm chứng; đây không phải LUFS, true peak, limiter hoặc cam kết cho toàn bộ Master bus.
+
+Bản cài hiện chưa có chữ ký số. Nếu Windows hiển thị nhà phát hành không xác định, hãy đối chiếu SHA-256 với manifest đi kèm từ kho phát hành private trước khi tiếp tục.
+
