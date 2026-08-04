@@ -1,6 +1,6 @@
 # Phase 07 — Windows installer và private release
 
-Trạng thái: `in-progress`.
+Trạng thái: `complete`.
 
 ## Mục tiêu
 
@@ -58,10 +58,11 @@ Trạng thái: `in-progress`.
 
 Phiên bản đầu của test harness duyệt sai đường dẫn registry uninstall và có thể để lại đúng một khóa thử nghiệm sau khi test dừng. Khóa đó đã được xác minh thuộc thư mục test rồi xóa. Harness hiện chỉ dùng AppId ổn định của sản phẩm, có bước phục hồi khi lỗi và kiểm tra khóa theo người dùng đã được xóa. Đây là lỗi của bộ test, không phải lỗi gỡ cài đặt của ứng dụng.
 
-## Cổng còn lại
+## Kết quả cổng máy đích
 
-- Chủ dự án xác nhận installer/app hoạt động tốt trên máy Windows nội bộ. Bản signed cần được tin cậy chứng thư và mở lại một lần trên máy đích trước khi đóng phase.
-- Sau cổng chữ ký nội bộ: cập nhật trạng thái phase, merge bằng merge commit và tạo private draft release `v0.1.0-rc.1`.
+- Chủ dự án xác nhận installer/app hoạt động tốt trên máy Windows nội bộ.
+- Sau khi cài chứng thư công khai, máy đích hiển thị đúng signer `Premiere Auto Dialogue XML Internal`.
+- Phase 07 đủ điều kiện merge bằng merge commit và tạo private draft release `v0.1.0-rc.1`.
 
 ## Chữ ký nội bộ
 
