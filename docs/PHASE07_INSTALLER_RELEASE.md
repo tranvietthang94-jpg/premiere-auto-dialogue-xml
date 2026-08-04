@@ -45,11 +45,13 @@ Trạng thái: `in-progress`.
   - tệp mô phỏng output do người dùng tạo vẫn còn sau gỡ cài đặt.
 - Kiểm tra trực quan các trang Thông tin, Chọn thư mục, Tác vụ bổ sung và Sẵn sàng cài đặt đạt; các chuỗi chính đã hiển thị tiếng Việt.
 
-### CI trước lần Việt hóa cuối
+### CI ứng viên cuối
 
-- GitHub Actions run `30879239391` đạt toàn bộ restore, build, `93/93` test, publish self-contained, tải và xác minh attestation Inno Setup, build, cài, mở và gỡ installer.
-- Artifact CI dùng compiler `7.0.2`, có `410` tệp payload và báo cáo installer `passed=true`.
-- Workflow sau đó được sửa để artifact tải xuống chứa trực tiếp bốn tệp release, không còn lồng thư mục run nội bộ. Cần CI mới xác nhận thay đổi này trước khi bàn giao.
+- GitHub Actions run `30879909405`, job `91898823166`, đạt trong `2m39s` trên source đã Việt hóa cuối.
+- Các cổng đạt: restore, build, `93/93` test, publish self-contained, tải và xác minh attestation Inno Setup, build installer, cài, đối chiếu `410/410` tệp, mở app, gỡ cài đặt và upload artifact.
+- Artifact tải xuống đã được làm phẳng thành đúng bốn tệp release.
+- Installer CI: `52,788,177` byte; SHA-256 `04D207AF419C9E3B171FDD6AEE418F214686A58FF0F1B02172B0DBCB47692D13`; compiler `7.0.2`; `NotSigned`.
+- `installer-test-report.json` trong artifact ghi `passed=true`, app mở được, payload/registry được gỡ và tệp người dùng được giữ.
 
 ### Sự cố đã sửa trong bộ kiểm tra
 
@@ -57,6 +59,5 @@ Phiên bản đầu của test harness duyệt sai đường dẫn registry unin
 
 ## Cổng còn lại
 
-- GitHub Actions phải đạt với source Việt hóa cuối và artifact đã làm phẳng.
 - Người dùng cài, mở, phân tích và gỡ bản installer trên máy Windows 10 x64 sạch. Việc app dạng ZIP đã chạy trên Windows 10 trước đó không thay thế cổng kiểm tra installer này.
 - Sau cổng Windows 10: cập nhật trạng thái phase, merge bằng merge commit và tạo private draft release `v0.1.0-rc.1`.
