@@ -81,11 +81,14 @@ jobs:
             -PayloadManifestPath $payloadManifests[0].FullName `
             -ReportPath (Join-Path $releaseDirectory 'installer-test-report.json') `
             -TestRoot (Join-Path $env:RUNNER_TEMP 'padx-installer-test') | Out-Host
+          $artifactDirectory = Join-Path $env:RUNNER_TEMP 'padx-installer-release'
+          New-Item -ItemType Directory -Path $artifactDirectory | Out-Null
+          Get-ChildItem -LiteralPath $releaseDirectory | Copy-Item -Destination $artifactDirectory -Recurse
 
       - name: Upload verified Windows installer
         uses: actions/upload-artifact@v7
         with:
           name: PremiereAutoDialogueXml-installer-${{ github.sha }}
-          path: ${{ runner.temp }}/padx-installer/*/release/*
+          path: ${{ runner.temp }}/padx-installer-release/*
           if-no-files-found: error
           retention-days: 14
