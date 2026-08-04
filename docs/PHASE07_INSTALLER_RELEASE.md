@@ -15,7 +15,8 @@ Trạng thái: `in-progress`.
 
 - Compiler: Inno Setup 7 x64.
 - Installer chỉ nhận payload từ script publish `win-x64` đã kiểm tra apphost, .NET/CoreCLR, WPF, ONNX Runtime, model và giấy phép.
-- Pilot ban đầu chưa ký số vì dự án chưa có code-signing certificate; Windows SmartScreen có thể cảnh báo nhà phát hành không xác định.
+- Bản phát hành nội bộ dùng chứng thư Authenticode tự ký. Chứng thư phải được tin cậy riêng trên từng tài khoản/máy; đây không phải chữ ký CA công cộng và không phù hợp phát hành công khai.
+- Khóa riêng không export, không đưa vào artifact, Git hoặc GitHub Actions. CI tiếp tục tạo artifact unsigned; bản signed chỉ được build cục bộ trên Windows profile giữ khóa.
 - Nếu sản phẩm được dùng thương mại, chủ dự án phải kiểm tra và mua commercial license Inno Setup theo điều khoản hiện hành trước phát hành thương mại.
 
 ## Cổng nghiệm thu
@@ -59,5 +60,16 @@ Phiên bản đầu của test harness duyệt sai đường dẫn registry unin
 
 ## Cổng còn lại
 
-- Người dùng cài, mở, phân tích và gỡ bản installer trên máy Windows 10 x64 sạch. Việc app dạng ZIP đã chạy trên Windows 10 trước đó không thay thế cổng kiểm tra installer này.
-- Sau cổng Windows 10: cập nhật trạng thái phase, merge bằng merge commit và tạo private draft release `v0.1.0-rc.1`.
+- Chủ dự án xác nhận installer/app hoạt động tốt trên máy Windows nội bộ. Bản signed cần được tin cậy chứng thư và mở lại một lần trên máy đích trước khi đóng phase.
+- Sau cổng chữ ký nội bộ: cập nhật trạng thái phase, merge bằng merge commit và tạo private draft release `v0.1.0-rc.1`.
+
+## Chữ ký nội bộ
+
+- Subject: `CN=Premiere Auto Dialogue XML Internal`.
+- RSA `3072` bit, SHA-256, EKU Code Signing.
+- Thumbprint: `025AEBC4AA90E0D5F85658082952A7E029CF467A`.
+- Hiệu lực đến `2031-08-04T05:30:15Z`.
+- Không có timestamp công cộng; chữ ký phải được phát hành lại trước khi chứng thư hết hạn.
+- Khóa riêng không export và chỉ nằm trong `Cert:\CurrentUser\My` của máy phát triển hiện tại.
+- Chứng thư công khai `.cer` không chứa khóa riêng và được phép đưa vào private release.
+- Signed smoke test đạt: installer, app đã cài và uninstaller đều `Valid`; `410/410` payload khớp; cài/mở/gỡ đạt và dữ liệu người dùng được giữ.

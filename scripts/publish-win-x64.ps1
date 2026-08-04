@@ -1,7 +1,8 @@
 [CmdletBinding()]
 param(
     [string]$Configuration = 'Release',
-    [string]$OutputRoot = ''
+    [string]$OutputRoot = '',
+    [string]$SigningCertificateThumbprint = ''
 )
 
 Set-StrictMode -Version Latest
@@ -17,6 +18,23 @@ $modelPath = Join-Path $repositoryRoot 'models\silero-vad\v6.2.1\silero_vad.onnx
 $expectedModelSha256 = '1A153A22F4509E292A94E67D6F9B85E8DEB25B4988682B7E174C65279D8788E3'
 $localDotnet = Join-Path $repositoryRoot '.tools\dotnet\dotnet.exe'
 $dotnet = if (Test-Path -LiteralPath $localDotnet -PathType Leaf) { $localDotnet } else { 'dotnet' }
+$signingEnabled = -not [string]::IsNullOrWhiteSpace($SigningCertificateThumbprint)
+$normalizedSignerThumbprint = $SigningCertificateThumbprint.Replace(' ', '').ToUpperInvariant()
+
+if ($signingEnabled) {
+    $signingCertificate = Get-Item -LiteralPath "Cert:\CurrentUser\My\$normalizedSignerThumbprint" -ErrorAction SilentlyContinue
+    if ($null -eq $signingCertificate -or -not $signingCertificate.HasPrivateKey) {
+        throw 'The requested current-user code-signing certificate and private key were not found.'
+    }
+    $codeSigningOid = '1.3.6.1.5.5.7.3.3'
+    if (@($signingCertificate.EnhancedKeyUsageList | Where-Object { [string]$_.ObjectId -eq $codeSigningOid }).Count -eq 0) {
+        throw 'The requested certificate is not authorized for code signing.'
+    }
+    $now = Get-Date
+    if ($now -lt $signingCertificate.NotBefore -or $now -gt $signingCertificate.NotAfter) {
+        throw 'The requested code-signing certificate is not currently valid.'
+    }
+}
 
 if ([string]::IsNullOrWhiteSpace($OutputRoot)) {
     $outputBase = Join-Path $repositoryRoot 'artifacts\publish\win-x64'
@@ -126,6 +144,20 @@ try {
         throw "runtimeconfig does not prove a self-contained .NET and WindowsDesktop package."
     }
 
+    $appSignature = Get-AuthenticodeSignature -LiteralPath (Join-Path $publishDirectory 'PremiereAutoDialogueXml.exe')
+    if ($signingEnabled) {
+        $appExecutablePath = Join-Path $publishDirectory 'PremiereAutoDialogueXml.exe'
+        $appSignature = Set-AuthenticodeSignature `
+            -LiteralPath $appExecutablePath `
+            -Certificate $signingCertificate `
+            -HashAlgorithm SHA256 `
+            -IncludeChain All
+        if ($null -eq $appSignature.SignerCertificate -or
+            -not $appSignature.SignerCertificate.Thumbprint.Equals($normalizedSignerThumbprint, [StringComparison]::OrdinalIgnoreCase)) {
+            throw 'The app executable signature does not match the requested certificate.'
+        }
+    }
+
     $payloadFiles = @(Get-ChildItem -LiteralPath $publishDirectory -Recurse -File |
         Sort-Object FullName |
         ForEach-Object {
@@ -145,6 +177,13 @@ try {
         installer = $false
         modelVersion = '6.2.1'
         modelSha256 = $expectedModelSha256
+        codeSigning = [ordered]@{
+            signed = $signingEnabled
+            signerSubject = if ($signingEnabled) { [string]$signingCertificate.Subject } else { $null }
+            signerThumbprint = if ($signingEnabled) { $normalizedSignerThumbprint } else { $null }
+            authenticodeStatus = [string]$appSignature.Status
+            timestamped = $false
+        }
         files = $payloadFiles
     }
     $manifestPath = Join-Path $publishDirectory 'publish-manifest.json'

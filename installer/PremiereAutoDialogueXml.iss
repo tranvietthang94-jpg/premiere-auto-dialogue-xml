@@ -53,6 +53,10 @@ VersionInfoCompany={#AppPublisher}
 VersionInfoDescription=Bộ cài {#AppName}
 VersionInfoProductName={#AppName}
 VersionInfoProductVersion={#AppVersion}
+#ifdef SignToolName
+SignTool={#SignToolName}
+SignedUninstaller=yes
+#endif
 
 [Tasks]
 Name: "desktopicon"; Description: "Tạo biểu tượng trên Desktop"; GroupDescription: "Lối tắt bổ sung:"; Flags: unchecked

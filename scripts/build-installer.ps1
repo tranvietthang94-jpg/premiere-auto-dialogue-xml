@@ -3,7 +3,9 @@ param(
     [string]$Configuration = 'Release',
     [string]$OutputRoot = '',
     [string]$IsccPath = '',
-    [string]$AppVersion = '0.1.0'
+    [string]$AppVersion = '0.1.0',
+    [string]$SigningCertificateThumbprint = '',
+    [string]$SignToolPath = ''
 )
 
 Set-StrictMode -Version Latest
@@ -95,6 +97,31 @@ function Get-InnoVersion {
     return 'unknown'
 }
 
+function Find-SignTool {
+    param([string]$RequestedPath)
+
+    if (-not [string]::IsNullOrWhiteSpace($RequestedPath)) {
+        $resolved = [System.IO.Path]::GetFullPath($RequestedPath)
+        if (Test-Path -LiteralPath $resolved -PathType Leaf) {
+            return $resolved
+        }
+        throw 'The requested SignTool.exe was not found.'
+    }
+
+    $roots = @(
+        (Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10\bin'),
+        (Join-Path $env:ProgramFiles 'Windows Kits\10\bin')
+    ) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) -and (Test-Path -LiteralPath $_ -PathType Container) }
+    $candidates = @($roots | ForEach-Object {
+        Get-ChildItem -LiteralPath $_ -Recurse -File -Filter 'signtool.exe' -ErrorAction SilentlyContinue |
+            Where-Object { $_.Directory.Name -eq 'x64' }
+    } | Sort-Object FullName -Descending)
+    if ($candidates.Count -eq 0) {
+        throw 'Windows SDK x64 SignTool.exe was not found.'
+    }
+    return $candidates[0].FullName
+}
+
 if (-not (Test-Path -LiteralPath $publishScript -PathType Leaf)) {
     throw 'The self-contained publish script was not found.'
 }
@@ -104,6 +131,25 @@ if (-not (Test-Path -LiteralPath $installerScript -PathType Leaf)) {
 
 $compilerPath = Find-Iscc -RequestedPath $IsccPath
 $compilerVersion = Get-InnoVersion -CompilerPath $compilerPath
+$signingEnabled = -not [string]::IsNullOrWhiteSpace($SigningCertificateThumbprint)
+$normalizedSignerThumbprint = $SigningCertificateThumbprint.Replace(' ', '').ToUpperInvariant()
+$signingCertificate = $null
+$resolvedSignToolPath = $null
+if ($signingEnabled) {
+    $signingCertificate = Get-Item -LiteralPath "Cert:\CurrentUser\My\$normalizedSignerThumbprint" -ErrorAction SilentlyContinue
+    if ($null -eq $signingCertificate -or -not $signingCertificate.HasPrivateKey) {
+        throw 'The requested current-user code-signing certificate and private key were not found.'
+    }
+    $codeSigningOid = '1.3.6.1.5.5.7.3.3'
+    if (@($signingCertificate.EnhancedKeyUsageList | Where-Object { [string]$_.ObjectId -eq $codeSigningOid }).Count -eq 0) {
+        throw 'The requested certificate is not authorized for code signing.'
+    }
+    $now = Get-Date
+    if ($now -lt $signingCertificate.NotBefore -or $now -gt $signingCertificate.NotAfter) {
+        throw 'The requested code-signing certificate is not currently valid.'
+    }
+    $resolvedSignToolPath = Find-SignTool -RequestedPath $SignToolPath
+}
 [System.IO.Directory]::CreateDirectory($outputBase) | Out-Null
 
 $runId = '{0}-{1}' -f [DateTimeOffset]::UtcNow.ToString('yyyyMMdd-HHmmss'), [Guid]::NewGuid().ToString('N')
@@ -126,7 +172,14 @@ try {
     [System.IO.Directory]::CreateDirectory($payloadRoot) | Out-Null
     [System.IO.Directory]::CreateDirectory($outputDirectory) | Out-Null
 
-    & $publishScript -Configuration $Configuration -OutputRoot $payloadRoot | Out-Host
+    $publishArguments = @{
+        Configuration = $Configuration
+        OutputRoot = $payloadRoot
+    }
+    if ($signingEnabled) {
+        $publishArguments.SigningCertificateThumbprint = $normalizedSignerThumbprint
+    }
+    & $publishScript @publishArguments | Out-Host
 
     $publishDirectories = @(Get-ChildItem -LiteralPath $payloadRoot -Directory)
     $publishZips = @(Get-ChildItem -LiteralPath $payloadRoot -File -Filter '*.zip')
@@ -145,14 +198,20 @@ try {
     }
 
     $outputBaseFilename = "PremiereAutoDialogueXml-Setup-$AppVersion-win-x64"
-    $compilerArguments = @(
+    $compilerArguments = [System.Collections.Generic.List[string]]::new()
+    @(
         '/Qp',
         "/DSourceDirectory=$publishDirectory",
         "/DOutputDirectory=$outputDirectory",
         "/DOutputBaseFilename=$outputBaseFilename",
-        "/DAppVersion=$AppVersion",
-        $installerScript
-    )
+        "/DAppVersion=$AppVersion"
+    ) | ForEach-Object { $compilerArguments.Add($_) }
+    if ($signingEnabled) {
+        $signCommand = '$q{0}$q sign /sha1 {1} /fd SHA256 /d $qPremiere Auto Dialogue XML$q $f' -f $resolvedSignToolPath, $normalizedSignerThumbprint
+        $compilerArguments.Add('/DSignToolName=padxinternal')
+        $compilerArguments.Add("/Spadxinternal=$signCommand")
+    }
+    $compilerArguments.Add($installerScript)
     & $compilerPath @compilerArguments
     if ($LASTEXITCODE -ne 0) {
         throw "Inno Setup compilation failed with exit code $LASTEXITCODE."
@@ -196,6 +255,12 @@ try {
 
     $installerSha256 = (Get-FileHash -LiteralPath $installerPath -Algorithm SHA256).Hash
     $signature = Get-AuthenticodeSignature -LiteralPath $installerPath
+    $actualSignerThumbprint = if ($null -ne $signature.SignerCertificate) { [string]$signature.SignerCertificate.Thumbprint } else { $null }
+    if ($signingEnabled -and (
+        [string]::IsNullOrWhiteSpace($actualSignerThumbprint) -or
+        -not $actualSignerThumbprint.Equals($normalizedSignerThumbprint, [StringComparison]::OrdinalIgnoreCase))) {
+        throw 'The installer signature does not match the requested certificate.'
+    }
     $gitCommit = 'unknown'
     $gitResult = & git -C $repositoryRoot rev-parse HEAD 2>$null
     if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($gitResult)) {
@@ -220,7 +285,12 @@ try {
         installerBytes = $installerItem.Length
         installerSha256 = $installerSha256
         authenticodeStatus = [string]$signature.Status
-        signed = ($signature.Status -eq [System.Management.Automation.SignatureStatus]::Valid)
+        signed = (-not [string]::IsNullOrWhiteSpace($actualSignerThumbprint))
+        authenticodeTrusted = ($signature.Status -eq [System.Management.Automation.SignatureStatus]::Valid)
+        signerSubject = if ($null -ne $signature.SignerCertificate) { [string]$signature.SignerCertificate.Subject } else { $null }
+        signerThumbprint = $actualSignerThumbprint
+        signerNotAfter = if ($null -ne $signature.SignerCertificate) { $signature.SignerCertificate.NotAfter.ToUniversalTime().ToString('O') } else { $null }
+        timestamped = ($null -ne $signature.TimeStamperCertificate)
         payloadManifestSha256 = (Get-FileHash -LiteralPath $publishManifestPath -Algorithm SHA256).Hash
         payloadZipSha256 = (Get-FileHash -LiteralPath $publishZips[0].FullName -Algorithm SHA256).Hash
         payloadFiles = @($publishManifest.files).Count
@@ -241,6 +311,8 @@ try {
         InstallerBytes = $installerItem.Length
         InstallerSha256 = $installerSha256
         Signed = $installerManifest.signed
+        AuthenticodeStatus = $installerManifest.authenticodeStatus
+        SignerThumbprint = $installerManifest.signerThumbprint
         CompilerVersion = $compilerVersion
     }
 }

@@ -4,11 +4,13 @@
 
 Gói cài chỉ dành cho Windows 10/11 x64. Ứng dụng đã chứa sẵn .NET runtime, ONNX Runtime và model nên không cần cài Python, không cần Internet và không cần quyền quản trị.
 
-Bản thử nghiệm `0.1.0` chưa có chữ ký số. Chỉ dùng tệp lấy từ private release của repository và đối chiếu SHA-256 với `SHA256SUMS.txt` đi kèm trước khi chạy. Windows có thể hiển thị cảnh báo nhà phát hành không xác định.
+Bản nội bộ `0.1.0` dùng chữ ký tự ký. Trước lần cài đầu tiên trên mỗi tài khoản Windows, cần tin cậy đúng file `.cer` đi kèm theo [hướng dẫn chữ ký nội bộ](INTERNAL_CODE_SIGNING.md). Nếu chưa tin cậy chứng thư, Windows vẫn có thể hiển thị cảnh báo nhà phát hành không xác định.
+
+Chỉ dùng tệp lấy từ private release của repository và đối chiếu SHA-256 với checksum đi kèm trước khi chạy.
 
 ## Cài đặt
 
-1. Giữ bốn tệp tải về trong cùng một thư mục: installer `.exe`, `SHA256SUMS.txt`, `installer-manifest.json` và `installer-test-report.json`.
+1. Giữ nguyên toàn bộ tệp trong thư mục release, gồm installer, manifest, checksum, chứng thư công khai và hướng dẫn.
 2. Mở installer `PremiereAutoDialogueXml-Setup-0.1.0-win-x64.exe`.
 3. Đọc trang thông tin, chọn **Tiếp tục**, giữ thư mục mặc định rồi chọn **Cài đặt**.
 4. Chọn **Hoàn tất** để mở ứng dụng.

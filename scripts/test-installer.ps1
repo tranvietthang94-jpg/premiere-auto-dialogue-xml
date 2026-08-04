@@ -9,7 +9,9 @@ param(
     [Parameter(Mandatory)]
     [string]$ReportPath,
 
-    [string]$TestRoot = ''
+    [string]$TestRoot = '',
+
+    [string]$ExpectedSignerThumbprint = ''
 )
 
 Set-StrictMode -Version Latest
@@ -61,6 +63,17 @@ if (Test-Path -LiteralPath $uninstallRegistryPath) {
 
 $payloadManifest = Get-Content -LiteralPath $payloadManifestFullPath -Raw | ConvertFrom-Json
 $installerSha256 = (Get-FileHash -LiteralPath $installerFullPath -Algorithm SHA256).Hash
+$normalizedExpectedSignerThumbprint = $ExpectedSignerThumbprint.Replace(' ', '').ToUpperInvariant()
+$installerSignature = Get-AuthenticodeSignature -LiteralPath $installerFullPath
+if (-not [string]::IsNullOrWhiteSpace($normalizedExpectedSignerThumbprint)) {
+    if ($installerSignature.Status -ne [System.Management.Automation.SignatureStatus]::Valid) {
+        throw "Installer signature is not trusted: $($installerSignature.Status)."
+    }
+    if ($null -eq $installerSignature.SignerCertificate -or
+        -not $installerSignature.SignerCertificate.Thumbprint.Equals($normalizedExpectedSignerThumbprint, [StringComparison]::OrdinalIgnoreCase)) {
+        throw 'Installer signature does not match ExpectedSignerThumbprint.'
+    }
+}
 $installedAppOpened = $false
 $payloadVerified = 0
 $uninstallerFile = $null
@@ -69,6 +82,8 @@ $uninstallRegistryKey = $null
 $uninstallRegistryRemoved = $false
 $installCompleted = $false
 $uninstallCompleted = $false
+$installedAppSignature = $null
+$uninstallerSignature = $null
 
 try {
     [System.IO.Directory]::CreateDirectory($testDirectoryFull) | Out-Null
@@ -116,6 +131,14 @@ try {
     }
 
     $installedExecutable = Join-Path $installDirectory 'PremiereAutoDialogueXml.exe'
+    $installedAppSignature = Get-AuthenticodeSignature -LiteralPath $installedExecutable
+    if (-not [string]::IsNullOrWhiteSpace($normalizedExpectedSignerThumbprint)) {
+        if ($installedAppSignature.Status -ne [System.Management.Automation.SignatureStatus]::Valid -or
+            $null -eq $installedAppSignature.SignerCertificate -or
+            -not $installedAppSignature.SignerCertificate.Thumbprint.Equals($normalizedExpectedSignerThumbprint, [StringComparison]::OrdinalIgnoreCase)) {
+            throw 'Installed app signature is not valid for ExpectedSignerThumbprint.'
+        }
+    }
     $appProcess = Start-Process -FilePath $installedExecutable -WorkingDirectory $installDirectory -PassThru -WindowStyle Hidden
     try {
         $deadline = [DateTimeOffset]::UtcNow.AddSeconds(20)
@@ -153,6 +176,14 @@ try {
         throw "Expected exactly one uninstaller; found $($uninstallers.Count)."
     }
     $uninstallerFile = $uninstallers[0].Name
+    $uninstallerSignature = Get-AuthenticodeSignature -LiteralPath $uninstallers[0].FullName
+    if (-not [string]::IsNullOrWhiteSpace($normalizedExpectedSignerThumbprint)) {
+        if ($uninstallerSignature.Status -ne [System.Management.Automation.SignatureStatus]::Valid -or
+            $null -eq $uninstallerSignature.SignerCertificate -or
+            -not $uninstallerSignature.SignerCertificate.Thumbprint.Equals($normalizedExpectedSignerThumbprint, [StringComparison]::OrdinalIgnoreCase)) {
+            throw 'Uninstaller signature is not valid for ExpectedSignerThumbprint.'
+        }
+    }
     $uninstallArguments = @(
         '/VERYSILENT',
         '/SUPPRESSMSGBOXES',
@@ -194,11 +225,15 @@ try {
         testedAtUtc = [DateTimeOffset]::UtcNow.ToString('O')
         installerFile = [System.IO.Path]::GetFileName($installerFullPath)
         installerSha256 = $installerSha256
+        installerSignatureStatus = [string]$installerSignature.Status
+        installerSignerThumbprint = if ($null -ne $installerSignature.SignerCertificate) { [string]$installerSignature.SignerCertificate.Thumbprint } else { $null }
         silentInstallExitCode = 0
         payloadFilesVerified = $payloadVerified
         installedAppOpened = $installedAppOpened
+        installedAppSignatureStatus = if ($null -ne $installedAppSignature) { [string]$installedAppSignature.Status } else { $null }
         silentUninstallExitCode = 0
         uninstallerFile = $uninstallerFile
+        uninstallerSignatureStatus = if ($null -ne $uninstallerSignature) { [string]$uninstallerSignature.Status } else { $null }
         installedPayloadRemoved = $true
         userCreatedFileSurvived = $sentinelSurvived
         currentUserUninstallEntryCreated = $true
