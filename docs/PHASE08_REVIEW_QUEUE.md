@@ -1,6 +1,6 @@
 # Phase 08 — Shadow evidence và danh sách review
 
-Trạng thái: `planned`.
+Trạng thái: `in-progress`.
 
 ## Mục tiêu
 
@@ -15,6 +15,14 @@ Trạng thái: `planned`.
 - Ghi kết quả tư vấn vào audit mới và xuất CSV review tiếng Việt theo track, timecode, mức ưu tiên và mic đối chiếu.
 - Gộp các fragment mơ hồ gần nhau trên cùng track để một sự kiện không tạo quá nhiều dòng review.
 - Chạy lại fixture HGE2 và full HGE để đo số mục review, runtime và peak RAM.
+
+## Implementation slice 1 — 2026-08-09
+
+- `AudioProjectAnalyzer` tạo shadow evidence sau bước resolve bleed và giữ riêng trong `ProjectAudioAnalysis`.
+- Bộ tạo evidence chỉ nhận các segment `ambiguous-energy-vad-conflict*`, dùng interval index theo phrase để tránh quét toàn bộ timeline cho mỗi vùng.
+- Kết quả phân biệt `NoComparableSpeech`, `BelowThreshold`, `ConflictingEvidence` và `LikelyBleed`; các số đo track đối chiếu, advantage, correlation, lag và residual được giữ để dùng ở slice audit/CSV.
+- Bằng chứng shadow không sửa `TrackAudioAnalysis`; XML writer hiện không đọc dữ liệu mới này.
+- Bộ test Release đạt `100/100`, gồm ca likely bleed, residual xung đột, dưới threshold, không có lời chồng, bỏ qua ambiguity ngoài phạm vi, cancellation và tích hợp analyzer không đổi status.
 
 ## Hợp đồng an toàn đã khóa
 

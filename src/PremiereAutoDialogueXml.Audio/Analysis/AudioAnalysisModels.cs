@@ -57,10 +57,32 @@ public sealed record TrackAudioAnalysis(
     IReadOnlyList<AnalyzedAudioSegment> Segments,
     float LearnedDirectVoiceRmsDbfs);
 
+public enum CrossTrackShadowOutcome
+{
+    NoComparableSpeech,
+    BelowThreshold,
+    ConflictingEvidence,
+    LikelyBleed
+}
+
+public sealed record CrossTrackShadowEvidence(
+    int TrackIndex,
+    string SourceClipId,
+    long TimelineStartSample,
+    long TimelineEndSample,
+    string SegmentReason,
+    CrossTrackShadowOutcome Outcome,
+    long? ComparedStartSample,
+    long? ComparedEndSample,
+    BleedEvidence? BestComparison);
+
 public sealed record ProjectAudioAnalysis(
     IReadOnlyList<TrackAudioAnalysis> Tracks,
     string ModelVersion,
-    string ModelSha256);
+    string ModelSha256)
+{
+    public IReadOnlyList<CrossTrackShadowEvidence> ShadowEvidence { get; init; } = [];
+}
 
 internal readonly record struct TimelineInterval(long StartSample, long EndSample)
 {
