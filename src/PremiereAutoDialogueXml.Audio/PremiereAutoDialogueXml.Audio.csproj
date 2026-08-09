@@ -10,6 +10,9 @@
     <ProjectReference Include="..\PremiereAutoDialogueXml.Core\PremiereAutoDialogueXml.Core.csproj" />
   </ItemGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="PremiereAutoDialogueXml.Core.Tests" />
+  </ItemGroup>
+  <ItemGroup>
     <EmbeddedResource Include="..\..\models\silero-vad\v6.2.1\silero_vad.onnx"
                       LogicalName="PremiereAutoDialogueXml.Audio.Models.silero_vad.onnx" />
   </ItemGroup>

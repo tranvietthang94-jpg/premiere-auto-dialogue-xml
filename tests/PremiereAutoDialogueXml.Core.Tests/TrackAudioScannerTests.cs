@@ -10,7 +10,7 @@ namespace PremiereAutoDialogueXml.Core.Tests;
 public sealed class TrackAudioScannerTests
 {
     [TestMethod]
-    public void ScanDecimates48KhzByThreeAndFlushesPartialChunk()
+    public void ScanLegacyDecimates48KhzByThreeAndFlushesPartialChunk()
     {
         var samples = Enumerable.Range(0, 1_920).Select(index => (index % 1_000) / 2_000f).ToArray();
         using var fixture = TestAudioFixture.CreatePcm16(samples);
@@ -24,6 +24,30 @@ public sealed class TrackAudioScannerTests
         Assert.HasCount(2, detector.Chunks);
         Assert.AreEqual(samples[0], detector.Chunks[0][0], 0.00004f);
         Assert.AreEqual(samples[3], detector.Chunks[0][1], 0.00004f);
+        Assert.AreEqual(1_920L, observations[^1].TimelineEndSample);
+        Assert.AreEqual(1, detector.ResetCount);
+    }
+
+    [TestMethod]
+    public void ScanAntiAliasProducesExactVadChunkAndTimelineCoverage()
+    {
+        var samples = Enumerable.Range(0, 1_920)
+            .Select(index => 0.25f * MathF.Sin(2 * MathF.PI * 1_000 * index / 48_000))
+            .ToArray();
+        using var fixture = TestAudioFixture.CreatePcm16(samples);
+        var track = new PremiereAudioTrack(1, 1, [fixture.Clip("clip-1", 0, 1)]);
+        using var detector = new CapturingDetector();
+
+        var observations = new TrackAudioScanner(new PcmWaveSampleReader())
+            .Scan(
+                track,
+                detector,
+                DialogueProcessingPreset.Balanced,
+                VadResamplingMode.AntiAliasFir);
+
+        Assert.HasCount(2, observations);
+        Assert.IsTrue(detector.Chunks.All(chunk => chunk.Length == 512));
+        Assert.AreEqual(0L, observations[0].TimelineStartSample);
         Assert.AreEqual(1_920L, observations[^1].TimelineEndSample);
         Assert.AreEqual(1, detector.ResetCount);
     }
