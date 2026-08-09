@@ -1,6 +1,6 @@
 # Phase 09 — Làm chắc lõi xử lý âm thanh và XML
 
-Trạng thái: `candidate-fixed; premiere-pcm-a1-a7-passed; full-hge-passed; premiere-xml-reexport-pending` ngày 2026-08-09. PCM A1 từ candidate đầu đã phát hiện một lỗi phrase safety và candidate đó bị loại. Bản sửa whole-phrase fallback đã đạt test, HGE2, Premiere PCM A1–A7, full HGE và CI/packaging; chỉ còn kiểm tra XML do Premiere re-export trước khi đổi Phase 09 thành `passed`.
+Trạng thái: `passed; pending-merge` ngày 2026-08-09. PCM A1 từ candidate đầu đã phát hiện một lỗi phrase safety và candidate đó bị loại. Bản sửa whole-phrase fallback đã đạt test, HGE2, Premiere PCM A1–A7, Final Cut Pro XML re-export, full HGE và CI/packaging. Phase 09 đã đóng đủ cổng nghiệm thu trên branch riêng; chưa merge vào `main`.
 
 ## Quyết định sản phẩm
 
@@ -95,7 +95,15 @@ Phase 09 bắt đầu từ một khoản nợ DSP cụ thể: baseline `TrackAud
 - Front-end comparison: 454.471 observation; 448.901 probability thay đổi; 7.600 segment difference; 454 trường hợp legacy Enabled/candidate Disabled đều được fail-safe giữ lại; 3.151 trường hợp legacy Disabled/candidate Enabled được mở thêm.
 - Premiere PCM round-trip của đúng replacement đã đạt trên A1–A7: `2.183/2.183` phrase khớp timing/gain; `940/940` phrase không cap nằm trong `-6,000019084..-5,999973633 dBFS`; `1.243/1.243` phrase cap khớp dự đoán và phrase cap nóng nhất là `-6,004387657 dBFS`.
 - Sai lệch lớn nhất so với audit là `0,000026641 dB`; sai lệch source-linked lớn nhất là `0,000026615 dB`. Cả bảy report cùng gắn đúng audit SHA-256 `D62901F88A3A5EDC380D548FE43B2440D7CAC1C77A24F739E525B43C91519C7A` và source XML SHA-256 `09FD290C5CB8401DEF7EA9701433F7BD1799B0300ABA9244A8BF88C022A8C897`.
-- User xác nhận M19 vẫn Enabled và nghe được trong sequence replacement. PCM chỉ chứng minh timing/gain của audio export; file Final Cut Pro XML do Premiere re-export vẫn là bằng chứng còn thiếu.
+- User xác nhận M19 vẫn Enabled và nghe được trong sequence replacement.
+
+### Premiere XML re-export
+
+- Premiere re-export `AN TRƯƠNG - AUTO AUDIO.xml`, SHA-256 `51E69A2B255E451EDA6D267F05AB3CABFA4301801528B2247CEC46491F9BE3E0`; report semantic SHA-256 `1D60F50FF06D98D34607AD4480BEA136BDFF7A072BA927C2693C9E0CFC7E7A3B` có status `phase09-roundtrip-compatible`.
+- Sequence giữ nguyên `53.760` frame, 7 audio track và 10.831/10.831 clip. Timing, source trim, media mapping và trạng thái khớp toàn bộ: 7.025 Enabled, 3.806 Disabled ở cả hai XML.
+- Tổng gain của từng clip được so sau khi giải mã cả Audio Levels và Gain-filter factor; sai lệch lớn nhất chỉ `0,000055244 dB`, dưới gate `0,1 dB`.
+- Cả 5.219 marker giữ nguyên name/comment/in/out. Premiere chỉ đổi thứ tự serialize marker, không đổi nội dung hoặc timecode.
+- Premiere chuyển 3.783 Gain filter của input thành Audio Levels và thêm các unity level cần thiết khi re-export; đây là normalization đã được Phase 00 chứng minh. Bộ so sánh `scripts/phase09/Test-Phase09RoundTrip.ps1` so semantic gain thay vì đòi XML giống từng byte.
 
 ### Pilot full HGE
 
@@ -116,11 +124,9 @@ Phase 09 bắt đầu từ một khoản nợ DSP cụ thể: baseline `TrackAud
 
 `tools/PremiereAutoDialogueXml.CompareAudits` đọc hai audit theo luồng, xác minh source/output hash, timeline coverage, status/Enabled, tệp tạm và thống kê mọi transition ở các biên frame hợp nhất. Gate thất bại nếu candidate làm mất bất kỳ frame legacy Enabled nào.
 
-## Cổng còn lại trước khi merge/adopt
+## Kết luận nghiệm thu
 
-Candidate hiện hành duy nhất là XML SHA-256 `A11D046019BDF0F8677E9E952FE45DE7489DF3C079F578CAABCDF3F38FE57AA3` với audit SHA-256 `D62901F88A3A5EDC380D548FE43B2440D7CAC1C77A24F739E525B43C91519C7A`. Premiere PCM A1–A7, M19, full HGE, test và CI/packaging đều đã đạt. Cổng duy nhất còn lại là xuất Final Cut Pro XML từ chính sequence replacement trong Premiere và kiểm tra XML đó giữ đúng cấu trúc timing/gain/Disable/marker sau import. Sau cổng này mới đổi Phase 09 thành `passed`, chuyển PR khỏi draft và cân nhắc merge.
-
-Khả năng automation Windows trong phiên triển khai không cung cấp API hướng dẫn/xác nhận bắt buộc của skill, nên không thao tác Premiere mù. Đây là gate bằng chứng đang chờ, không phải lỗi code hay lý do hạ tiêu chuẩn nghiệm thu.
+Candidate hiện hành duy nhất là XML SHA-256 `A11D046019BDF0F8677E9E952FE45DE7489DF3C079F578CAABCDF3F38FE57AA3` với audit SHA-256 `D62901F88A3A5EDC380D548FE43B2440D7CAC1C77A24F739E525B43C91519C7A`. Toàn bộ gate Phase 09 đã đạt: test, HGE2, bảo toàn legacy Enabled, M19, Premiere PCM A1–A7, Premiere XML re-export, full HGE và CI/packaging. Kết luận vẫn giới hạn ở fidelity DSP, hợp đồng XML/gain và safety regression; không suy rộng thành LUFS, true peak, limiter, Master-bus guarantee hoặc tỷ lệ nhận diện speech/noise/bleed chưa đo.
 
 ## Các nâng cấp tiếp theo được đề xuất
 
@@ -158,4 +164,4 @@ Khả năng automation Windows trong phiên triển khai không cung cấp API h
 
 ## Bước tiếp theo
 
-Trong Premiere, chọn đúng sequence replacement đã import rồi dùng `File > Export > Final Cut Pro XML`. Lưu file `.xml` vào `private-artifacts/phase09-premiere-roundtrip-20260809-1/reexport/AN TRUONG_PHASE09_REEXPORT.xml`, sau đó chạy kiểm tra round-trip cuối. Không bắt đầu Phase 10 hoặc merge trước khi XML re-export đạt.
+Đưa PR `#12` khỏi draft sau khi CI của commit tài liệu cuối đạt. Merge Phase 09 vào `main` là thao tác riêng tiếp theo; chỉ sau đó mới mở branch Phase 10.

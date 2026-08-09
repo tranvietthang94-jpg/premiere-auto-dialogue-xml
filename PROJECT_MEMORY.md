@@ -7,7 +7,7 @@ Ngày chốt: 2026-08-09 (Asia/Saigon). Đây là memory source-of-truth để m
 - Workspace thật: `F:\RIN APP\App-Auto-Edit_codex_2`.
 - Private GitHub repo: `tranvietthang94-jpg/premiere-auto-dialogue-xml`.
 - Phase 00–08 đã merge vào `main`; Phase 08 qua PR `#10`, merge commit `26e8dac925f5e41622e1c0ce7237ef0bbb09b06b`; CI hậu merge đạt.
-- Chủ dự án không muốn preview/review UI; app chỉ tập trung xử lý âm thanh và xuất XML. Candidate Phase 09 triển khai trên `phase/09-audio-xml-hardening`, draft PR `#12`; PCM A1 đã loại candidate đầu và bản sửa hiện chờ A1 re-export, sau đó còn A2–A7 + full HGE rerun trước merge/adopt.
+- Chủ dự án không muốn preview/review UI; app chỉ tập trung xử lý âm thanh và xuất XML. Phase 09 trên `phase/09-audio-xml-hardening`, PR `#12`, đã đạt toàn bộ test/HGE/Premiere round-trip/CI và đang chờ merge vào `main`.
 - Private draft prerelease: tag `v0.1.0-rc.1`, tên `Premiere Auto Dialogue XML 0.1.0 RC1`, target `8bdf47d`; URL draft hiện tại `https://github.com/tranvietthang94-jpg/premiere-auto-dialogue-xml/releases/tag/untagged-1c4ff86dc76dc88c43e3`.
 - Tài liệu phase đầy đủ nằm trong `docs/`; đọc trước `README.md`, `docs/IMPLEMENTATION_PLAN.md`, `docs/PHASE00_RESULT.md`, `docs/PHASE06_PILOT_RESULT.md`, `docs/PHASE07_INSTALLER_RELEASE.md`, `docs/PHASE08_REVIEW_QUEUE.md`, `docs/PHASE09_AUDIO_XML_HARDENING.md`, `docs/INTERNAL_CODE_SIGNING.md`.
 
@@ -80,7 +80,8 @@ Ngày chốt: 2026-08-09 (Asia/Saigon). Đây là memory source-of-truth để m
 - Full HGE cuối `phase09-full-hge-pilot-20260809-2` đạt `38 phút 33,1 giây`/`1.065 MB`, 0 error, 43.603 phrase/247.515 fragment/126.485 marker. XML `0E8D67...`, audit `0BC66E...`; comparator với Phase 08 có source hash khớp, coverage mismatch 0, mất legacy Enabled `0 interval/0 frame`, giữ thêm 55.177 interval/189.571 frame, temp 0.
 - Publish giữ 410 payload; installer unsigned private SHA-256 `225AD65E68D6806AC8426E4C39A8907CDD527E431E2154A7C0BA8A18A3C35CC8` qua cài/mở/xác minh 410/410/gỡ/sentinel/registry. Nó không thay RC1 và không được phát hành.
 - GitHub Actions PR run cuối `31309730715` trên commit fix `42c3d56` đạt trong 3 phút 5 giây: restore/build/122 test/publish/Inno Setup/installer/upload đều xanh.
-- Cổng duy nhất còn lại là Final Cut Pro XML do Premiere re-export từ sequence replacement. PCM A1–A7 không thay thế bằng chứng XML này. PR giữ draft và `main` vẫn ở Phase 08 cho tới khi re-export đạt.
+- Premiere XML re-export SHA-256 `51E69A2B255E451EDA6D267F05AB3CABFA4301801528B2247CEC46491F9BE3E0` đạt report `phase09-roundtrip-compatible` SHA-256 `1D60F50FF06D98D34607AD4480BEA136BDFF7A072BA927C2693C9E0CFC7E7A3B`: 10.831/10.831 clip, 7.025 Enabled, 3.806 Disabled, timing/source/media khớp, max gain delta `0,000055244 dB`, 5.219 marker giữ nguyên semantic. Premiere đổi thứ tự marker và normalize 3.783 Gain filter thành Audio Levels đúng hành vi Phase 00.
+- `scripts/phase09/Test-Phase09RoundTrip.ps1` là validator lặp lại được cho input/result XML. Phase 09 đã `passed` trên branch; PR sẵn sàng khỏi draft sau CI tài liệu cuối, còn `main` vẫn ở Phase 08 cho tới khi merge.
 
 ## Lỗi đã gặp và cách tránh
 
@@ -113,4 +114,4 @@ Ngày chốt: 2026-08-09 (Asia/Saigon). Đây là memory source-of-truth để m
 
 ## Trạng thái bàn giao
 
-Phase 00–08 hoàn tất trên `main` tại merge commit Phase 08 `26e8dac925f5e41622e1c0ce7237ef0bbb09b06b`; CI hậu merge run `31295051393` đạt. Phase 09 draft PR `#12`: candidate đầu bị loại; fix phrase-component đạt `122/122` test, HGE2 replacement `A11D046...`, Premiere PCM A1–A7, M19, full HGE và CI/packaging cuối mà không làm mất frame legacy Enabled. Việc tiếp theo duy nhất: xuất và kiểm tra Final Cut Pro XML từ sequence replacement trong Premiere. Không merge hoặc bắt đầu Phase 10 trước cổng này hay waiver tường minh.
+Phase 00–08 hoàn tất trên `main` tại merge commit Phase 08 `26e8dac925f5e41622e1c0ce7237ef0bbb09b06b`; CI hậu merge run `31295051393` đạt. Phase 09 PR `#12`: candidate đầu bị loại; fix phrase-component đạt `122/122` test, HGE2 replacement `A11D046...`, Premiere PCM A1–A7, M19, XML re-export, full HGE và CI/packaging cuối mà không làm mất frame legacy Enabled. Phase 09 đã `passed` trên branch; việc tiếp theo là đưa PR khỏi draft và merge riêng. Không bắt đầu Phase 10 trước khi Phase 09 vào `main`.

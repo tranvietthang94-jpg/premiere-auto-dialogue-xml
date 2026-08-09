@@ -25,7 +25,7 @@ Kế hoạch triển khai và tiêu chí nghiệm thu nằm trong [docs/IMPLEMEN
 
 ## Trạng thái
 
-Phase 00–08 đã hoàn tất trên `main`. Candidate Phase 09 trên branch riêng đã thêm resampler chống alias, shadow gate bảo thủ và validator trước XML. Candidate đầu bị loại do phrase safety rời; bản sửa whole-phrase fallback hiện đạt 122/122 test, HGE2, Premiere PCM A1–A7, M19, full HGE và CI/packaging mà không làm mất frame Enabled của baseline. Candidate chỉ còn chờ Final Cut Pro XML do Premiere re-export trước khi merge/adopt. Xem [docs/PHASE09_AUDIO_XML_HARDENING.md](docs/PHASE09_AUDIO_XML_HARDENING.md). Cổng nhãn nghe Mục tiêu được chủ dự án miễn, nên dự án không tuyên bố các tỷ lệ 100%/90%/0% chưa đo. RC1 hiện hành vẫn là bản đã qua Premiere round-trip A1–A7 và xác minh installer/signer nội bộ.
+Phase 00–08 đã hoàn tất trên `main`. Phase 09 trên branch riêng đã thêm resampler chống alias, shadow gate bảo thủ và validator trước XML. Candidate đầu bị loại do phrase safety rời; bản sửa whole-phrase fallback đã đạt 122/122 test, HGE2, Premiere PCM A1–A7, M19, Final Cut Pro XML re-export, full HGE và CI/packaging mà không làm mất frame Enabled của baseline. Phase 09 đã `passed` và đang chờ merge/adopt. Xem [docs/PHASE09_AUDIO_XML_HARDENING.md](docs/PHASE09_AUDIO_XML_HARDENING.md). Cổng nhãn nghe Mục tiêu được chủ dự án miễn, nên dự án không tuyên bố các tỷ lệ 100%/90%/0% chưa đo. RC1 hiện hành vẫn là bản đã qua Premiere round-trip A1–A7 và xác minh installer/signer nội bộ.
 
 ## Hệ điều hành mục tiêu
 
