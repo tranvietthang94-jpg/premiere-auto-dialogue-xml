@@ -13,6 +13,11 @@ Mỗi phase dùng branch và draft pull request riêng. Các thay đổi có ý 
 5. `phase/04-xml-writer`
 6. `phase/05-ui-packaging`
 7. `phase/06-pilot-validation`
+8. `phase/07-installer-release`
+9. `phase/08-review-queue`
+10. `phase/09-guided-review`
+
+Phase 00–08 đã hoàn tất và merge vào `main`. Phase 09 mở workflow review human-in-the-loop trong app; xem [PHASE09_GUIDED_REVIEW.md](PHASE09_GUIDED_REVIEW.md). Mỗi quyết định review vẫn là sidecar riêng và chưa được phép tự sửa XML.
 
 ## Kiến trúc
 

@@ -1,4 +1,4 @@
-# Memory handoff — Premiere Auto Dialogue XML, Phase 00–08
+# Memory handoff — Premiere Auto Dialogue XML, Phase 00–09
 
 Ngày chốt: 2026-08-09 (Asia/Saigon). Đây là memory source-of-truth để một phiên Codex mới tiếp tục nâng cấp dự án mà không làm lại các phase đã hoàn tất.
 
@@ -6,10 +6,10 @@ Ngày chốt: 2026-08-09 (Asia/Saigon). Đây là memory source-of-truth để m
 
 - Workspace thật: `F:\RIN APP\App-Auto-Edit_codex_2`.
 - Private GitHub repo: `tranvietthang94-jpg/premiere-auto-dialogue-xml`.
-- Phase 00–07 đã merge vào `main`; merge commit Phase 07: `8bdf47d0dc3a3eb17a143a3145b5cf59369d9b9b`.
-- Phase 08 đã đạt cổng kỹ thuật trên nhánh `phase/08-review-queue`, draft PR `#10`; chưa coi là nằm trên `main` cho tới khi PR được merge.
+- Phase 00–08 đã merge vào `main`; Phase 08 qua PR `#10`, merge commit `26e8dac925f5e41622e1c0ce7237ef0bbb09b06b`; CI hậu merge đạt.
+- Phase 09 đã mở trên nhánh `phase/09-guided-review`; tài liệu kickoff chốt workflow review human-in-the-loop, chưa có code sản phẩm.
 - Private draft prerelease: tag `v0.1.0-rc.1`, tên `Premiere Auto Dialogue XML 0.1.0 RC1`, target `8bdf47d`; URL draft hiện tại `https://github.com/tranvietthang94-jpg/premiere-auto-dialogue-xml/releases/tag/untagged-1c4ff86dc76dc88c43e3`.
-- Tài liệu phase đầy đủ nằm trong `docs/`; đọc trước `README.md`, `docs/IMPLEMENTATION_PLAN.md`, `docs/PHASE00_RESULT.md`, `docs/PHASE06_PILOT_RESULT.md`, `docs/PHASE07_INSTALLER_RELEASE.md`, `docs/PHASE08_REVIEW_QUEUE.md`, `docs/INTERNAL_CODE_SIGNING.md`.
+- Tài liệu phase đầy đủ nằm trong `docs/`; đọc trước `README.md`, `docs/IMPLEMENTATION_PLAN.md`, `docs/PHASE00_RESULT.md`, `docs/PHASE06_PILOT_RESULT.md`, `docs/PHASE07_INSTALLER_RELEASE.md`, `docs/PHASE08_REVIEW_QUEUE.md`, `docs/PHASE09_GUIDED_REVIEW.md`, `docs/INTERNAL_CODE_SIGNING.md`.
 
 ## Sản phẩm đã khóa
 
@@ -66,6 +66,7 @@ Ngày chốt: 2026-08-09 (Asia/Saigon). Đây là memory source-of-truth để m
 - Draft release có 9 asset: installer, CER, certificate/installer/test/internal manifests, 2 hướng dẫn và `SHA256SUMS-INTERNAL.txt`. Release đang draft/prerelease; chưa public.
 - Phase 08 thêm shadow evidence đa mic chỉ để tư vấn, audit schema `1.4` và CSV review tiếng Việt được gom nhóm/xếp ưu tiên. Shadow evidence không thay `Status`, `Enabled`, gain, marker hay XML audio.
 - Package writer phát XML theo streaming để full HGE không giữ cây XML hàng trăm MB trong RAM. Pilot cuối: HGE2 `42,7 giây`/`174,2 MB`; full HGE `25 phút 6 giây`/`785,6 MB`, dưới cổng 90 phút/1,5 GB.
+- Phase 09 ưu tiên không gian review có hướng dẫn: danh sách ảo hóa, nghe ngữ cảnh offline và checkpoint quyết định có provenance. Quyết định chỉ là sidecar; không tự đổi analysis hoặc XML trong phase này.
 
 ## Lỗi đã gặp và cách tránh
 
@@ -98,4 +99,4 @@ Ngày chốt: 2026-08-09 (Asia/Saigon). Đây là memory source-of-truth để m
 
 ## Trạng thái bàn giao
 
-Phase 00–07 hoàn tất trên `main`; Phase 08 đã đạt code, regression, HGE2 và full HGE pilot trên `phase/08-review-queue`. HGE2 giữ 0 khác biệt semantic so với baseline, M19 vẫn Enabled/ưu tiên cao; full HGE phủ 97.453/97.453 marker mơ hồ vào 52.069 review group. Cần giữ PR `#10` ở draft cho tới khi CI của commit Phase 08 cuối cùng xanh; sau đó có thể chuyển ready/merge theo quyết định của chủ dự án.
+Phase 00–08 hoàn tất trên `main` tại merge commit Phase 08 `26e8dac925f5e41622e1c0ce7237ef0bbb09b06b`; CI hậu merge run `31295051393` đạt build, test, self-contained publish và installer. HGE2 giữ 0 khác biệt semantic so với baseline, M19 vẫn Enabled/ưu tiên cao; full HGE phủ 97.453/97.453 marker mơ hồ vào 52.069 review group. Phase 09 vừa kickoff trên `phase/09-guided-review`; bắt đầu bằng hợp đồng review package/checkpoint và test provenance trước UI.
