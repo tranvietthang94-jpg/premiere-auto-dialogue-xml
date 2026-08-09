@@ -81,7 +81,19 @@ public sealed class AudioProjectAnalyzer
         var bleedResolver = new BleedResolver(new TimelinePcmAccessor(_sampleReader));
         var resolved = bleedResolver.Resolve(project.Sequence, results, preset, cancellationToken);
 
+        progress?.Report(new(tracks.Count, tracks.Count, null, "Đang tạo bằng chứng review đa mic."));
+        var shadowEvidenceBuilder = new CrossTrackShadowEvidenceBuilder(
+            new TimelinePcmAccessor(_sampleReader));
+        var shadowEvidence = shadowEvidenceBuilder.Build(
+            project.Sequence,
+            resolved,
+            preset,
+            cancellationToken);
+
         progress?.Report(new(tracks.Count, tracks.Count, null, "Đã phân tích xong toàn bộ track."));
-        return new(resolved, SileroVadModelInfo.Version, SileroVadModelInfo.Sha256);
+        return new(resolved, SileroVadModelInfo.Version, SileroVadModelInfo.Sha256)
+        {
+            ShadowEvidence = shadowEvidence
+        };
     }
 }

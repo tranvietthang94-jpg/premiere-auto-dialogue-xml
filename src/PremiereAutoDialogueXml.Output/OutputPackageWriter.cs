@@ -1,11 +1,9 @@
 using System.Security.Cryptography;
-using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using System.Xml;
 using PremiereAutoDialogueXml.Output.Audit;
+using PremiereAutoDialogueXml.Output.Review;
 using PremiereAutoDialogueXml.Output.Xml;
-using PremiereAutoDialogueXml.Output.Validation;
 
 namespace PremiereAutoDialogueXml.Output;
 
@@ -66,15 +64,18 @@ public sealed class OutputPackageWriter
             throw new IOException("Thư mục run đã tồn tại; app không ghi đè kết quả cũ.");
         }
 
-        var generated = _xmlGenerator.Generate(request.Project, request.Analysis, cancellationToken);
+        var generated = _xmlGenerator.GeneratePlan(request.Project, request.Analysis, cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
 
         var xmlFileName = $"{safeSequenceName}_AutoAudio.xml";
         var auditFileName = $"{safeSequenceName}_AutoAudio.audit.json";
+        var reviewFileName = $"{safeSequenceName}_AutoAudio.review.csv";
         var xmlPath = Path.Combine(runDirectory, xmlFileName);
         var auditPath = Path.Combine(runDirectory, auditFileName);
+        var reviewPath = Path.Combine(runDirectory, reviewFileName);
         var xmlTempPath = Path.Combine(runDirectory, $".{xmlFileName}.{_guidFactory():N}.tmp");
         var auditTempPath = Path.Combine(runDirectory, $".{auditFileName}.{_guidFactory():N}.tmp");
+        var reviewTempPath = Path.Combine(runDirectory, $".{reviewFileName}.{_guidFactory():N}.tmp");
         var createdDirectory = false;
 
         try
@@ -83,17 +84,28 @@ public sealed class OutputPackageWriter
             createdDirectory = true;
             cancellationToken.ThrowIfCancellationRequested();
 
-            await WriteXmlAsync(generated.Document, xmlTempPath, cancellationToken);
+            await PremiereXmlStreamingWriter.WriteAsync(
+                request.Project,
+                generated,
+                xmlTempPath,
+                cancellationToken);
             var outputXmlSha256 = await ComputeSha256Async(xmlTempPath, cancellationToken);
-            var reloadedOutput = PremiereAutoDialogueXml.Core.Xml.PremiereXmlDocumentLoader.LoadGeneratedOutput(
+            PremiereAutoDialogueXml.Core.Xml.PremiereXmlDocumentLoader.ValidateGeneratedOutputSyntax(
                 xmlTempPath,
                 outputXmlSha256);
-            new OutputXmlContractValidator().Validate(request.Project, generated, reloadedOutput.Document);
+            var reviewGroups = new ReviewGroupBuilder().Build(
+                generated.AudioFragments,
+                generated.Markers,
+                request.Analysis.ShadowEvidence,
+                request.Project.Sequence.FrameRate,
+                request.Project.Sequence.AudioSampleRate);
+            await ReviewCsvWriter.WriteAsync(reviewGroups, reviewTempPath, cancellationToken);
+            var reviewSha256 = await ComputeSha256Async(reviewTempPath, cancellationToken);
             var phrases = request.Analysis.Tracks
                 .SelectMany(track => track.Phrases)
                 .ToDictionary(phrase => phrase.Id, StringComparer.Ordinal);
             var audit = new OutputAudit(
-                SchemaVersion: "1.3",
+                SchemaVersion: "1.4",
                 RunId: runId,
                 CreatedAtUtc: generatedAt,
                 SourceXmlFileName: Path.GetFileName(request.Project.SourceXmlPath),
@@ -107,12 +119,25 @@ public sealed class OutputPackageWriter
                 Model: new(request.Analysis.ModelVersion, request.Analysis.ModelSha256),
                 Preset: PresetAudit.From(request.Preset),
                 Fragments: generated.AudioFragments.Select(fragment => FragmentAudit.From(fragment, phrases)).ToArray(),
-                Markers: generated.Markers.Select(MarkerAudit.From).ToArray());
+                Markers: generated.Markers.Select(MarkerAudit.From).ToArray())
+            {
+                Review = new(
+                    FileName: reviewFileName,
+                    Sha256: reviewSha256,
+                    TimecodeBasis: ReviewGroupBuilder.TimecodeBasis,
+                    FrameRate: request.Project.Sequence.FrameRate,
+                    GroupingGapFrames: ReviewGroupBuilder.DefaultGroupingGapFrames,
+                    AmbiguousMarkerCount: ReviewGroupBuilder.CountAmbiguousMarkers(generated.Markers),
+                    GroupCount: reviewGroups.Count,
+                    ShadowEvidence: request.Analysis.ShadowEvidence.ToArray(),
+                    Groups: reviewGroups)
+            };
 
             await WriteAuditAsync(audit, auditTempPath, cancellationToken);
             await ValidateWrittenAuditAsync(audit, auditTempPath, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             File.Move(xmlTempPath, xmlPath);
+            File.Move(reviewTempPath, reviewPath);
             File.Move(auditTempPath, auditPath);
 
             return new(
@@ -121,14 +146,20 @@ public sealed class OutputPackageWriter
                 auditPath,
                 outputXmlSha256,
                 generated.AudioFragments.Count,
-                generated.Markers.Count);
+                generated.Markers.Count)
+            {
+                ReviewCsvPath = reviewPath,
+                ReviewGroupCount = reviewGroups.Count
+            };
         }
         catch
         {
             DeleteIfExists(xmlTempPath);
             DeleteIfExists(auditTempPath);
+            DeleteIfExists(reviewTempPath);
             DeleteIfExists(xmlPath);
             DeleteIfExists(auditPath);
+            DeleteIfExists(reviewPath);
             if (createdDirectory && Directory.Exists(runDirectory) && !Directory.EnumerateFileSystemEntries(runDirectory).Any())
             {
                 Directory.Delete(runDirectory);
@@ -136,41 +167,6 @@ public sealed class OutputPackageWriter
 
             throw;
         }
-    }
-
-    private static async Task WriteXmlAsync(
-        System.Xml.Linq.XDocument document,
-        string path,
-        CancellationToken cancellationToken)
-    {
-        await using var stream = new FileStream(
-            path,
-            new FileStreamOptions
-            {
-                Access = FileAccess.Write,
-                Mode = FileMode.CreateNew,
-                Share = FileShare.None,
-                Options = FileOptions.Asynchronous | FileOptions.WriteThrough
-            });
-        var settings = new XmlWriterSettings
-        {
-            Async = true,
-            Encoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false),
-            Indent = true,
-            IndentChars = "\t",
-            NewLineChars = "\r\n",
-            NewLineHandling = NewLineHandling.Replace,
-            OmitXmlDeclaration = false,
-            CloseOutput = false
-        };
-        await using var writer = XmlWriter.Create(stream, settings);
-        await writer.WriteStartDocumentAsync();
-        await writer.WriteRawAsync("\r\n<!DOCTYPE xmeml>\r\n");
-        await (document.Root ?? throw new InvalidDataException("XML kết quả không có root xmeml."))
-            .WriteToAsync(writer, cancellationToken);
-        await writer.WriteEndDocumentAsync();
-        await writer.FlushAsync();
-        await stream.FlushAsync(cancellationToken);
     }
 
     private static async Task WriteAuditAsync(
@@ -223,10 +219,47 @@ public sealed class OutputPackageWriter
             actual.Model != expected.Model ||
             actual.Preset != expected.Preset ||
             !actual.Fragments.SequenceEqual(expected.Fragments) ||
-            !actual.Markers.SequenceEqual(expected.Markers))
+            !actual.Markers.SequenceEqual(expected.Markers) ||
+            !ReviewMatches(actual.Review, expected.Review))
         {
             throw new InvalidDataException("Audit đọc lại không khớp dữ liệu kết quả trong bộ nhớ.");
         }
+    }
+
+    private static bool ReviewMatches(ReviewListAudit? actual, ReviewListAudit? expected)
+    {
+        if (actual is null || expected is null)
+        {
+            return actual is null && expected is null;
+        }
+
+        if (actual.FileName != expected.FileName ||
+            actual.Sha256 != expected.Sha256 ||
+            actual.TimecodeBasis != expected.TimecodeBasis ||
+            actual.FrameRate != expected.FrameRate ||
+            actual.GroupingGapFrames != expected.GroupingGapFrames ||
+            actual.AmbiguousMarkerCount != expected.AmbiguousMarkerCount ||
+            actual.GroupCount != expected.GroupCount ||
+            !actual.ShadowEvidence.SequenceEqual(expected.ShadowEvidence) ||
+            actual.Groups.Count != expected.Groups.Count)
+        {
+            return false;
+        }
+
+        return actual.Groups.Zip(expected.Groups).All(pair =>
+            pair.First.Id == pair.Second.Id &&
+            pair.First.Priority == pair.Second.Priority &&
+            pair.First.TrackIndex == pair.Second.TrackIndex &&
+            pair.First.InFrame == pair.Second.InFrame &&
+            pair.First.OutFrame == pair.Second.OutFrame &&
+            pair.First.InTimecode == pair.Second.InTimecode &&
+            pair.First.OutTimecode == pair.Second.OutTimecode &&
+            pair.First.MarkerCount == pair.Second.MarkerCount &&
+            pair.First.Reasons.SequenceEqual(pair.Second.Reasons) &&
+            pair.First.SourceFileNames.SequenceEqual(pair.Second.SourceFileNames) &&
+            pair.First.ShadowEvidenceCount == pair.Second.ShadowEvidenceCount &&
+            pair.First.RepresentativeShadowOutcome == pair.Second.RepresentativeShadowOutcome &&
+            pair.First.BestComparison == pair.Second.BestComparison);
     }
 
     private static async Task<string> ComputeSha256Async(string path, CancellationToken cancellationToken)

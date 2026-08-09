@@ -19,7 +19,10 @@ public sealed record OutputAudit(
     ModelAudit Model,
     PresetAudit Preset,
     IReadOnlyList<FragmentAudit> Fragments,
-    IReadOnlyList<MarkerAudit> Markers);
+    IReadOnlyList<MarkerAudit> Markers)
+{
+    public ReviewListAudit? Review { get; init; }
+}
 
 public sealed record ModelAudit(string Version, string Sha256);
 
@@ -135,3 +138,36 @@ public sealed record MarkerAudit(
         marker.TrackIndex,
         marker.Reason);
 }
+
+public enum ReviewPriority
+{
+    High,
+    Medium,
+    Low
+}
+
+public sealed record ReviewListAudit(
+    string FileName,
+    string Sha256,
+    string TimecodeBasis,
+    int FrameRate,
+    int GroupingGapFrames,
+    int AmbiguousMarkerCount,
+    int GroupCount,
+    IReadOnlyList<CrossTrackShadowEvidence> ShadowEvidence,
+    IReadOnlyList<ReviewGroupAudit> Groups);
+
+public sealed record ReviewGroupAudit(
+    string Id,
+    ReviewPriority Priority,
+    int TrackIndex,
+    long InFrame,
+    long OutFrame,
+    string InTimecode,
+    string OutTimecode,
+    int MarkerCount,
+    IReadOnlyList<string> Reasons,
+    IReadOnlyList<string> SourceFileNames,
+    int ShadowEvidenceCount,
+    CrossTrackShadowOutcome? RepresentativeShadowOutcome,
+    BleedEvidence? BestComparison);

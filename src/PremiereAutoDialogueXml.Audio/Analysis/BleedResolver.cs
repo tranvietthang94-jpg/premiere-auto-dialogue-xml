@@ -5,8 +5,8 @@ namespace PremiereAutoDialogueXml.Audio.Analysis;
 
 public sealed class BleedResolver(TimelinePcmAccessor pcmAccessor)
 {
-    private const int MaximumComparisonMilliseconds = 1_000;
-    private const float ConflictingResidualThresholdDb = -10f;
+    internal const int MaximumComparisonMilliseconds = 1_000;
+    internal const float ConflictingResidualThresholdDb = -10f;
 
     public IReadOnlyList<TrackAudioAnalysis> Resolve(
         PremiereSequence sequence,

@@ -77,10 +77,64 @@ public sealed class AudioProjectAnalyzerTests
                 cancellationToken: cancellation.Token));
     }
 
-    private static PremiereProject Project(IReadOnlyList<PremiereAudioTrack> tracks) => new(
+    [TestMethod]
+    public async Task AnalyzeAsyncAddsShadowEvidenceWithoutChangingEnergyConflictStatus()
+    {
+        const int sourceChunkSamples = 1_536;
+        const int frameCount = 20;
+        var targetSamples = new float[frameCount * 1_920];
+        for (var index = 0; index < sourceChunkSamples * 8; index++)
+        {
+            targetSamples[index] = 0.20f * MathF.Sin(2 * MathF.PI * 440 * index / 48_000);
+        }
+
+        for (var index = sourceChunkSamples * 12; index < targetSamples.Length; index++)
+        {
+            targetSamples[index] = 0.03f * MathF.Sin(2 * MathF.PI * 440 * index / 48_000);
+        }
+
+        var otherSamples = Enumerable.Range(0, targetSamples.Length)
+            .Select(index => 0.40f * MathF.Sin(2 * MathF.PI * 440 * index / 48_000))
+            .ToArray();
+        using var targetFixture = TestAudioFixture.CreatePcm16(targetSamples);
+        using var otherFixture = TestAudioFixture.CreatePcm16(otherSamples);
+        var tracks = new[]
+        {
+            new PremiereAudioTrack(1, 1, [targetFixture.Clip("target", 0, frameCount)]),
+            new PremiereAudioTrack(2, 2, [otherFixture.Clip("other", 0, frameCount)])
+        };
+        var project = Project(tracks, frameCount);
+        var detectorIndex = 0;
+        var analyzer = new AudioProjectAnalyzer(
+            () => Interlocked.Increment(ref detectorIndex) == 1
+                ? new SwitchingDetector(highProbabilityChunkCount: 8)
+                : new ConstantDetector(0.99f),
+            new PcmWaveSampleReader());
+
+        var result = await analyzer.AnalyzeAsync(
+            project,
+            DialogueProcessingPreset.Balanced with { MaximumWorkers = 1 });
+
+        var energyConflicts = result.Tracks
+            .Single(track => track.TrackIndex == 1)
+            .Segments
+            .Where(segment => segment.Reason.StartsWith(
+                "ambiguous-energy-vad-conflict",
+                StringComparison.Ordinal))
+            .ToArray();
+        Assert.IsNotEmpty(energyConflicts);
+        Assert.IsTrue(energyConflicts.All(segment => segment.Status == AudioSegmentStatus.Ambiguous));
+        Assert.IsTrue(result.ShadowEvidence.Any(evidence =>
+            evidence.TrackIndex == 1 &&
+            evidence.Outcome == CrossTrackShadowOutcome.LikelyBleed));
+    }
+
+    private static PremiereProject Project(
+        IReadOnlyList<PremiereAudioTrack> tracks,
+        long durationFrames = 1) => new(
         "fixture.xml",
         "SHA256",
-        new("sequence", "uuid", "fixture", 25, 1, 2, 48_000, tracks));
+        new("sequence", "uuid", "fixture", 25, durationFrames, 2, 48_000, tracks));
 
     private sealed class ConcurrencyProbe(int expectedParallelWorkers) : IDisposable
     {
@@ -174,16 +228,37 @@ public sealed class AudioProjectAnalyzerTests
         }
     }
 
-    private sealed class ConstantDetector : IVoiceActivityDetector
+    private sealed class ConstantDetector(float probability = 0.01f) : IVoiceActivityDetector
     {
         public int SampleRate => 16_000;
 
         public int ChunkSampleCount => 512;
 
-        public float ProcessChunk(ReadOnlySpan<float> samples) => 0.01f;
+        public float ProcessChunk(ReadOnlySpan<float> samples) => probability;
 
         public void Reset()
         {
+        }
+
+        public void Dispose()
+        {
+        }
+    }
+
+    private sealed class SwitchingDetector(int highProbabilityChunkCount) : IVoiceActivityDetector
+    {
+        private int _processedChunks;
+
+        public int SampleRate => 16_000;
+
+        public int ChunkSampleCount => 512;
+
+        public float ProcessChunk(ReadOnlySpan<float> samples) =>
+            _processedChunks++ < highProbabilityChunkCount ? 0.99f : 0.01f;
+
+        public void Reset()
+        {
+            _processedChunks = 0;
         }
 
         public void Dispose()
