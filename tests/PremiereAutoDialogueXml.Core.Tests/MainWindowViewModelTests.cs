@@ -67,7 +67,8 @@ public sealed class MainWindowViewModelTests
         Assert.AreEqual(service.Output.XmlPath, viewModel.OutputXmlPath);
         Assert.IsTrue(viewModel.CanOpenOutput);
         StringAssert.Contains(viewModel.OutputSummary, "4 fragment");
-        StringAssert.Contains(viewModel.StatusMessage, "Đã xuất XML và audit");
+        StringAssert.Contains(viewModel.OutputSummary, "result.review.csv (2 mục)");
+        StringAssert.Contains(viewModel.StatusMessage, "danh sách review");
     }
 
     [TestMethod]
@@ -164,7 +165,11 @@ public sealed class MainWindowViewModelTests
             Path.Combine(Path.GetTempPath(), "run", "result.audit.json"),
             "OUTPUT-SHA",
             4,
-            1);
+            1)
+        {
+            ReviewCsvPath = Path.Combine(Path.GetTempPath(), "run", "result.review.csv"),
+            ReviewGroupCount = 2
+        };
 
         public int AnalyzeCount { get; private set; }
 

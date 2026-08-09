@@ -362,10 +362,13 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             OutputXmlPath = output.XmlPath;
             OutputRunDirectory = output.RunDirectory;
             var phraseCount = analysis.Tracks.Sum(track => track.Phrases.Count);
+            var reviewSummary = string.IsNullOrWhiteSpace(output.ReviewCsvPath)
+                ? string.Empty
+                : $"\nReview: {Path.GetFileName(output.ReviewCsvPath)} ({output.ReviewGroupCount:N0} mục)";
             OutputSummary =
                 $"{phraseCount:N0} cụm lời · {output.FragmentCount:N0} fragment · {output.MarkerCount:N0} marker\n" +
-                $"XML: {Path.GetFileName(output.XmlPath)}\nAudit: {Path.GetFileName(output.AuditPath)}";
-            StatusMessage = "Đã xuất XML và audit vào thư mục run mới. Bạn có thể mở Explorer để import XML vào Premiere.";
+                $"XML: {Path.GetFileName(output.XmlPath)}\nAudit: {Path.GetFileName(output.AuditPath)}{reviewSummary}";
+            StatusMessage = "Đã xuất XML, audit và danh sách review vào thư mục run mới. Bạn có thể mở Explorer để import XML vào Premiere.";
             ProgressMessage = "Hoàn tất.";
             InspectionDetails +=
                 $"{Environment.NewLine}{Environment.NewLine}MODEL {analysis.ModelVersion} · SHA-256 {analysis.ModelSha256}" +

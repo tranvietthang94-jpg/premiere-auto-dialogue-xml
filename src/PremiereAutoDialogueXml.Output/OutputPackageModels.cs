@@ -16,4 +16,9 @@ public sealed record OutputPackageResult(
     string AuditPath,
     string OutputXmlSha256,
     int FragmentCount,
-    int MarkerCount);
+    int MarkerCount)
+{
+    public string? ReviewCsvPath { get; init; }
+
+    public int ReviewGroupCount { get; init; }
+}

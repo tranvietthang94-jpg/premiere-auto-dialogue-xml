@@ -24,6 +24,16 @@ Trạng thái: `in-progress`.
 - Bằng chứng shadow không sửa `TrackAudioAnalysis`; XML writer hiện không đọc dữ liệu mới này.
 - Bộ test Release đạt `100/100`, gồm ca likely bleed, residual xung đột, dưới threshold, không có lời chồng, bỏ qua ambiguity ngoài phạm vi, cancellation và tích hợp analyzer không đổi status.
 
+## Implementation slice 2 — 2026-08-09
+
+- Mỗi run mới xuất thêm `<sequence>_AutoAudio.review.csv`; app hiển thị tên CSV và số review group trong tóm tắt kết quả.
+- Audit nâng từ schema `1.3` lên `1.4`, lưu SHA-256 của CSV, quy ước timecode `sequence-relative-ndf`, toàn bộ shadow evidence và danh sách group đã tạo.
+- Marker `Cần kiểm tra` trên cùng track được gộp khi khoảng cách không quá `12` frame. Kiểm tra coverage bắt buộc tổng số marker trong group phải bằng toàn bộ marker mơ hồ; marker cảnh báo `gain-capped` vẫn giữ trong XML/audit cũ nhưng không đi vào review group mơ hồ.
+- Mức ưu tiên là bằng chứng tư vấn: xung đột trực tiếp/bleed hoặc energy/VAD chưa được mọi đối chiếu xác nhận là likely bleed ở mức cao; energy/VAD có toàn bộ đối chiếu likely bleed và `ambiguous-independent` ở mức vừa; chỉ `ambiguous-near-speech` ở mức thấp.
+- CSV dùng UTF-8 BOM, CRLF, cột tiếng Việt, frame và timecode tương đối; chỉ ghi basename của media và trung hòa tên tệp có tiền tố công thức bảng tính.
+- XML, CSV và audit đều được ghi qua tệp tạm, đọc/kiểm tra lại rồi mới công bố vào thư mục run; lỗi giữa chừng xóa cả artifact tạm lẫn artifact đã di chuyển của run đó.
+- Bộ test Release đạt `104/104`. Ca hồi quy cố định UUID chứng minh thêm/bớt riêng shadow evidence làm audit/CSV thay đổi nhưng SHA-256 XML không đổi.
+
 ## Hợp đồng an toàn đã khóa
 
 - Shadow evidence không được đổi `Status`, `Enabled`, phrase gain, marker hoặc XML audio output.
