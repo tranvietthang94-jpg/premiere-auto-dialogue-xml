@@ -117,9 +117,38 @@ public sealed class OutputDecisionContractValidator
             }
         }
 
-        Require(
-            referencedPhraseIds.SetEquals(phrases.Keys),
-            "Generation plan không tham chiếu đúng toàn bộ phrase.");
+        foreach (var phrase in phrases.Values.Where(phrase => !referencedPhraseIds.Contains(phrase.Id)))
+        {
+            var coreStartFrame = phrase.CoreStartSample * project.Sequence.FrameRate / project.Sequence.AudioSampleRate;
+            var coreEndFrame = Math.Max(
+                coreStartFrame + 1,
+                (phrase.CoreEndSample * project.Sequence.FrameRate + project.Sequence.AudioSampleRate - 1) /
+                project.Sequence.AudioSampleRate);
+            var covering = fragments
+                .Where(fragment =>
+                    fragment.TrackIndex == phrase.TrackIndex &&
+                    fragment.TimelineStartFrame < coreEndFrame &&
+                    fragment.TimelineEndFrame > coreStartFrame)
+                .OrderBy(fragment => fragment.TimelineStartFrame)
+                .ToArray();
+            var cursor = coreStartFrame;
+            foreach (var fragment in covering)
+            {
+                Require(
+                    fragment.Enabled && fragment.Status is AudioSegmentStatus.Speech or AudioSegmentStatus.Ambiguous,
+                    $"Phrase '{phrase.Id}' mất phrase ID nhưng core có frame bị Disable.");
+                if (fragment.TimelineStartFrame > cursor)
+                {
+                    break;
+                }
+
+                cursor = Math.Max(cursor, fragment.TimelineEndFrame);
+            }
+
+            Require(
+                cursor >= coreEndFrame,
+                $"Phrase '{phrase.Id}' mất phrase ID và không được fragment Enabled phủ kín core.");
+        }
 
         foreach (var track in project.Sequence.AudioTracks)
         {

@@ -84,4 +84,66 @@ public sealed class OutputDecisionContractValidatorTests
                 DialogueProcessingPreset.Balanced,
                 generated));
     }
+
+    [TestMethod]
+    public void ValidateAllowsPhraseSupersededByFrameAlignedAmbiguousCoverage()
+    {
+        using var fixture = PremiereXmlGeneratorTests.WriterFixture.Create();
+        var generated = new PremiereXmlGenerator().GeneratePlan(fixture.Project, fixture.Analysis);
+        var fragments = generated.AudioFragments.Select(fragment =>
+            fragment.PhraseId is null
+                ? fragment
+                : fragment with
+                {
+                    Status = AudioSegmentStatus.Ambiguous,
+                    Enabled = true,
+                    PhraseId = null,
+                    GainDb = 0,
+                    Reason = "ambiguous-frame-supersedes-phrase"
+                }).ToArray();
+        var markers = fragments
+            .Where(fragment => fragment.Status == AudioSegmentStatus.Ambiguous)
+            .Select(fragment => new GeneratedSequenceMarker(
+                "Cần kiểm tra",
+                "test",
+                fragment.TimelineStartFrame,
+                fragment.TimelineEndFrame,
+                fragment.TrackIndex,
+                fragment.Reason))
+            .ToArray();
+        var superseded = generated with { AudioFragments = fragments, Markers = markers };
+
+        new OutputDecisionContractValidator().Validate(
+            fixture.Project,
+            fixture.Analysis,
+            DialogueProcessingPreset.Balanced,
+            superseded);
+    }
+
+    [TestMethod]
+    public void ValidateRejectsPhraseSupersededByDisabledFrame()
+    {
+        using var fixture = PremiereXmlGeneratorTests.WriterFixture.Create();
+        var generated = new PremiereXmlGenerator().GeneratePlan(fixture.Project, fixture.Analysis);
+        var fragments = generated.AudioFragments.Select(fragment =>
+            fragment.PhraseId is null
+                ? fragment
+                : fragment with
+                {
+                    Status = AudioSegmentStatus.Noise,
+                    Enabled = false,
+                    PhraseId = null,
+                    GainDb = null,
+                    Reason = "vad-negative-noise"
+                }).ToArray();
+        var markers = generated.Markers.Where(marker => marker.Name != "Cần kiểm tra").ToArray();
+        var superseded = generated with { AudioFragments = fragments, Markers = markers };
+
+        Assert.ThrowsExactly<InvalidDataException>(() =>
+            new OutputDecisionContractValidator().Validate(
+                fixture.Project,
+                fixture.Analysis,
+                DialogueProcessingPreset.Balanced,
+                superseded));
+    }
 }
