@@ -129,6 +129,39 @@ public sealed class AudioProjectAnalyzerTests
             evidence.Outcome == CrossTrackShadowOutcome.LikelyBleed));
     }
 
+    [TestMethod]
+    public async Task AnalyzeAsyncShadowNeverDisablesLegacySpeechWhenAntiAliasChangesVad()
+    {
+        const int frameCount = 20;
+        var samples = Enumerable.Range(0, frameCount * 1_920)
+            .Select(index => 0.35f * MathF.Sin(2 * MathF.PI * 12_000 * index / 48_000))
+            .ToArray();
+        using var fixture = TestAudioFixture.CreatePcm16(samples);
+        var project = Project(
+            [new PremiereAudioTrack(1, 1, [fixture.Clip("clip", 0, frameCount)])],
+            frameCount);
+        var analyzer = new AudioProjectAnalyzer(
+            () => new RmsThresholdDetector(0.05f),
+            new PcmWaveSampleReader(),
+            enableVadFrontEndShadow: true);
+
+        var result = await analyzer.AnalyzeAsync(
+            project,
+            DialogueProcessingPreset.Balanced with
+            {
+                MaximumWorkers = 1,
+                PreserveVadNegativeHighEnergyConflicts = false
+            });
+
+        Assert.IsNotNull(result.VadFrontEndComparison);
+        Assert.IsGreaterThan(0, result.VadFrontEndComparison.ChangedObservationCount);
+        Assert.IsGreaterThan(0, result.VadFrontEndComparison.LegacyEnabledCandidateDisabledCount);
+        Assert.IsTrue(result.Tracks.Single().Segments.All(segment =>
+            segment.Status is AudioSegmentStatus.Speech or AudioSegmentStatus.Ambiguous));
+        Assert.IsTrue(result.Tracks.Single().Segments.Any(segment =>
+            segment.Reason == "ambiguous-vad-front-end-disagreement"));
+    }
+
     private static PremiereProject Project(
         IReadOnlyList<PremiereAudioTrack> tracks,
         long durationFrames = 1) => new(
@@ -259,6 +292,32 @@ public sealed class AudioProjectAnalyzerTests
         public void Reset()
         {
             _processedChunks = 0;
+        }
+
+        public void Dispose()
+        {
+        }
+    }
+
+    private sealed class RmsThresholdDetector(float threshold) : IVoiceActivityDetector
+    {
+        public int SampleRate => 16_000;
+
+        public int ChunkSampleCount => 512;
+
+        public float ProcessChunk(ReadOnlySpan<float> samples)
+        {
+            double squareSum = 0;
+            foreach (var sample in samples)
+            {
+                squareSum += sample * sample;
+            }
+
+            return Math.Sqrt(squareSum / samples.Length) >= threshold ? 0.99f : 0.01f;
+        }
+
+        public void Reset()
+        {
         }
 
         public void Dispose()

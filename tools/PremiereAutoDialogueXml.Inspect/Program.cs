@@ -65,7 +65,23 @@ foreach (var xmlPath in xmlPaths)
                 status => status.ToString(),
                 status => analysis.Tracks.Sum(track => track.Segments
                     .Where(segment => segment.Status == status)
-                    .Sum(segment => segment.TimelineEndSample - segment.TimelineStartSample)) / 48_000d)
+                    .Sum(segment => segment.TimelineEndSample - segment.TimelineStartSample)) / 48_000d),
+            VadFrontEnd = analysis.VadFrontEndComparison is null
+                ? null
+                : new
+                {
+                    analysis.VadFrontEndComparison.LegacyResampling,
+                    analysis.VadFrontEndComparison.CandidateResampling,
+                    analysis.VadFrontEndComparison.ObservationCount,
+                    analysis.VadFrontEndComparison.ChangedObservationCount,
+                    analysis.VadFrontEndComparison.SegmentDifferenceCount,
+                    analysis.VadFrontEndComparison.LegacyEnabledCandidateDisabledCount,
+                    analysis.VadFrontEndComparison.LegacyDisabledCandidateEnabledCount,
+                    MaximumProbabilityDelta = analysis.VadFrontEndComparison.Tracks
+                        .Select(track => track.MaximumProbabilityDelta)
+                        .DefaultIfEmpty()
+                        .Max()
+                }
         };
 
         if (writeOutput)

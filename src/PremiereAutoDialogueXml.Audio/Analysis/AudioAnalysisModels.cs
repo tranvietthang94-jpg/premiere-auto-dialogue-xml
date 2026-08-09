@@ -82,6 +82,48 @@ public sealed record ProjectAudioAnalysis(
     string ModelSha256)
 {
     public IReadOnlyList<CrossTrackShadowEvidence> ShadowEvidence { get; init; } = [];
+
+    public VadFrontEndComparison? VadFrontEndComparison { get; init; }
+}
+
+public sealed record VadDecisionDifference(
+    int TrackIndex,
+    string SourceClipId,
+    long TimelineStartSample,
+    long TimelineEndSample,
+    AudioSegmentStatus LegacyStatus,
+    string LegacyReason,
+    AudioSegmentStatus CandidateStatus,
+    string CandidateReason,
+    AudioSegmentStatus FinalStatus,
+    string FinalReason);
+
+public sealed record VadFrontEndTrackComparison(
+    int TrackIndex,
+    int ObservationCount,
+    int ChangedObservationCount,
+    float MaximumProbabilityDelta,
+    int SegmentDifferenceCount,
+    int LegacyEnabledCandidateDisabledCount,
+    int LegacyDisabledCandidateEnabledCount,
+    IReadOnlyList<VadDecisionDifference> Differences);
+
+public sealed record VadFrontEndComparison(
+    string LegacyResampling,
+    string CandidateResampling,
+    IReadOnlyList<VadFrontEndTrackComparison> Tracks)
+{
+    public int ObservationCount => Tracks.Sum(track => track.ObservationCount);
+
+    public int ChangedObservationCount => Tracks.Sum(track => track.ChangedObservationCount);
+
+    public int SegmentDifferenceCount => Tracks.Sum(track => track.SegmentDifferenceCount);
+
+    public int LegacyEnabledCandidateDisabledCount =>
+        Tracks.Sum(track => track.LegacyEnabledCandidateDisabledCount);
+
+    public int LegacyDisabledCandidateEnabledCount =>
+        Tracks.Sum(track => track.LegacyDisabledCandidateEnabledCount);
 }
 
 internal readonly record struct TimelineInterval(long StartSample, long EndSample)

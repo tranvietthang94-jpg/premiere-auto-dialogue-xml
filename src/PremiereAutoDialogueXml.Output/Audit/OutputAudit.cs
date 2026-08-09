@@ -22,6 +22,8 @@ public sealed record OutputAudit(
     IReadOnlyList<MarkerAudit> Markers)
 {
     public ReviewListAudit? Review { get; init; }
+
+    public VadFrontEndComparison? VadFrontEndComparison { get; init; }
 }
 
 public sealed record ModelAudit(string Version, string Sha256);
