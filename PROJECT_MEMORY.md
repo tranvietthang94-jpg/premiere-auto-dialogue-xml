@@ -76,11 +76,11 @@ Ngày chốt: 2026-08-09 (Asia/Saigon). Đây là memory source-of-truth để m
 - Fix giữ trọn phrase component legacy cùng gain khi có disagreement; candidate-only trong component được giữ ambiguous unity-gain. Merger có postcondition coverage và 2 regression mới; Release đạt `122/122` test.
 - HGE2 replacement `phase09-hge2-pilot-20260809-4` đạt `84,200 giây`/`203,3 MB`, 0 error, 2.183 phrase/10.831 fragment/5.219 marker. XML SHA-256 `A11D046019BDF0F8677E9E952FE45DE7489DF3C079F578CAABCDF3F38FE57AA3`; audit SHA-256 `D62901F88A3A5EDC380D548FE43B2440D7CAC1C77A24F739E525B43C91519C7A`.
 - Comparator replacement vs Phase 08: source hash khớp, coverage mismatch 0, legacy Enabled bị mất `0 interval/0 frame`, giữ thêm 2.424 interval/8.333 frame, temp 0; M19/A3 11214–11218 Enabled. Đây là candidate duy nhất để import/retest A1.
-- Source-frame diagnostic replacement A1–A7: 2.183 phrase, 940/940 uncapped predicted đúng khoảng `-6,000002..-5,999999 dBFS`, 0 capped hot. PCM cũ chỉ là carrier chẩn đoán, không phải Premiere pass cho XML mới.
-- Full HGE cũ `446094...`/`B8D82A...` thuộc code trước fix và không còn đóng gate cho HEAD; phải chạy lại sau khi A1 replacement đạt.
+- Premiere PCM round-trip của replacement đạt A1–A7: 2.183/2.183 phrase khớp timing/gain; 940/940 uncapped ở `-6,000019084..-5,999973633 dBFS`; 1.243/1.243 capped khớp dự đoán, capped nóng nhất `-6,004387657 dBFS`; max audit/source-linked delta dưới `0,000027 dB`. User xác nhận M19 vẫn Enabled và nghe được.
+- Full HGE cuối `phase09-full-hge-pilot-20260809-2` đạt `38 phút 33,1 giây`/`1.065 MB`, 0 error, 43.603 phrase/247.515 fragment/126.485 marker. XML `0E8D67...`, audit `0BC66E...`; comparator với Phase 08 có source hash khớp, coverage mismatch 0, mất legacy Enabled `0 interval/0 frame`, giữ thêm 55.177 interval/189.571 frame, temp 0.
 - Publish giữ 410 payload; installer unsigned private SHA-256 `225AD65E68D6806AC8426E4C39A8907CDD527E431E2154A7C0BA8A18A3C35CC8` qua cài/mở/xác minh 410/410/gỡ/sentinel/registry. Nó không thay RC1 và không được phát hành.
-- GitHub Actions PR run `31299251441` đạt trong 3 phút 1 giây: restore/build/120 test/publish/Inno Setup/installer/upload đều xanh.
-- Candidate thay XML audio đáng kể nên bắt buộc import đúng HGE2 replacement `A11D046...`, export lại PCM A1, rồi mới A2–A7, chạy `VerifyPcm`, kiểm M19, re-export XML và full HGE rerun theo audit `1.5`. Không tái gắn PCM cũ. PR giữ draft và `main` vẫn ở Phase 08.
+- GitHub Actions PR run cuối `31309730715` trên commit fix `42c3d56` đạt trong 3 phút 5 giây: restore/build/122 test/publish/Inno Setup/installer/upload đều xanh.
+- Cổng duy nhất còn lại là Final Cut Pro XML do Premiere re-export từ sequence replacement. PCM A1–A7 không thay thế bằng chứng XML này. PR giữ draft và `main` vẫn ở Phase 08 cho tới khi re-export đạt.
 
 ## Lỗi đã gặp và cách tránh
 
@@ -113,4 +113,4 @@ Ngày chốt: 2026-08-09 (Asia/Saigon). Đây là memory source-of-truth để m
 
 ## Trạng thái bàn giao
 
-Phase 00–08 hoàn tất trên `main` tại merge commit Phase 08 `26e8dac925f5e41622e1c0ce7237ef0bbb09b06b`; CI hậu merge run `31295051393` đạt. Phase 09 draft PR `#12`: A1 PCM đã loại candidate đầu vì 11 phrase safety rời; fix phrase-component đạt `122/122` test và HGE2 replacement `A11D046...` với 0 frame legacy Enabled bị mất. Việc tiếp theo: import replacement, re-export/VerifyPcm A1; chỉ nếu đạt mới A2–A7, re-export XML, full HGE, packaging/CI cuối. Không merge hoặc bắt đầu Phase 10 trước các gate này hay waiver tường minh.
+Phase 00–08 hoàn tất trên `main` tại merge commit Phase 08 `26e8dac925f5e41622e1c0ce7237ef0bbb09b06b`; CI hậu merge run `31295051393` đạt. Phase 09 draft PR `#12`: candidate đầu bị loại; fix phrase-component đạt `122/122` test, HGE2 replacement `A11D046...`, Premiere PCM A1–A7, M19, full HGE và CI/packaging cuối mà không làm mất frame legacy Enabled. Việc tiếp theo duy nhất: xuất và kiểm tra Final Cut Pro XML từ sequence replacement trong Premiere. Không merge hoặc bắt đầu Phase 10 trước cổng này hay waiver tường minh.

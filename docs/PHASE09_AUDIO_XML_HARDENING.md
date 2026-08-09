@@ -1,6 +1,6 @@
 # Phase 09 — Làm chắc lõi xử lý âm thanh và XML
 
-Trạng thái: `candidate-fix; premiere-a1-retest-pending; full-hge-rerun-pending` ngày 2026-08-09. PCM A1 từ candidate đầu đã phát hiện một lỗi phrase safety và candidate đó bị loại. Bản sửa đã đạt test + HGE2 tự động nhưng chưa được merge/adopt; cần A1 round-trip lại trước khi xuất A2–A7 và chạy lại full HGE.
+Trạng thái: `candidate-fixed; premiere-pcm-a1-a7-passed; full-hge-passed; premiere-xml-reexport-pending` ngày 2026-08-09. PCM A1 từ candidate đầu đã phát hiện một lỗi phrase safety và candidate đó bị loại. Bản sửa whole-phrase fallback đã đạt test, HGE2, Premiere PCM A1–A7, full HGE và CI/packaging; chỉ còn kiểm tra XML do Premiere re-export trước khi đổi Phase 09 thành `passed`.
 
 ## Quyết định sản phẩm
 
@@ -93,15 +93,16 @@ Phase 09 bắt đầu từ một khoản nợ DSP cụ thể: baseline `TrackAud
 - So với baseline Phase 08 trên cùng source SHA-256 `09FD290C5CB8401DEF7EA9701433F7BD1799B0300ABA9244A8BF88C022A8C897`: coverage mismatch `0`, legacy Enabled bị mất `0 interval / 0 frame`, giữ thêm 2.424 interval / 8.333 frame, tệp tạm `0`.
 - M19/A3 frame `11214–11218` vẫn Enabled; một phần được bảo vệ bằng `ambiguous-vad-front-end-disagreement`, phần còn lại là `ambiguous-independent`.
 - Front-end comparison: 454.471 observation; 448.901 probability thay đổi; 7.600 segment difference; 454 trường hợp legacy Enabled/candidate Disabled đều được fail-safe giữ lại; 3.151 trường hợp legacy Disabled/candidate Enabled được mở thêm.
-- Chẩn đoán source-frame độc lập trên A1–A7 của replacement: 2.183 phrase; 940/940 phrase không cap có predicted post-routing peak trong khoảng `-6,000002` đến `-5,999999 dBFS`; 0 phrase cap dự đoán nóng hơn target. Chẩn đoán dùng PCM cũ chỉ làm carrier để công cụ đọc đủ sequence và không được tính là Premiere pass; A1 replacement vẫn phải export lại.
+- Premiere PCM round-trip của đúng replacement đã đạt trên A1–A7: `2.183/2.183` phrase khớp timing/gain; `940/940` phrase không cap nằm trong `-6,000019084..-5,999973633 dBFS`; `1.243/1.243` phrase cap khớp dự đoán và phrase cap nóng nhất là `-6,004387657 dBFS`.
+- Sai lệch lớn nhất so với audit là `0,000026641 dB`; sai lệch source-linked lớn nhất là `0,000026615 dB`. Cả bảy report cùng gắn đúng audit SHA-256 `D62901F88A3A5EDC380D548FE43B2440D7CAC1C77A24F739E525B43C91519C7A` và source XML SHA-256 `09FD290C5CB8401DEF7EA9701433F7BD1799B0300ABA9244A8BF88C022A8C897`.
+- User xác nhận M19 vẫn Enabled và nghe được trong sequence replacement. PCM chỉ chứng minh timing/gain của audio export; file Final Cut Pro XML do Premiere re-export vẫn là bằng chứng còn thiếu.
 
 ### Pilot full HGE
 
-- Kết quả dưới đây thuộc candidate trước fix phrase-component và hiện chỉ là bằng chứng lịch sử. Full HGE phải chạy lại sau khi A1 của candidate thay thế đạt; không dùng hash dưới đây để đóng gate cho HEAD mới.
-- Run private: `phase09-full-hge-pilot-20260809-1`; hoàn tất trong `2.348,623 giây` (`39 phút 8,6 giây`), peak working set `1.024,2 MB`, 0 error, 27 warning metadata dự kiến. Cả runtime và RAM đều dưới gate `90 phút / 1,5 GB`.
-- Output có 48.028 phrase, 246.363 fragment, 128.298 marker và 50.901 review group. XML SHA-256 `44609409B647C0AEB619DD7B05B6F287CAD2F3EA313E05C81F3C5BAF7D9CA687`; audit SHA-256 `B8D82AAC0705B3D9B3FB277F82706754B29FB3BAC3E6CB1281EAE22525BD9612`.
-- So với baseline Phase 08 trên cùng source SHA-256 `4497FBBA2E6D5B834AA73929D6A3C6BADF9392BC1F0168E583411A9515ABCE90`: coverage mismatch `0`, legacy Enabled bị mất `0 interval / 0 frame`, giữ thêm 55.281 interval / 189.571 frame, tệp tạm `0`.
-- Front-end comparison: 9.503.287 observation; 9.442.728 probability thay đổi; 204.507 segment difference; 12.327 trường hợp legacy Enabled/candidate Disabled đều được fail-safe giữ lại; 72.168 trường hợp legacy Disabled/candidate Enabled được mở thêm.
+- Run cuối trên code đã fix: `phase09-full-hge-pilot-20260809-2`; hoàn tất trong `2.313,079 giây` (`38 phút 33,1 giây`), peak working set `1.065 MB`, 0 error, 27 warning metadata dự kiến. Cả runtime và RAM đều dưới gate `90 phút / 1,5 GB`.
+- Output có 43.603 phrase, 247.515 fragment, 126.485 marker và 51.934 review group. XML SHA-256 `0E8D67B6935423635260CBC0F652E57D451CB6A8E537B58BD8CF9D8AAD658844`; audit SHA-256 `0BC66E5EC986E28E27E9588DF4E268667125CA7C6C30B61673E6E5390B0003C2`.
+- So với baseline Phase 08 trên cùng source SHA-256 `4497FBBA2E6D5B834AA73929D6A3C6BADF9392BC1F0168E583411A9515ABCE90`: output hash nhúng khớp file thật, coverage mismatch `0`, legacy Enabled bị mất `0 interval / 0 frame`, giữ thêm 55.177 interval / 189.571 frame, tệp tạm `0`.
+- Front-end comparison: 9.503.287 observation; 9.442.728 probability thay đổi; 204.540 segment difference; 12.327 trường hợp legacy Enabled/candidate Disabled đều được fail-safe giữ lại; 72.168 trường hợp legacy Disabled/candidate Enabled được mở thêm.
 - Việc mở thêm nhiều vùng chứng minh policy bảo thủ hoạt động, không chứng minh độ chính xác nhận diện đã tăng. Không có Target listening labels hợp lệ nên không báo phần trăm speech/noise/bleed.
 
 ### Đóng gói
@@ -109,8 +110,7 @@ Phase 09 bắt đầu từ một khoản nợ DSP cụ thể: baseline `TrackAud
 - Release test hiện hành đạt `122/122` test.
 - Publish `win-x64` self-contained giữ đúng 410 payload file. Installer unsigned thử nghiệm được tạo bằng Inno Setup 7.0.2, SHA-256 `225AD65E68D6806AC8426E4C39A8907CDD527E431E2154A7C0BA8A18A3C35CC8`.
 - Smoke test installer đạt: cài, xác minh `410/410` file, mở app, gỡ payload, giữ file người dùng tạo và xóa đúng HKCU uninstall entry. Installer này chỉ là bằng chứng kỹ thuật private, không thay RC1 và không được phát hành.
-- GitHub Actions PR run `31299251441` đạt trong `3 phút 1 giây`: restore, build, `120/120` test, publish self-contained, xác minh Inno Setup 7, build/cài/gỡ installer và upload artifact đều thành công.
-- Hai bằng chứng packaging/CI trên thuộc candidate trước fix phrase-component. Sau khi A1 replacement đạt và full HGE được chạy lại, phải chạy lại publish/installer/CI cho HEAD cuối trước khi merge.
+- GitHub Actions PR run cuối `31309730715` trên commit fix `42c3d56` đạt trong `3 phút 5 giây`: restore, build, `122/122` test, publish self-contained, xác minh Inno Setup 7, build/cài/gỡ installer và upload artifact đều thành công.
 
 ### Công cụ đối chiếu lặp lại được
 
@@ -118,7 +118,7 @@ Phase 09 bắt đầu từ một khoản nợ DSP cụ thể: baseline `TrackAud
 
 ## Cổng còn lại trước khi merge/adopt
 
-Candidate thay đổi XML audio đáng kể, nên bằng chứng PCM Phase 06/08 không được tái sử dụng. Candidate hiện hành duy nhất là XML SHA-256 `A11D046019BDF0F8677E9E952FE45DE7489DF3C079F578CAABCDF3F38FE57AA3` với audit SHA-256 `D62901F88A3A5EDC380D548FE43B2440D7CAC1C77A24F739E525B43C91519C7A`. Cần import XML này vào Premiere, export lại A1 mono PCM 48 kHz/24-bit và chạy `PremiereAutoDialogueXml.VerifyPcm`. Chỉ khi A1 đạt mới xuất A2–A7, xác nhận M19, re-export XML và chạy lại full HGE. Sau tất cả gate mới đổi Phase 09 thành `passed`, chuyển PR khỏi draft và cân nhắc merge.
+Candidate hiện hành duy nhất là XML SHA-256 `A11D046019BDF0F8677E9E952FE45DE7489DF3C079F578CAABCDF3F38FE57AA3` với audit SHA-256 `D62901F88A3A5EDC380D548FE43B2440D7CAC1C77A24F739E525B43C91519C7A`. Premiere PCM A1–A7, M19, full HGE, test và CI/packaging đều đã đạt. Cổng duy nhất còn lại là xuất Final Cut Pro XML từ chính sequence replacement trong Premiere và kiểm tra XML đó giữ đúng cấu trúc timing/gain/Disable/marker sau import. Sau cổng này mới đổi Phase 09 thành `passed`, chuyển PR khỏi draft và cân nhắc merge.
 
 Khả năng automation Windows trong phiên triển khai không cung cấp API hướng dẫn/xác nhận bắt buộc của skill, nên không thao tác Premiere mù. Đây là gate bằng chứng đang chờ, không phải lỗi code hay lý do hạ tiêu chuẩn nghiệm thu.
 
@@ -158,4 +158,4 @@ Khả năng automation Windows trong phiên triển khai không cung cấp API h
 
 ## Bước tiếp theo
 
-Import candidate HGE2 thay thế `phase09-hge2-pilot-20260809-4`, export lại A1 và chạy validator. Không xuất A2–A7, không bắt đầu Phase 10 và không merge trước khi A1 đạt.
+Trong Premiere, chọn đúng sequence replacement đã import rồi dùng `File > Export > Final Cut Pro XML`. Lưu file `.xml` vào `private-artifacts/phase09-premiere-roundtrip-20260809-1/reexport/AN TRUONG_PHASE09_REEXPORT.xml`, sau đó chạy kiểm tra round-trip cuối. Không bắt đầu Phase 10 hoặc merge trước khi XML re-export đạt.
