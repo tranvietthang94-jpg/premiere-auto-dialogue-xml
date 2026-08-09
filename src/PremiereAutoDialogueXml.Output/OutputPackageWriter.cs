@@ -1,12 +1,9 @@
 using System.Security.Cryptography;
-using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using System.Xml;
 using PremiereAutoDialogueXml.Output.Audit;
 using PremiereAutoDialogueXml.Output.Review;
 using PremiereAutoDialogueXml.Output.Xml;
-using PremiereAutoDialogueXml.Output.Validation;
 
 namespace PremiereAutoDialogueXml.Output;
 
@@ -67,7 +64,7 @@ public sealed class OutputPackageWriter
             throw new IOException("Thư mục run đã tồn tại; app không ghi đè kết quả cũ.");
         }
 
-        var generated = _xmlGenerator.Generate(request.Project, request.Analysis, cancellationToken);
+        var generated = _xmlGenerator.GeneratePlan(request.Project, request.Analysis, cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
 
         var xmlFileName = $"{safeSequenceName}_AutoAudio.xml";
@@ -87,12 +84,15 @@ public sealed class OutputPackageWriter
             createdDirectory = true;
             cancellationToken.ThrowIfCancellationRequested();
 
-            await WriteXmlAsync(generated.Document, xmlTempPath, cancellationToken);
+            await PremiereXmlStreamingWriter.WriteAsync(
+                request.Project,
+                generated,
+                xmlTempPath,
+                cancellationToken);
             var outputXmlSha256 = await ComputeSha256Async(xmlTempPath, cancellationToken);
-            var reloadedOutput = PremiereAutoDialogueXml.Core.Xml.PremiereXmlDocumentLoader.LoadGeneratedOutput(
+            PremiereAutoDialogueXml.Core.Xml.PremiereXmlDocumentLoader.ValidateGeneratedOutputSyntax(
                 xmlTempPath,
                 outputXmlSha256);
-            new OutputXmlContractValidator().Validate(request.Project, generated, reloadedOutput.Document);
             var reviewGroups = new ReviewGroupBuilder().Build(
                 generated.AudioFragments,
                 generated.Markers,
@@ -167,41 +167,6 @@ public sealed class OutputPackageWriter
 
             throw;
         }
-    }
-
-    private static async Task WriteXmlAsync(
-        System.Xml.Linq.XDocument document,
-        string path,
-        CancellationToken cancellationToken)
-    {
-        await using var stream = new FileStream(
-            path,
-            new FileStreamOptions
-            {
-                Access = FileAccess.Write,
-                Mode = FileMode.CreateNew,
-                Share = FileShare.None,
-                Options = FileOptions.Asynchronous | FileOptions.WriteThrough
-            });
-        var settings = new XmlWriterSettings
-        {
-            Async = true,
-            Encoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false),
-            Indent = true,
-            IndentChars = "\t",
-            NewLineChars = "\r\n",
-            NewLineHandling = NewLineHandling.Replace,
-            OmitXmlDeclaration = false,
-            CloseOutput = false
-        };
-        await using var writer = XmlWriter.Create(stream, settings);
-        await writer.WriteStartDocumentAsync();
-        await writer.WriteRawAsync("\r\n<!DOCTYPE xmeml>\r\n");
-        await (document.Root ?? throw new InvalidDataException("XML kết quả không có root xmeml."))
-            .WriteToAsync(writer, cancellationToken);
-        await writer.WriteEndDocumentAsync();
-        await writer.FlushAsync();
-        await stream.FlushAsync(cancellationToken);
     }
 
     private static async Task WriteAuditAsync(

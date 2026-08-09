@@ -11,6 +11,13 @@ public sealed record GeneratedPremiereXml(
     IReadOnlyList<GeneratedAudioFragment> AudioFragments,
     IReadOnlyList<GeneratedSequenceMarker> Markers);
 
+public sealed record GeneratedPremiereXmlPlan(
+    string SequenceId,
+    string SequenceUuid,
+    string SequenceName,
+    IReadOnlyList<GeneratedAudioFragment> AudioFragments,
+    IReadOnlyList<GeneratedSequenceMarker> Markers);
+
 public sealed record GeneratedAudioFragment(
     string ClipItemId,
     int TrackIndex,

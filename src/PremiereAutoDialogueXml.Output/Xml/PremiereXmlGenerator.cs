@@ -85,6 +85,94 @@ public sealed class PremiereXmlGenerator
             generatedMarkers);
     }
 
+    public GeneratedPremiereXmlPlan GeneratePlan(
+        PremiereProject project,
+        ProjectAudioAnalysis analysis,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(project);
+        ArgumentNullException.ThrowIfNull(analysis);
+        ValidateAnalysisContract(project, analysis);
+
+        var source = PremiereXmlDocumentLoader.Load(project.SourceXmlPath, project.SourceXmlSha256);
+        var document = source.Document;
+        var sequence = document.Root?.Elements("sequence").SingleOrDefault()
+            ?? throw new InvalidDataException("XML nguồn không có đúng một sequence.");
+        var audio = RequiredElement(RequiredElement(sequence, "media"), "audio");
+        var trackElements = audio.Elements("track").ToArray();
+        if (trackElements.Length != project.Sequence.AudioTracks.Count)
+        {
+            throw new InvalidDataException("Số audio track trong XML clone không khớp project đã kiểm tra.");
+        }
+
+        var usedIds = document.Descendants()
+            .Attributes("id")
+            .Select(attribute => attribute.Value)
+            .ToHashSet(StringComparer.Ordinal);
+        var sequenceId = NewUniqueId("sequence-auto", usedIds);
+        var sequenceUuid = _guidFactory().ToString();
+        var sequenceName = $"{project.Sequence.Name} - AUTO AUDIO";
+        var generatedFragments = new List<GeneratedAudioFragment>();
+        var generatedMarkers = new List<GeneratedSequenceMarker>();
+        var analysesByTrack = analysis.Tracks.ToDictionary(track => track.TrackIndex);
+
+        for (var trackPosition = 0; trackPosition < project.Sequence.AudioTracks.Count; trackPosition++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var projectTrack = project.Sequence.AudioTracks[trackPosition];
+            var analysisTrack = analysesByTrack[projectTrack.Index];
+            var sourceClipIds = trackElements[trackPosition].Elements("clipitem")
+                .Select(element => RequiredAttribute(element, "id"))
+                .ToHashSet(StringComparer.Ordinal);
+            if (sourceClipIds.Count != projectTrack.Clips.Count)
+            {
+                throw new InvalidDataException($"Track {projectTrack.Index} có số clip XML khác project đã kiểm tra.");
+            }
+
+            foreach (var clip in projectTrack.Clips)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (!sourceClipIds.Contains(clip.Id))
+                {
+                    throw new InvalidDataException($"Không tìm thấy clip nguồn '{clip.Id}' trong XML clone.");
+                }
+
+                var segments = analysisTrack.Segments
+                    .Where(segment => segment.SourceClipId == clip.Id)
+                    .OrderBy(segment => segment.TimelineStartSample)
+                    .ToArray();
+                ValidateSegmentCoverage(clip, segments);
+                foreach (var run in AlignToFrames(clip, segments, cancellationToken))
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    var fragment = CreateFragmentAudit(
+                        clip,
+                        run,
+                        NewUniqueId("clipitem-auto", usedIds));
+                    generatedFragments.Add(fragment);
+                    if (run.Decision.Status == AudioSegmentStatus.Ambiguous)
+                    {
+                        generatedMarkers.Add(new(
+                            "Cần kiểm tra",
+                            $"Track {projectTrack.Index} · {run.Decision.Reason}",
+                            run.StartFrame,
+                            run.EndFrame,
+                            projectTrack.Index,
+                            run.Decision.Reason));
+                    }
+                }
+            }
+        }
+
+        AddGainCapMarkers(analysis, generatedMarkers);
+        return new(
+            sequenceId,
+            sequenceUuid,
+            sequenceName,
+            generatedFragments,
+            generatedMarkers);
+    }
+
     private void RewriteTrack(
         XElement trackElement,
         PremiereAudioTrack projectTrack,
@@ -123,16 +211,14 @@ public sealed class PremiereXmlGenerator
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 var clipItemId = NewUniqueId("clipitem-auto", usedIds);
+                var fragment = CreateFragmentAudit(clip, run, clipItemId);
                 var fragmentElement = CreateFragmentElement(
                     sourceClipElement,
-                    clip,
-                    run,
-                    clipItemId,
+                    fragment,
                     firstFragment);
                 sourceClipElement.AddBeforeSelf(fragmentElement);
                 firstFragment = false;
 
-                var fragment = CreateFragmentAudit(clip, run, clipItemId);
                 generatedFragments.Add(fragment);
                 if (run.Decision.Status == AudioSegmentStatus.Ambiguous)
                 {
@@ -217,36 +303,20 @@ public sealed class PremiereXmlGenerator
         return runs;
     }
 
-    private static XElement CreateFragmentElement(
+    internal static XElement CreateFragmentElement(
         XElement source,
-        PremiereAudioClip clip,
-        FrameRun run,
-        string clipItemId,
+        GeneratedAudioFragment generated,
         bool firstFragment)
     {
         var fragment = new XElement(source);
-        fragment.SetAttributeValue("id", clipItemId);
-        SetValue(fragment, "enabled", run.Decision.Enabled ? "TRUE" : "FALSE");
-        SetValue(fragment, "start", Format(run.StartFrame));
-        SetValue(fragment, "end", Format(run.EndFrame));
-
-        var totalFrames = clip.TimelineEndFrame - clip.TimelineStartFrame;
-        var startOffset = run.StartFrame - clip.TimelineStartFrame;
-        var endOffset = run.EndFrame - clip.TimelineStartFrame;
-        var sourceFrameDuration = clip.SourceOutFrame - clip.SourceInFrame;
-        var sourceIn = startOffset == 0
-            ? clip.SourceInFrame
-            : clip.SourceInFrame + ScaleFloor(sourceFrameDuration, startOffset, totalFrames);
-        var sourceOut = endOffset == totalFrames
-            ? clip.SourceOutFrame
-            : clip.SourceInFrame + ScaleCeiling(sourceFrameDuration, endOffset, totalFrames);
-        var ticksIn = ScaleBoundary(clip.PproTicksIn, clip.PproTicksOut, startOffset, totalFrames);
-        var ticksOut = ScaleBoundary(clip.PproTicksIn, clip.PproTicksOut, endOffset, totalFrames);
-
-        SetValue(fragment, "in", Format(sourceIn));
-        SetValue(fragment, "out", Format(sourceOut));
-        SetOrInsertBeforeFile(fragment, "pproTicksIn", Format(ticksIn));
-        SetOrInsertBeforeFile(fragment, "pproTicksOut", Format(ticksOut));
+        fragment.SetAttributeValue("id", generated.ClipItemId);
+        SetValue(fragment, "enabled", generated.Enabled ? "TRUE" : "FALSE");
+        SetValue(fragment, "start", Format(generated.TimelineStartFrame));
+        SetValue(fragment, "end", Format(generated.TimelineEndFrame));
+        SetValue(fragment, "in", Format(generated.SourceInFrame));
+        SetValue(fragment, "out", Format(generated.SourceOutFrame));
+        SetOrInsertBeforeFile(fragment, "pproTicksIn", Format(generated.PproTicksIn));
+        SetOrInsertBeforeFile(fragment, "pproTicksOut", Format(generated.PproTicksOut));
 
         foreach (var filter in fragment.Elements("filter").ToArray())
         {
@@ -264,13 +334,13 @@ public sealed class PremiereXmlGenerator
             var file = fragment.Element("file");
             if (file is not null)
             {
-                file.ReplaceWith(new XElement("file", new XAttribute("id", clip.SourceFileId)));
+                file.ReplaceWith(new XElement("file", new XAttribute("id", generated.SourceFileId)));
             }
         }
 
-        if (run.Decision.Enabled)
+        if (generated.Enabled)
         {
-            var gainDb = run.Decision.GainDb ?? 0;
+            var gainDb = generated.GainDb ?? 0;
             var filters = PremiereGainFilterFactory.CreateFilters(gainDb);
             var sourceTrack = fragment.Element("sourcetrack");
             if (sourceTrack is not null)

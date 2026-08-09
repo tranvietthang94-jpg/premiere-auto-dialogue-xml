@@ -19,6 +19,54 @@ public static class PremiereXmlDocumentLoader
         string expectedSha256)
         => LoadCore(xmlPath, expectedSha256, MaximumGeneratedXmlBytes);
 
+    public static void ValidateGeneratedOutputSyntax(
+        string xmlPath,
+        string expectedSha256)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(xmlPath);
+        using var stream = new FileStream(
+            xmlPath,
+            new FileStreamOptions
+            {
+                Access = FileAccess.Read,
+                Mode = FileMode.Open,
+                Share = FileShare.Read,
+                Options = FileOptions.SequentialScan
+            });
+        ValidateFileEnvelope(stream, expectedSha256, MaximumGeneratedXmlBytes);
+        stream.Position = 0;
+        ValidatePremiereDocumentType(stream);
+        stream.Position = 0;
+
+        var settings = new XmlReaderSettings
+        {
+            DtdProcessing = DtdProcessing.Ignore,
+            XmlResolver = null,
+            MaxCharactersInDocument = MaximumGeneratedXmlBytes,
+            IgnoreComments = false,
+            IgnoreWhitespace = false,
+            CloseInput = false
+        };
+        using var reader = XmlReader.Create(stream, settings);
+        var rootCount = 0;
+        while (reader.Read())
+        {
+            if (reader.NodeType == XmlNodeType.Element && reader.Depth == 0)
+            {
+                rootCount++;
+                if (!reader.LocalName.Equals("xmeml", StringComparison.Ordinal))
+                {
+                    throw new PremiereXmlLoadException("xml-root-invalid", "XML kết quả không có root xmeml.");
+                }
+            }
+        }
+
+        if (rootCount != 1)
+        {
+            throw new PremiereXmlLoadException("xml-root-invalid", "XML kết quả phải có đúng một root xmeml.");
+        }
+    }
+
     private static PremiereXmlSourceDocument LoadCore(
         string xmlPath,
         string? expectedSha256,
@@ -35,6 +83,19 @@ public static class PremiereXmlDocumentLoader
                 Options = FileOptions.SequentialScan
             });
 
+        var sourceHash = ValidateFileEnvelope(stream, expectedSha256, maximumXmlBytes);
+
+        stream.Position = 0;
+        ValidatePremiereDocumentType(stream);
+        stream.Position = 0;
+        return new(LoadDocument(stream, maximumXmlBytes), sourceHash);
+    }
+
+    private static string ValidateFileEnvelope(
+        Stream stream,
+        string? expectedSha256,
+        long maximumXmlBytes)
+    {
         if (stream.Length <= 0)
         {
             throw new PremiereXmlLoadException("xml-empty", "Tệp XML đang trống.");
@@ -56,10 +117,7 @@ public static class PremiereXmlDocumentLoader
                 "XML nguồn đã thay đổi sau bước kiểm tra; hãy kiểm tra và phân tích lại.");
         }
 
-        stream.Position = 0;
-        ValidatePremiereDocumentType(stream);
-        stream.Position = 0;
-        return new(LoadDocument(stream, maximumXmlBytes), sourceHash);
+        return sourceHash;
     }
 
     private static XDocument LoadDocument(Stream stream, long maximumXmlBytes)

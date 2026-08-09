@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text.Json;
+using System.Xml.Linq;
 using PremiereAutoDialogueXml.Audio.Analysis;
 using PremiereAutoDialogueXml.Core.Domain;
 using PremiereAutoDialogueXml.Output;
@@ -156,6 +157,31 @@ public sealed class OutputPackageWriterTests
     }
 
     [TestMethod]
+    public async Task WriteAsyncStreamingXmlMatchesDomGenerator()
+    {
+        using var fixture = PremiereXmlGeneratorTests.WriterFixture.Create(gainWasCapped: true);
+        var expected = DeterministicGenerator().Generate(fixture.Project, fixture.Analysis);
+
+        var result = await new OutputPackageWriter(DeterministicGenerator()).WriteAsync(new(
+            fixture.Project,
+            fixture.Analysis,
+            DialogueProcessingPreset.Balanced,
+            fixture.Directory));
+        var actual = PremiereAutoDialogueXml.Core.Xml.PremiereXmlDocumentLoader.Load(
+            result.XmlPath,
+            result.OutputXmlSha256).Document;
+
+        Assert.IsTrue(XNode.DeepEquals(
+            WithoutInsignificantWhitespace(expected.Document.Root!),
+            WithoutInsignificantWhitespace(actual.Root!)));
+        var hashException = Assert.ThrowsExactly<PremiereAutoDialogueXml.Core.Xml.PremiereXmlLoadException>(() =>
+            PremiereAutoDialogueXml.Core.Xml.PremiereXmlDocumentLoader.ValidateGeneratedOutputSyntax(
+                result.XmlPath,
+                "WRONG-SHA256"));
+        Assert.AreEqual("xml-source-changed", hashException.Code);
+    }
+
+    [TestMethod]
     public async Task WriteAsyncPreCancelledLeavesNoRunDirectory()
     {
         using var fixture = PremiereXmlGeneratorTests.WriterFixture.Create();
@@ -217,5 +243,17 @@ public sealed class OutputPackageWriterTests
     {
         var counter = 0;
         return new(() => Guid.Parse($"00000000-0000-0000-0000-{++counter:D12}"));
+    }
+
+    private static XElement WithoutInsignificantWhitespace(XElement element)
+    {
+        var clone = new XElement(element);
+        foreach (var whitespace in clone.DescendantNodes().OfType<XText>()
+                     .Where(text => string.IsNullOrWhiteSpace(text.Value)).ToArray())
+        {
+            whitespace.Remove();
+        }
+
+        return clone;
     }
 }

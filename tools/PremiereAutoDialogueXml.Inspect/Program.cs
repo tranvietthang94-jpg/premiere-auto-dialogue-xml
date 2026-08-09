@@ -80,9 +80,14 @@ foreach (var xmlPath in xmlPaths)
                 RunDirectory = Path.GetFileName(output.RunDirectory),
                 Xml = Path.GetFileName(output.XmlPath),
                 Audit = Path.GetFileName(output.AuditPath),
+                Review = Path.GetFileName(output.ReviewCsvPath),
                 output.OutputXmlSha256,
                 output.FragmentCount,
-                output.MarkerCount
+                output.MarkerCount,
+                output.ReviewGroupCount,
+                TotalPeakWorkingSetMegabytes = Math.Round(
+                    System.Diagnostics.Process.GetCurrentProcess().PeakWorkingSet64 / 1024d / 1024d,
+                    1)
             };
         }
     }

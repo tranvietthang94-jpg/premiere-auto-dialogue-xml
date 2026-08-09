@@ -1,15 +1,15 @@
-# Memory handoff — Premiere Auto Dialogue XML, Phase 00–07
+# Memory handoff — Premiere Auto Dialogue XML, Phase 00–08
 
-Ngày chốt: 2026-08-04 (Asia/Saigon). Đây là memory source-of-truth để một phiên Codex mới tiếp tục nâng cấp dự án mà không làm lại các phase đã hoàn tất.
+Ngày chốt: 2026-08-09 (Asia/Saigon). Đây là memory source-of-truth để một phiên Codex mới tiếp tục nâng cấp dự án mà không làm lại các phase đã hoàn tất.
 
 ## Định hướng và vị trí dự án
 
 - Workspace thật: `F:\RIN APP\App-Auto-Edit_codex_2`.
 - Private GitHub repo: `tranvietthang94-jpg/premiere-auto-dialogue-xml`.
-- Nhánh hiện tại: `main`, sạch; HEAD/merge commit Phase 07: `8bdf47d0dc3a3eb17a143a3145b5cf59369d9b9b`.
-- PR Phase 07: `#8`, đã merge bằng merge commit. Các phase 00–07 đều hoàn tất; khi nâng cấp hãy bắt đầu phase mới từ `main`, không restart/re-audit toàn dự án.
+- Phase 00–07 đã merge vào `main`; merge commit Phase 07: `8bdf47d0dc3a3eb17a143a3145b5cf59369d9b9b`.
+- Phase 08 đã đạt cổng kỹ thuật trên nhánh `phase/08-review-queue`, draft PR `#10`; chưa coi là nằm trên `main` cho tới khi PR được merge.
 - Private draft prerelease: tag `v0.1.0-rc.1`, tên `Premiere Auto Dialogue XML 0.1.0 RC1`, target `8bdf47d`; URL draft hiện tại `https://github.com/tranvietthang94-jpg/premiere-auto-dialogue-xml/releases/tag/untagged-1c4ff86dc76dc88c43e3`.
-- Tài liệu phase đầy đủ nằm trong `docs/`; đọc trước `README.md`, `docs/IMPLEMENTATION_PLAN.md`, `docs/PHASE00_RESULT.md`, `docs/PHASE06_PILOT_RESULT.md`, `docs/PHASE07_INSTALLER_RELEASE.md`, `docs/INTERNAL_CODE_SIGNING.md`.
+- Tài liệu phase đầy đủ nằm trong `docs/`; đọc trước `README.md`, `docs/IMPLEMENTATION_PLAN.md`, `docs/PHASE00_RESULT.md`, `docs/PHASE06_PILOT_RESULT.md`, `docs/PHASE07_INSTALLER_RELEASE.md`, `docs/PHASE08_REVIEW_QUEUE.md`, `docs/INTERNAL_CODE_SIGNING.md`.
 
 ## Sản phẩm đã khóa
 
@@ -64,6 +64,8 @@ Ngày chốt: 2026-08-04 (Asia/Saigon). Đây là memory source-of-truth để m
 - Final installer từ `main` merge commit: SHA-256 `9C3BAE324D868AFAF6EA0F726ECB910EB67F4CFA9E8128095B9CFED177536130`; installer/app/uninstaller đều Authenticode `Valid`; 410/410 payload verified; install/open/uninstall đạt; user-created sentinel sống sau uninstall.
 - Final local package: `F:\RIN APP\App-Auto-Edit_codex_2\private-artifacts\release-v0.1.0-rc1\PremiereAutoDialogueXml-internal-signed-20260804-054755-1048bec120e043d3bb820609b2adb83a`.
 - Draft release có 9 asset: installer, CER, certificate/installer/test/internal manifests, 2 hướng dẫn và `SHA256SUMS-INTERNAL.txt`. Release đang draft/prerelease; chưa public.
+- Phase 08 thêm shadow evidence đa mic chỉ để tư vấn, audit schema `1.4` và CSV review tiếng Việt được gom nhóm/xếp ưu tiên. Shadow evidence không thay `Status`, `Enabled`, gain, marker hay XML audio.
+- Package writer phát XML theo streaming để full HGE không giữ cây XML hàng trăm MB trong RAM. Pilot cuối: HGE2 `42,7 giây`/`174,2 MB`; full HGE `25 phút 6 giây`/`785,6 MB`, dưới cổng 90 phút/1,5 GB.
 
 ## Lỗi đã gặp và cách tránh
 
@@ -79,6 +81,7 @@ Ngày chốt: 2026-08-04 (Asia/Saigon). Đây là memory source-of-truth để m
 10. SignTool không ký app ở payload path quá dài (`File not found`). Fix: ký app bằng `Set-AuthenticodeSignature` trước khi tạo publish manifest/ZIP; Inno SignTool chỉ ký Setup/uninstaller ở path ngắn. Không chuyển việc ký app xuống sau manifest vì sẽ làm hash payload stale.
 11. Self-signed không tự tạo SmartScreen reputation và chưa trusted trên máy mới. Không gọi đây là chữ ký công cộng, không tuyên bố “virus-free”. Luôn phát hành checksum/provenance và hướng dẫn trust nội bộ.
 12. Inno Setup hiện yêu cầu xem xét commercial license nếu phát hành thương mại; dự án hiện private/internal. Recheck license trước khi thương mại hóa.
+13. Full HGE từng đạt peak `5,247 GB` do giữ đồng thời hai cây XML DOM; bỏ cây đọc lại còn `1,849 GB` vẫn chưa đạt. Fix đúng là generation plan + streaming writer từng fragment, không hạ cổng RAM; lượt cuối còn `785,6 MB` và XML/audit semantic không đổi.
 
 ## Quy tắc tiếp tục ở phiên mới
 
@@ -95,4 +98,4 @@ Ngày chốt: 2026-08-04 (Asia/Saigon). Đây là memory source-of-truth để m
 
 ## Trạng thái bàn giao
 
-Phase 00–07 hoàn tất, main/CI xanh, installer signed nội bộ đã hoạt động và signer đã được người dùng xác nhận trên máy đích. Việc hợp lý tiếp theo là một Phase 08 riêng cho yêu cầu nâng cấp mới; không còn công việc bắt buộc trong Phase 07.
+Phase 00–07 hoàn tất trên `main`; Phase 08 đã đạt code, regression, HGE2 và full HGE pilot trên `phase/08-review-queue`. HGE2 giữ 0 khác biệt semantic so với baseline, M19 vẫn Enabled/ưu tiên cao; full HGE phủ 97.453/97.453 marker mơ hồ vào 52.069 review group. Cần giữ PR `#10` ở draft cho tới khi CI của commit Phase 08 cuối cùng xanh; sau đó có thể chuyển ready/merge theo quyết định của chủ dự án.

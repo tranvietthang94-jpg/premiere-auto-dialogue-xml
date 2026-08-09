@@ -1,6 +1,6 @@
 # Phase 08 — Shadow evidence và danh sách review
 
-Trạng thái: `in-progress`.
+Trạng thái: `passed` ngày 2026-08-09.
 
 ## Mục tiêu
 
@@ -34,6 +34,39 @@ Trạng thái: `in-progress`.
 - XML, CSV và audit đều được ghi qua tệp tạm, đọc/kiểm tra lại rồi mới công bố vào thư mục run; lỗi giữa chừng xóa cả artifact tạm lẫn artifact đã di chuyển của run đó.
 - Bộ test Release đạt `104/104`. Ca hồi quy cố định UUID chứng minh thêm/bớt riêng shadow evidence làm audit/CSV thay đổi nhưng SHA-256 XML không đổi.
 
+## Implementation slice 3 — output streaming và đo tải thật
+
+- Lượt full HGE đầu tiên phát hiện peak toàn tiến trình `5.247,0 MB` trong lúc giữ đồng thời cây XML sinh mới và cây XML đọc lại; số `728,6 MB` chụp ngay sau analysis không được dùng thay peak toàn run.
+- Bỏ cây đọc lại giảm peak xuống `1.848,6 MB` nhưng vẫn vượt cổng `1,5 GB`. Cổng không được hạ; package writer được đổi sang lập generation plan rồi phát từng fragment trực tiếp qua `XmlWriter`.
+- Streaming writer chỉ giữ XML nguồn nhỏ và một fragment đang ghi; vẫn kiểm source SHA-256, số track/clip, ID duy nhất, coverage generation plan, số fragment/marker đã phát, SHA-256 file kết quả, DOCTYPE nguyên văn, well-formedness và root `xmeml`.
+- Ca hồi quy cố định UUID xác nhận XML streaming bằng XML DOM cũ trên fixture tổng hợp. Bộ test Release tăng lên `105/105`.
+- Tool pilot báo cả peak sau analysis lẫn peak toàn run và tên/số lượng review output, tránh lặp lại phép đo thiếu pha writer.
+
+## Kết quả pilot Phase 08A — 2026-08-09
+
+### HGE2
+
+- Input `test HGE2.xml` giữ SHA-256 `09FD290C5CB8401DEF7EA9701433F7BD1799B0300ABA9244A8BF88C022A8C897`; inspector có 7 warning metadata dự kiến và 0 error.
+- Run streaming hoàn tất trong `42,7 giây`, peak toàn tiến trình `174,2 MB`; có 2.132 phrase, 10.468 fragment và 4.775 marker.
+- So với candidate audit `1.3` Phase 07: 0 khác biệt semantic fragment và 0 khác biệt marker trên toàn bộ tập.
+- 3.578 marker mơ hồ được phủ đúng 3.578/3.578 vào 2.251 review group: 1.145 cao, 579 vừa, 527 thấp.
+- Có 2.096 shadow evidence: 1.387 `BelowThreshold`, 709 `NoComparableSpeech`; không có `LikelyBleed` hoặc `ConflictingEvidence` trên fixture này.
+- M19/A3 frame `11214–11218` vẫn `ambiguous`, Enabled và nằm trong group `R-T03-000048` ưu tiên cao; shadow outcome là `NoComparableSpeech`.
+- CSV đúng SHA-256 trong audit, có UTF-8 BOM và không chứa đường dẫn media tuyệt đối.
+
+### Full HGE
+
+- Input `test HGE.xml` giữ SHA-256 `4497FBBA2E6D5B834AA73929D6A3C6BADF9392BC1F0168E583411A9515ABCE90`; inspector có 27 warning compatibility dự kiến và 0 error.
+- Run streaming hoàn tất trong `25 phút 6 giây`, peak toàn tiến trình `785,6 MB`; đạt mục tiêu dưới 90 phút và dưới 1,5 GB.
+- Kết quả có 43.382 phrase, 253.590 fragment, 124.071 marker và 52.069 review group.
+- 97.453 marker mơ hồ được phủ đúng 97.453/97.453: 27.088 group cao, 10.986 vừa và 13.995 thấp.
+- Có 52.943 shadow evidence: 34.153 `BelowThreshold`, 18.790 `NoComparableSpeech`; không có `LikelyBleed` hoặc `ConflictingEvidence` trên fixture này.
+- So với lượt DOM cùng code ngay trước tối ưu, audit có 0 khác biệt semantic trên 9.062.247 dòng sau khi bỏ sáu trường run/ID ngẫu nhiên. CSV giống hệt với SHA-256 `8BE139B982B547EDBC8C9DA43DF252E157997CF2AD48781436A6DA7F7E8ED834`.
+- Hai XML đều dài 361.520.333 byte; phép so sánh 11.110.687 dòng sau khi chuẩn hóa sequence UUID và generated ID cho kết quả 0 khác biệt.
+- Run cuối không còn `.tmp` và chỉ công bố đúng XML, audit và CSV trong thư mục run mới.
+
+Toàn bộ media, audit đầy đủ, CSV và XML pilot được giữ ngoài Git dưới `private-artifacts/phase08-*`; không file dữ liệu thật nào được commit.
+
 ## Hợp đồng an toàn đã khóa
 
 - Shadow evidence không được đổi `Status`, `Enabled`, phrase gain, marker hoặc XML audio output.
@@ -44,11 +77,12 @@ Trạng thái: `in-progress`.
 
 ## Cổng nghiệm thu Phase 08A
 
-- Toàn bộ test Release hiện có và test mới đạt.
-- HGE2 giữ nguyên về mặt semantic toàn bộ fragment status, Enabled/Disabled, phrase gain và marker so với baseline Phase 07.
-- M19 vẫn Enabled và xuất hiện trong review mức ưu tiên cao.
-- Mọi marker mơ hồ được ánh xạ vào đúng một review group; không mất coverage khi gộp.
-- CSV UTF-8 mở được với tiếng Việt, không chứa đường dẫn media tuyệt đối và luôn kèm frame/timecode để editor tra trong Premiere.
+- Đạt: toàn bộ `105/105` test Release hiện có và test mới đạt.
+- Đạt: HGE2 giữ nguyên semantic toàn bộ fragment status, Enabled/Disabled, phrase gain và marker so với baseline Phase 07.
+- Đạt: M19 vẫn Enabled và xuất hiện trong review mức ưu tiên cao.
+- Đạt: mọi marker mơ hồ trên HGE2 và full HGE được ánh xạ vào đúng một review group; không mất coverage khi gộp.
+- Đạt: CSV UTF-8 tiếng Việt không chứa đường dẫn media tuyệt đối và luôn kèm frame/timecode để editor tra trong Premiere.
+- Đạt: full HGE hoàn tất dưới 90 phút và peak RAM dưới 1,5 GB.
 - Nếu XML audio thay đổi ngoài dự kiến, dừng Phase 08A và mở cổng Premiere round-trip mới; không âm thầm chấp nhận khác biệt.
 
 ## Ngoài phạm vi
