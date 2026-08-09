@@ -57,6 +57,74 @@ public sealed class ConservativeVadAnalysisMergerTests
         Assert.AreEqual(1, comparison.LegacyDisabledCandidateEnabledCount);
     }
 
+    [TestMethod]
+    public void MergeKeepsWholeLegacyPhraseWhenOnlyItsTailNeedsSafetyFallback()
+    {
+        var legacyPhrase = Phrase("T01-P000001", 0, 4_800, -12, 9.01f);
+        var candidatePhrase = Phrase("T01-P000001", 0, 2_400, -9, 6.01f);
+        var legacy = Analysis(
+            [legacyPhrase],
+            [Segment(0, 4_800, AudioSegmentStatus.Speech, legacyPhrase.Id, legacyPhrase.AppliedGainDb, "confirmed-direct-speech")]);
+        var candidate = Analysis(
+            [candidatePhrase],
+            [
+                Segment(0, 2_400, AudioSegmentStatus.Speech, candidatePhrase.Id, candidatePhrase.AppliedGainDb, "confirmed-direct-speech"),
+                Segment(2_400, 4_800, AudioSegmentStatus.Noise, null, null, "vad-negative-noise")
+            ]);
+
+        var (merged, comparison) = ConservativeVadAnalysisMerger.Merge(
+            legacy,
+            candidate,
+            observationCount: 4,
+            changedObservationCount: 4,
+            maximumProbabilityDelta: 0.8f);
+
+        var phrase = merged.Phrases.Single();
+        Assert.AreEqual("T01-P000001-legacy-safety", phrase.Id);
+        Assert.AreEqual(legacyPhrase.MeasuredPeakDbfs, phrase.MeasuredPeakDbfs);
+        Assert.IsTrue(merged.Segments.All(segment => segment.PhraseId == phrase.Id));
+        Assert.IsTrue(merged.Segments.All(segment => segment.GainDb == legacyPhrase.AppliedGainDb));
+        Assert.AreEqual(AudioSegmentStatus.Speech, merged.Segments[0].Status);
+        Assert.AreEqual(AudioSegmentStatus.Ambiguous, merged.Segments[1].Status);
+        Assert.AreEqual(1, comparison.LegacyEnabledCandidateDisabledCount);
+    }
+
+    [TestMethod]
+    public void MergeKeepsCandidateOnlyAudioAsUnityAmbiguousInsideProtectedComponent()
+    {
+        var legacyPhrase = Phrase("T01-P000001", 0, 2_400, -12, 9.01f);
+        var candidatePhrase = Phrase("T01-P000001", 1_200, 4_800, -9, 6.01f);
+        var legacy = Analysis(
+            [legacyPhrase],
+            [
+                Segment(0, 2_400, AudioSegmentStatus.Speech, legacyPhrase.Id, legacyPhrase.AppliedGainDb, "confirmed-direct-speech"),
+                Segment(2_400, 4_800, AudioSegmentStatus.Noise, null, null, "vad-negative-noise")
+            ]);
+        var candidate = Analysis(
+            [candidatePhrase],
+            [
+                Segment(0, 1_200, AudioSegmentStatus.Noise, null, null, "vad-negative-noise"),
+                Segment(1_200, 4_800, AudioSegmentStatus.Speech, candidatePhrase.Id, candidatePhrase.AppliedGainDb, "confirmed-direct-speech")
+            ]);
+
+        var (merged, comparison) = ConservativeVadAnalysisMerger.Merge(
+            legacy,
+            candidate,
+            observationCount: 4,
+            changedObservationCount: 4,
+            maximumProbabilityDelta: 0.8f);
+
+        var candidateOnly = merged.Segments.Single(segment => segment.TimelineStartSample == 2_400);
+        Assert.AreEqual(AudioSegmentStatus.Ambiguous, candidateOnly.Status);
+        Assert.AreEqual("ambiguous-vad-front-end-candidate-only-in-legacy-fallback", candidateOnly.Reason);
+        Assert.IsNull(candidateOnly.PhraseId);
+        Assert.AreEqual(0f, candidateOnly.GainDb);
+        Assert.AreEqual(1, comparison.LegacyEnabledCandidateDisabledCount);
+        Assert.AreEqual(1, comparison.LegacyDisabledCandidateEnabledCount);
+        Assert.HasCount(1, merged.Phrases);
+        Assert.AreEqual("T01-P000001-legacy-safety", merged.Phrases[0].Id);
+    }
+
     private static TrackAudioAnalysis Analysis(
         IReadOnlyList<DialoguePhrase> phrases,
         IReadOnlyList<AnalyzedAudioSegment> segments) =>
