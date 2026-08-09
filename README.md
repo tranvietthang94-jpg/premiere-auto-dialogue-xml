@@ -25,7 +25,7 @@ Kế hoạch triển khai và tiêu chí nghiệm thu nằm trong [docs/IMPLEMEN
 
 ## Trạng thái
 
-Phase 00–07 đã hoàn tất. Candidate audit `1.3` đã qua Premiere round-trip A1–A7, kiểm tra phục hồi clip Disable, package self-contained, một lượt phân tích trên máy Windows 11 khác và một lượt phân tích trên máy ảo Windows 10 x64 mới cài. Cổng nhãn nghe Mục tiêu được chủ dự án miễn; vì vậy dự án không tuyên bố các tỷ lệ 100%/90%/0% chưa đo. Installer Inno Setup self-contained đã qua cài/mở/phân tích trên máy nội bộ; máy đích cũng xác nhận đúng signer Authenticode tự ký `Premiere Auto Dialogue XML Internal`.
+Phase 00–08 đã hoàn tất trên `main`. Candidate Phase 09 trên branch riêng đã thêm resampler chống alias, shadow gate bảo thủ và validator trước XML; đạt 120/120 test, HGE2/full HGE, publish và installer smoke test mà không làm mất frame Enabled của baseline. Vì XML audio thay đổi đáng kể, candidate vẫn đang chờ Premiere PCM/re-export round-trip mới trước khi được merge/adopt; xem [docs/PHASE09_AUDIO_XML_HARDENING.md](docs/PHASE09_AUDIO_XML_HARDENING.md). Cổng nhãn nghe Mục tiêu được chủ dự án miễn, nên dự án không tuyên bố các tỷ lệ 100%/90%/0% chưa đo. RC1 hiện hành vẫn là bản đã qua Premiere round-trip A1–A7 và xác minh installer/signer nội bộ.
 
 ## Hệ điều hành mục tiêu
 

@@ -1,6 +1,6 @@
 # Phase 09 — Làm chắc lõi xử lý âm thanh và XML
 
-Trạng thái: `kickoff` ngày 2026-08-09.
+Trạng thái: `implementation-complete; premiere-round-trip-pending` ngày 2026-08-09. Candidate đã đạt toàn bộ gate tự động nhưng chưa được merge/adopt làm output chính thức vì XML audio đã thay đổi và chưa có PCM/re-export mới từ Premiere.
 
 ## Quyết định sản phẩm
 
@@ -12,7 +12,7 @@ Audit và CSV Phase 08 vẫn được giữ như bằng chứng kỹ thuật có
 
 Nâng độ tin cậy của đầu vào VAD và lớp bảo vệ trước khi một vùng âm thanh bị Disable, đồng thời giữ nguyên hợp đồng gain/XML đã được Premiere round-trip xác nhận.
 
-Phase 09 bắt đầu từ một khoản nợ DSP cụ thể: `TrackAudioScanner` hiện đưa PCM 48 kHz về 16 kHz cho Silero bằng cách lấy mỗi mẫu thứ ba. Cách decimation trực tiếp này không có bộ lọc chống alias, nên năng lượng trên 8 kHz có thể gập xuống dải VAD và làm bằng chứng speech/noise kém ổn định. Việc sửa phải được thực hiện theo chế độ so sánh bảo thủ; không được âm thầm đổi hàng loạt XML chỉ vì thay front-end.
+Phase 09 bắt đầu từ một khoản nợ DSP cụ thể: baseline `TrackAudioScanner` đưa PCM 48 kHz về 16 kHz cho Silero bằng cách lấy mỗi mẫu thứ ba. Cách decimation trực tiếp này không có bộ lọc chống alias, nên năng lượng trên 8 kHz có thể gập xuống dải VAD và làm bằng chứng speech/noise kém ổn định. Candidate đã thay front-end theo chế độ so sánh bảo thủ; không âm thầm cho phép front-end mới làm mất vùng legacy Enabled.
 
 ## Phạm vi triển khai
 
@@ -67,13 +67,54 @@ Phase 09 bắt đầu từ một khoản nợ DSP cụ thể: `TrackAudioScanner
 
 ## Cổng nghiệm thu Phase 09
 
-- Toàn bộ `105/105` test Release hiện có tiếp tục đạt; test mới bao phủ resampler và validator.
+- Toàn bộ `120/120` test Release đạt; test mới bao phủ resampler, shadow merge, validator và frame-safe phrase supersession.
 - Kết quả không phụ thuộc kích thước block PCM hoặc số worker.
 - Không có legacy Enabled → candidate Disabled khi pipeline bất đồng.
 - M19 vẫn được giữ; mọi ambiguous vẫn Enabled.
 - HGE2/full HGE đạt cổng runtime/RAM hiện hành.
 - Khi XML thay đổi, Premiere round-trip mới đạt timing/gain theo đúng giới hạn bằng chứng; không suy rộng thành LUFS, true peak, limiter hoặc Master-bus guarantee.
 - Publish self-contained và installer Windows tiếp tục đạt, không thêm Python, Internet, telemetry hoặc model download.
+
+## Kết quả triển khai và bằng chứng tự động
+
+### DSP, shadow gate và validator
+
+- `StreamingFirDecimator3` thực hiện FIR streaming 127 tap, cửa sổ Blackman, cutoff 7 kHz và decimation 3. Output không phụ thuộc biên block; passband lệch dưới `0,05 dB`; tone 12 kHz bị suy giảm hơn `60 dB`; reset xóa đúng state; mỗi 32 ms tạo đúng 512 mẫu VAD.
+- Mỗi track được chạy qua cả `LegacyStride3` và `AntiAliasFir`. Khi legacy Enabled nhưng candidate Disabled, kết quả cuối được giữ Enabled dưới trạng thái `ambiguous-vad-front-end-disagreement`; candidate chỉ được phép mở thêm vùng mà legacy từng Disable.
+- Audit schema tăng từ `1.4` lên `1.5` và ghi toàn bộ chênh lệch front-end. `OutputDecisionContractValidator` dừng trước khi công bố artifact nếu vi phạm Enabled/status, coverage, gain/target/cap hoặc marker bảo vệ.
+- Validator cho phép phrase ID bị thay thế do căn frame chỉ khi toàn bộ lõi phrase vẫn được phủ bởi fragment speech/ambiguous Enabled; chỉ một frame Disabled cũng làm run thất bại.
+
+### Pilot HGE2
+
+- Run private: `phase09-hge2-pilot-20260809-2`; runtime `82,105 giây`, peak working set `202,1 MB`, 0 error, 7 warning metadata dự kiến.
+- Output có 2.389 phrase, 10.813 fragment, 5.302 marker và 2.354 review group. XML SHA-256 `DE06C3DF1BC188219E06BBF57FAF2341ABFA20EBF09089D4213B05913598FAF8`; audit SHA-256 `16C1545475C042C53CDDB6BADCF1097DB2B83A5850F026121B3E64FD3405FEE3`.
+- So với baseline Phase 08 trên cùng source SHA-256 `09FD290C5CB8401DEF7EA9701433F7BD1799B0300ABA9244A8BF88C022A8C897`: coverage mismatch `0`, legacy Enabled bị mất `0 interval / 0 frame`, giữ thêm 2.431 interval / 8.333 frame, tệp tạm `0`.
+- M19/A3 frame `11214–11218` vẫn Enabled; một phần được bảo vệ bằng `ambiguous-vad-front-end-disagreement`, phần còn lại là `ambiguous-independent`.
+- Front-end comparison: 454.471 observation; 448.901 probability thay đổi; 7.600 segment difference; 454 trường hợp legacy Enabled/candidate Disabled đều được fail-safe giữ lại; 3.151 trường hợp legacy Disabled/candidate Enabled được mở thêm.
+
+### Pilot full HGE
+
+- Run private: `phase09-full-hge-pilot-20260809-1`; hoàn tất trong `2.348,623 giây` (`39 phút 8,6 giây`), peak working set `1.024,2 MB`, 0 error, 27 warning metadata dự kiến. Cả runtime và RAM đều dưới gate `90 phút / 1,5 GB`.
+- Output có 48.028 phrase, 246.363 fragment, 128.298 marker và 50.901 review group. XML SHA-256 `44609409B647C0AEB619DD7B05B6F287CAD2F3EA313E05C81F3C5BAF7D9CA687`; audit SHA-256 `B8D82AAC0705B3D9B3FB277F82706754B29FB3BAC3E6CB1281EAE22525BD9612`.
+- So với baseline Phase 08 trên cùng source SHA-256 `4497FBBA2E6D5B834AA73929D6A3C6BADF9392BC1F0168E583411A9515ABCE90`: coverage mismatch `0`, legacy Enabled bị mất `0 interval / 0 frame`, giữ thêm 55.281 interval / 189.571 frame, tệp tạm `0`.
+- Front-end comparison: 9.503.287 observation; 9.442.728 probability thay đổi; 204.507 segment difference; 12.327 trường hợp legacy Enabled/candidate Disabled đều được fail-safe giữ lại; 72.168 trường hợp legacy Disabled/candidate Enabled được mở thêm.
+- Việc mở thêm nhiều vùng chứng minh policy bảo thủ hoạt động, không chứng minh độ chính xác nhận diện đã tăng. Không có Target listening labels hợp lệ nên không báo phần trăm speech/noise/bleed.
+
+### Đóng gói
+
+- Release test đạt `120/120` test.
+- Publish `win-x64` self-contained giữ đúng 410 payload file. Installer unsigned thử nghiệm được tạo bằng Inno Setup 7.0.2, SHA-256 `225AD65E68D6806AC8426E4C39A8907CDD527E431E2154A7C0BA8A18A3C35CC8`.
+- Smoke test installer đạt: cài, xác minh `410/410` file, mở app, gỡ payload, giữ file người dùng tạo và xóa đúng HKCU uninstall entry. Installer này chỉ là bằng chứng kỹ thuật private, không thay RC1 và không được phát hành.
+
+### Công cụ đối chiếu lặp lại được
+
+`tools/PremiereAutoDialogueXml.CompareAudits` đọc hai audit theo luồng, xác minh source/output hash, timeline coverage, status/Enabled, tệp tạm và thống kê mọi transition ở các biên frame hợp nhất. Gate thất bại nếu candidate làm mất bất kỳ frame legacy Enabled nào.
+
+## Cổng còn lại trước khi merge/adopt
+
+Candidate thay đổi XML audio đáng kể, nên bằng chứng PCM Phase 06/08 không được tái sử dụng. Cần import XML HGE2 Phase 09 vào một project Premiere thử riêng, export đủ A1–A7 thành mono PCM 48 kHz, chạy `PremiereAutoDialogueXml.VerifyPcm` cho từng track, xác nhận M19 nghe được và re-export XML. Chỉ sau khi gain/timing/Disable/marker đạt theo hash audit `1.5` mới đổi trạng thái Phase 09 thành `passed`, chuyển PR khỏi draft và cân nhắc merge.
+
+Khả năng automation Windows trong phiên triển khai không cung cấp API hướng dẫn/xác nhận bắt buộc của skill, nên không thao tác Premiere mù. Đây là gate bằng chứng đang chờ, không phải lỗi code hay lý do hạ tiêu chuẩn nghiệm thu.
 
 ## Các nâng cấp tiếp theo được đề xuất
 
@@ -109,6 +150,6 @@ Phase 09 bắt đầu từ một khoản nợ DSP cụ thể: `TrackAudioScanner
 - Mọi tối ưu phải cho 0 khác biệt semantic trên fixture cố định trước khi nhận kết quả nhanh hơn.
 - Phase 08 đã đạt `25 phút 6 giây` và `785,6 MB`, nên tốc độ xếp sau độ chính xác âm thanh.
 
-## Bước triển khai đầu tiên
+## Bước tiếp theo
 
-Thực hiện Slice 09A: viết test mô tả chính xác hành vi decimation hiện tại, chốt hợp đồng resampler streaming và tạo shadow comparator. Chưa đổi XML product cho tới khi difference report cho HGE2/full HGE và cổng bảo vệ legacy Enabled đã hoạt động.
+Hoàn thành Premiere round-trip HGE2 cho đúng XML/audit Phase 09 nói trên. Không bắt đầu Phase 10 và không merge candidate trước khi gate này được đóng hoặc chủ dự án đưa ra quyết định waiver tường minh.
