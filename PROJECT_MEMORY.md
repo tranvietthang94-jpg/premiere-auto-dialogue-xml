@@ -76,6 +76,7 @@ Ngày chốt: 2026-08-09 (Asia/Saigon). Đây là memory source-of-truth để m
 - Comparator độc lập xác nhận HGE2 và full HGE cùng source hash với Phase 08, coverage mismatch 0, legacy Enabled bị mất `0 interval/0 frame`, tệp tạm 0. HGE2 mở thêm 2.431 interval/8.333 frame; full HGE mở thêm 55.281 interval/189.571 frame. M19/A3 frame 11214–11218 vẫn Enabled.
 - Full HGE XML SHA-256 `44609409B647C0AEB619DD7B05B6F287CAD2F3EA313E05C81F3C5BAF7D9CA687`; audit SHA-256 `B8D82AAC0705B3D9B3FB277F82706754B29FB3BAC3E6CB1281EAE22525BD9612`. HGE2 XML SHA-256 `DE06C3DF1BC188219E06BBF57FAF2341ABFA20EBF09089D4213B05913598FAF8`; audit SHA-256 `16C1545475C042C53CDDB6BADCF1097DB2B83A5850F026121B3E64FD3405FEE3`.
 - Publish giữ 410 payload; installer unsigned private SHA-256 `225AD65E68D6806AC8426E4C39A8907CDD527E431E2154A7C0BA8A18A3C35CC8` qua cài/mở/xác minh 410/410/gỡ/sentinel/registry. Nó không thay RC1 và không được phát hành.
+- GitHub Actions PR run `31299251441` đạt trong 3 phút 1 giây: restore/build/120 test/publish/Inno Setup/installer/upload đều xanh.
 - Candidate thay XML audio đáng kể nên bắt buộc import HGE2 Phase 09 vào Premiere, export PCM A1–A7, chạy `VerifyPcm`, kiểm M19 và re-export XML theo audit `1.5`. Không tái gắn PCM cũ. Cho tới khi đạt gate này, Phase 09 là `implementation-complete; premiere-round-trip-pending`, PR giữ draft và `main` vẫn ở Phase 08.
 
 ## Lỗi đã gặp và cách tránh

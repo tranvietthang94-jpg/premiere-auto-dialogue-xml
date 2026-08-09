@@ -105,6 +105,7 @@ Phase 09 bắt đầu từ một khoản nợ DSP cụ thể: baseline `TrackAud
 - Release test đạt `120/120` test.
 - Publish `win-x64` self-contained giữ đúng 410 payload file. Installer unsigned thử nghiệm được tạo bằng Inno Setup 7.0.2, SHA-256 `225AD65E68D6806AC8426E4C39A8907CDD527E431E2154A7C0BA8A18A3C35CC8`.
 - Smoke test installer đạt: cài, xác minh `410/410` file, mở app, gỡ payload, giữ file người dùng tạo và xóa đúng HKCU uninstall entry. Installer này chỉ là bằng chứng kỹ thuật private, không thay RC1 và không được phát hành.
+- GitHub Actions PR run `31299251441` đạt trong `3 phút 1 giây`: restore, build, `120/120` test, publish self-contained, xác minh Inno Setup 7, build/cài/gỡ installer và upload artifact đều thành công.
 
 ### Công cụ đối chiếu lặp lại được
 
