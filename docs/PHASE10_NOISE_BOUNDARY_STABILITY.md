@@ -1,6 +1,6 @@
 # Phase 10 — Ổn định noise floor và ranh giới câu
 
-Trạng thái: `Slice 10A implemented; shadow-only` ngày 2026-08-11 trên branch `codex/phase10-noise-boundary-stability`. Phase này bắt đầu từ `main` commit `06ad4d6`; baseline logic audio/XML là Phase 09 merge commit `50ee4f9`. Slice 10A thêm corpus, trace và comparator nghiên cứu; chưa thay đổi thuật toán hoặc XML output.
+Trạng thái: `Slice 10B implemented; candidate shadow-only` ngày 2026-08-11 trên branch `codex/phase10-noise-boundary-stability`. Phase này bắt đầu từ `main` commit `06ad4d6`; baseline logic audio/XML là Phase 09 merge commit `50ee4f9`. Slice 10A–10B thêm corpus, trace, comparator và estimator candidate; đường production/ XML output chưa thay đổi.
 
 ## Quyết định sản phẩm
 
@@ -95,6 +95,17 @@ Kết quả triển khai 10A:
 - Floor luôn finite và nằm trong `[AudioMath.SilenceDbfs, 0]`; không NaN/Infinity hoặc phụ thuộc cách chia block.
 - Candidate dùng attack/release bất đối xứng cho floor tăng/giảm. Tham số chỉ được khóa sau test step-response; audit phải ghi rõ giá trị và version policy.
 
+Kết quả triển khai 10B:
+
+- Policy candidate được khóa là `phase10-background-eligible-p20-v1`: cửa sổ `512`, percentile `20`, initial floor `-90 dBFS`, warm-up `8 frame = 256 ms`, floor-rise smoothing `0,05`, floor-fall smoothing `0,20`.
+- Frame hiện tại luôn dùng `floorBefore` để tính direct/high-energy. Chỉ sau quyết định đó estimator mới xét update; VAD speech, no-media, level không finite và high-energy conflict đều không được học như background.
+- Warm-up chỉ thu thập candidate; chưa thay trusted floor trước frame thứ 8. Vùng warm-up vượt `floorBefore + 10 dB` trở thành `WarmupAmbiguous`, Enabled với reason `ambiguous-noise-floor-warmup`, nên loud-first-frame không tự học chính nó rồi bị coi là Noise.
+- Để estimator vẫn theo kịp room-tone tăng thật, một step VAD-negative chỉ được promote sau `16 frame = 512 ms` liên tục có spread tối đa `3 dB`. Trước mốc này floor đứng yên; sau mốc dùng rise `0,05`. Floor giảm dùng release `0,20` khi percentile window chuyển xuống.
+- Floor được clamp trong `[-144, 0] dBFS`; NaN/Infinity bị loại và không đổi state. Trace ghi policy version/tham số, readiness trước/sau, eligibility và floor trước/sau; comparator từ chối trace sai policy provenance.
+- Synthetic step-response xác nhận rise/fall đơn điệu, không overshoot; repeated-run deterministic; conflict 4 frame sau warm-up không nâng floor; outlier loud-first không làm lệch floor bootstrap.
+- Candidate vẫn chỉ chạy qua `AnalyzeShadow`. App production vẫn gọi `Analyze` → `Phase09Baseline`, không capture trace và không đưa candidate vào status/gain/marker/audit/XML. Policy sẽ được ghi vào audit `1.6` khi shadow được tích hợp ở 10D.
+- Release đạt `137/137` test; build không warning/error; `dotnet format --verify-no-changes` sạch. Chưa chạy HGE2/full HGE/Premiere vì 10B chưa tạo XML candidate.
+
 ### Slice 10C — VAD start/continue hysteresis
 
 - Start threshold giữ `0,50`.
@@ -160,4 +171,4 @@ Kết quả triển khai 10A:
 
 ## Bước tiếp theo
 
-Thực hiện riêng Slice 10B trên mode `NoiseBoundaryCandidate`: dùng floor trước frame để đánh giá frame hiện tại, chỉ học từ background đủ điều kiện, thêm warm-up fail-safe và khóa attack/release bằng step-response. Candidate vẫn shadow-only; chưa adopt vào XML trước comparator và các gate bảo thủ của 10D.
+Thực hiện riêng Slice 10C trên mode `NoiseBoundaryCandidate`: thêm VAD start/continue hysteresis với start giữ `0,50`, khóa continue threshold bằng synthetic response, không bridge gap `>=350 ms` và không hạ direct evidence `120 ms`. Candidate vẫn shadow-only; chưa adopt vào XML trước comparator/audit và các gate bảo thủ của 10D.

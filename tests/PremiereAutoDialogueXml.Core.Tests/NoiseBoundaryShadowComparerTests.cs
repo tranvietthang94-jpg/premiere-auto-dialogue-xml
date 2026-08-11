@@ -43,6 +43,29 @@ public sealed class NoiseBoundaryShadowComparerTests
             NoiseBoundaryShadowComparer.Compare(baseline, candidate));
     }
 
+    [TestMethod]
+    public void CompareRejectsCandidateTraceWithBaselinePolicy()
+    {
+        var baseline = Analysis(
+            NoiseBoundaryAnalysisMode.Phase09Baseline,
+            AudioSegmentStatus.Ambiguous,
+            "baseline");
+        var candidate = Analysis(
+            NoiseBoundaryAnalysisMode.NoiseBoundaryCandidate,
+            AudioSegmentStatus.Ambiguous,
+            "candidate");
+        candidate = candidate with
+        {
+            NoiseBoundaryTrace = candidate.NoiseBoundaryTrace! with
+            {
+                Policy = NoiseFloorPolicyCatalog.Phase09Baseline
+            }
+        };
+
+        Assert.ThrowsExactly<InvalidDataException>(() =>
+            NoiseBoundaryShadowComparer.Compare(baseline, candidate));
+    }
+
     private static TrackAudioAnalysis Analysis(
         NoiseBoundaryAnalysisMode mode,
         AudioSegmentStatus status,
@@ -69,6 +92,7 @@ public sealed class NoiseBoundaryShadowComparerTests
             NoiseBoundaryTrace = new(
                 TrackIndex: 1,
                 Mode: mode,
+                Policy: NoiseFloorPolicyCatalog.For(mode),
                 Frames:
                 [
                     new(
@@ -78,11 +102,14 @@ public sealed class NoiseBoundaryShadowComparerTests
                         RmsDbfs: -60f,
                         NoiseFloorBeforeDbfs: -90f,
                         NoiseFloorAfterDbfs: -60f,
+                        NoiseFloorReadyBefore: false,
+                        NoiseFloorReadyAfter: true,
                         NoiseFloorTrainingDecision:
                             NoiseFloorTrainingDecision.EligibleVadNegative,
                         IsVadSpeech: false,
                         IsDirectEvidence: false,
                         IsAboveDirectEnergyThreshold: false,
+                        IsWarmupUncertain: false,
                         BoundaryState: NoiseBoundaryFrameState.VadNegative)
                 ])
         };

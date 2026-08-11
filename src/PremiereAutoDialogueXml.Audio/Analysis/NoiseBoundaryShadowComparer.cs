@@ -25,6 +25,12 @@ public static class NoiseBoundaryShadowComparer
             throw new InvalidDataException("Noise-boundary trace không đúng baseline/candidate mode.");
         }
 
+        if (baselineTrace.Policy != NoiseFloorPolicyCatalog.Phase09Baseline ||
+            candidateTrace.Policy != NoiseFloorPolicyCatalog.NoiseBoundaryCandidate)
+        {
+            throw new InvalidDataException("Noise-boundary trace không đúng policy provenance.");
+        }
+
         if (baselineTrace.TrackIndex != baseline.TrackIndex ||
             candidateTrace.TrackIndex != candidate.TrackIndex ||
             baselineTrace.Frames.Count != candidateTrace.Frames.Count)
@@ -54,6 +60,8 @@ public static class NoiseBoundaryShadowComparer
             baseline.TrackIndex,
             baselineTrace.Mode,
             candidateTrace.Mode,
+            baselineTrace.Policy.Version,
+            candidateTrace.Policy.Version,
             baselineTrace.Frames.Count,
             frameDifferences.Count,
             CountPhraseDifferences(baseline.Phrases, candidate.Phrases),
@@ -73,10 +81,13 @@ public static class NoiseBoundaryShadowComparer
         MathF.Abs(baseline.RmsDbfs - candidate.RmsDbfs) <= FloatTolerance &&
         MathF.Abs(baseline.NoiseFloorBeforeDbfs - candidate.NoiseFloorBeforeDbfs) <= FloatTolerance &&
         MathF.Abs(baseline.NoiseFloorAfterDbfs - candidate.NoiseFloorAfterDbfs) <= FloatTolerance &&
+        baseline.NoiseFloorReadyBefore == candidate.NoiseFloorReadyBefore &&
+        baseline.NoiseFloorReadyAfter == candidate.NoiseFloorReadyAfter &&
         baseline.NoiseFloorTrainingDecision == candidate.NoiseFloorTrainingDecision &&
         baseline.IsVadSpeech == candidate.IsVadSpeech &&
         baseline.IsDirectEvidence == candidate.IsDirectEvidence &&
         baseline.IsAboveDirectEnergyThreshold == candidate.IsAboveDirectEnergyThreshold &&
+        baseline.IsWarmupUncertain == candidate.IsWarmupUncertain &&
         baseline.BoundaryState == candidate.BoundaryState;
 
     private static int CountPhraseDifferences(

@@ -91,6 +91,13 @@ public sealed class TrackDialogueAnalyzer(TimelinePcmAccessor pcmAccessor)
         }
 
         ambiguous = MergeIntervals(ambiguous, maximumGapSamples: 0);
+        var warmupUncertain = MergeIntervals(
+            evidence
+                .Where(frame => frame.IsWarmupUncertain)
+                .Select(frame => new TimelineInterval(
+                    frame.Observation.TimelineStartSample,
+                    frame.Observation.TimelineEndSample)),
+            maximumGapSamples: 0);
         var energyVadConflicts = preset.PreserveVadNegativeHighEnergyConflicts
             ? BuildEnergyVadConflictIntervals(evidence, minimumSpeechSamples)
             : [];
@@ -107,7 +114,12 @@ public sealed class TrackDialogueAnalyzer(TimelinePcmAccessor pcmAccessor)
             ? AudioMath.SilenceDbfs
             : confirmedFrameRms[confirmedFrameRms.Length / 2];
 
-        var segments = BuildClipSegments(track, phrases, ambiguous, energyVadConflicts);
+        var segments = BuildClipSegments(
+            track,
+            phrases,
+            ambiguous,
+            energyVadConflicts,
+            warmupUncertain);
         (phrases, segments) = ReconcileGainWithFrameAlignedOutput(
             track,
             phrases,
@@ -128,10 +140,12 @@ public sealed class TrackDialogueAnalyzer(TimelinePcmAccessor pcmAccessor)
                     track.Index,
                     mode,
                     preset.VadThreshold,
+                    evidenceWithTrace.Policy,
                     evidence,
                     evidenceWithTrace.NoiseFloorTrace,
                     confirmedGroups,
-                    energyVadConflicts)
+                    energyVadConflicts,
+                    warmupUncertain)
             };
     }
 
@@ -139,10 +153,12 @@ public sealed class TrackDialogueAnalyzer(TimelinePcmAccessor pcmAccessor)
         int trackIndex,
         NoiseBoundaryAnalysisMode mode,
         double vadThreshold,
+        NoiseFloorPolicyDescriptor policy,
         IReadOnlyList<AudioFrameEvidence> evidence,
         IReadOnlyList<NoiseFloorFrameSnapshot> noiseFloorTrace,
         IReadOnlyList<CandidateGroup> confirmedGroups,
-        IReadOnlyList<TimelineInterval> energyVadConflicts)
+        IReadOnlyList<TimelineInterval> energyVadConflicts,
+        IReadOnlyList<TimelineInterval> warmupUncertain)
     {
         if (evidence.Count != noiseFloorTrace.Count)
         {
@@ -165,7 +181,9 @@ public sealed class TrackDialogueAnalyzer(TimelinePcmAccessor pcmAccessor)
                            ((observation.TimelineEndSample - observation.TimelineStartSample) / 2);
             var state = !observation.ContainsMedia
                 ? NoiseBoundaryFrameState.NoMedia
-                : energyVadConflicts.Any(interval => interval.Contains(midpoint))
+                : warmupUncertain.Any(interval => interval.Contains(midpoint))
+                    ? NoiseBoundaryFrameState.WarmupAmbiguous
+                    : energyVadConflicts.Any(interval => interval.Contains(midpoint))
                     ? NoiseBoundaryFrameState.EnergyConflictAmbiguous
                     : frame.IsVadSpeech
                         ? confirmedFrames.Contains((
@@ -184,14 +202,17 @@ public sealed class TrackDialogueAnalyzer(TimelinePcmAccessor pcmAccessor)
                 observation.RmsDbfs,
                 floor.NoiseFloorBeforeDbfs,
                 floor.NoiseFloorAfterDbfs,
+                floor.NoiseFloorReadyBefore,
+                floor.NoiseFloorReadyAfter,
                 floor.TrainingDecision,
                 frame.IsVadSpeech,
                 frame.IsDirectEvidence,
                 frame.IsAboveDirectEnergyThreshold,
+                frame.IsWarmupUncertain,
                 state);
         }
 
-        return new(trackIndex, mode, frames);
+        return new(trackIndex, mode, policy, frames);
     }
 
     private (IReadOnlyList<DialoguePhrase> Phrases, IReadOnlyList<AnalyzedAudioSegment> Segments)
@@ -384,6 +405,7 @@ public sealed class TrackDialogueAnalyzer(TimelinePcmAccessor pcmAccessor)
                     .Where(frame =>
                         frame.Observation.ContainsMedia &&
                         !frame.IsVadSpeech &&
+                        !frame.IsStableFloorStep &&
                         frame.IsAboveDirectEnergyThreshold)
                     .Select(frame => new TimelineInterval(
                         frame.Observation.TimelineStartSample,
@@ -486,7 +508,8 @@ public sealed class TrackDialogueAnalyzer(TimelinePcmAccessor pcmAccessor)
         PremiereAudioTrack track,
         IReadOnlyList<DialoguePhrase> phrases,
         IReadOnlyList<TimelineInterval> ambiguous,
-        IReadOnlyList<TimelineInterval> energyVadConflicts)
+        IReadOnlyList<TimelineInterval> energyVadConflicts,
+        IReadOnlyList<TimelineInterval> warmupUncertain)
     {
         var segments = new List<AnalyzedAudioSegment>();
 
@@ -516,6 +539,12 @@ public sealed class TrackDialogueAnalyzer(TimelinePcmAccessor pcmAccessor)
                 AddBoundaryIfInside(boundaries, interval.EndSample, clipStart, clipEnd);
             }
 
+            foreach (var interval in warmupUncertain)
+            {
+                AddBoundaryIfInside(boundaries, interval.StartSample, clipStart, clipEnd);
+                AddBoundaryIfInside(boundaries, interval.EndSample, clipStart, clipEnd);
+            }
+
             var ordered = boundaries.ToArray();
             for (var index = 0; index + 1 < ordered.Length; index++)
             {
@@ -524,8 +553,11 @@ public sealed class TrackDialogueAnalyzer(TimelinePcmAccessor pcmAccessor)
                 var midpoint = start + ((end - start) / 2);
                 var phrase = phrases.FirstOrDefault(
                     candidate => midpoint >= candidate.PaddedStartSample && midpoint < candidate.PaddedEndSample);
+                var isWarmupUncertain = warmupUncertain.Any(interval => interval.Contains(midpoint));
                 var isEnergyVadConflict = energyVadConflicts.Any(interval => interval.Contains(midpoint));
-                var isAmbiguous = isEnergyVadConflict || ambiguous.Any(interval => interval.Contains(midpoint));
+                var isAmbiguous = isWarmupUncertain ||
+                                  isEnergyVadConflict ||
+                                  ambiguous.Any(interval => interval.Contains(midpoint));
                 var status = isAmbiguous
                     ? AudioSegmentStatus.Ambiguous
                     : phrase is null ? AudioSegmentStatus.Noise : AudioSegmentStatus.Speech;
@@ -535,6 +567,10 @@ public sealed class TrackDialogueAnalyzer(TimelinePcmAccessor pcmAccessor)
                 {
                     (AudioSegmentStatus.Speech, _, true) => "confirmed-direct-speech",
                     (AudioSegmentStatus.Speech, _, false) => "speech-padding",
+                    (AudioSegmentStatus.Ambiguous, true, _) when isWarmupUncertain =>
+                        "ambiguous-noise-floor-warmup-near-speech",
+                    (AudioSegmentStatus.Ambiguous, false, _) when isWarmupUncertain =>
+                        "ambiguous-noise-floor-warmup",
                     (AudioSegmentStatus.Ambiguous, true, _) when isEnergyVadConflict =>
                         "ambiguous-energy-vad-conflict-near-speech",
                     (AudioSegmentStatus.Ambiguous, false, _) when isEnergyVadConflict =>

@@ -90,7 +90,10 @@ Ngày chốt: 2026-08-11 (Asia/Saigon). Đây là memory source-of-truth để m
 - Corpus bao phủ room tone, floor step-up/down, silence, loud-first, VAD-negative high-energy conflict, speech sát ngưỡng, jitter, media gap và clip boundary. Comparator có test phát hiện `baseline Enabled → candidate Disabled` giả lập.
 - Baseline trace khóa hai khoản nợ cần sửa ở 10B: loud-first-frame hiện tự đặt floor theo chính nó; high-energy VAD-negative conflict hiện vẫn training-eligible. Không sửa hoặc diễn giải lại chúng trong 10A.
 - Release đạt `130/130`; build sạch warning/error; format verify sạch. Chưa chạy HGE2/full HGE/Premiere vì chưa có XML candidate.
-- Bước tiếp theo là Slice 10B: chỉ thay estimator trong candidate shadow, dùng floor trước frame, background eligibility, warm-up fail-safe và attack/release được khóa bằng synthetic step-response.
+- Slice 10B thêm policy `phase10-background-eligible-p20-v1`: P20/window 512, warm-up 8 frame, rise `0,05`, fall `0,20`; stable step-up chỉ promote sau 16 frame liên tục/spread tối đa 3 dB.
+- Candidate đánh giá frame bằng floor trước update; VAD speech/no-media/non-finite/high-energy conflict không được học. Warm-up high-energy thành `ambiguous-noise-floor-warmup` Enabled; floor luôn finite trong `[-144,0]`.
+- Trace ghi policy/readiness/eligibility/floor trước-sau; comparator từ chối policy provenance sai. Step-response rise/fall đơn điệu và bounded; Release đạt `137/137`; format sạch.
+- Candidate 10B vẫn chỉ chạy trong `AnalyzeShadow`; app/output vẫn dùng Phase 09, không có audit/XML candidate hoặc Premiere pilot mới. Bước tiếp theo là Slice 10C VAD start/continue hysteresis trong shadow.
 
 ## Lỗi đã gặp và cách tránh
 
@@ -123,4 +126,4 @@ Ngày chốt: 2026-08-11 (Asia/Saigon). Đây là memory source-of-truth để m
 
 ## Trạng thái bàn giao
 
-Phase 00–09 hoàn tất trên `main`. Phase 10 Slice 10A đã có code/test shadow-only trên `codex/phase10-noise-boundary-stability`; chưa có XML candidate và chưa tuning threshold. Việc tiếp theo là Slice 10B trong candidate shadow. Hợp đồng Phase 09 về Enabled/gain/XML/M19 là baseline không được làm yếu.
+Phase 00–09 hoàn tất trên `main`. Phase 10 Slice 10A–10B đã có code/test candidate shadow-only trên `codex/phase10-noise-boundary-stability`; chưa có XML candidate và chưa tuning VAD hysteresis. Việc tiếp theo là Slice 10C trong candidate shadow. Hợp đồng Phase 09 về Enabled/gain/XML/M19 là baseline không được làm yếu.

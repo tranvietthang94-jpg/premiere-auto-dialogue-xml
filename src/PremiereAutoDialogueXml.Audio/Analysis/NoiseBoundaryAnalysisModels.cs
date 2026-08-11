@@ -10,7 +10,12 @@ public enum NoiseFloorTrainingDecision
 {
     NotEligibleNoMedia,
     NotEligibleVadSpeech,
-    EligibleVadNegative
+    NotEligibleInvalidLevel,
+    WarmupCandidate,
+    EligibleVadNegative,
+    EligibleBackground,
+    NotEligibleHighEnergyConflict,
+    EligibleStableFloorStep
 }
 
 public enum NoiseBoundaryFrameState
@@ -20,8 +25,20 @@ public enum NoiseBoundaryFrameState
     ConfirmedStartEvidence,
     UnconfirmedStartEvidence,
     BorderlineAmbiguous,
+    WarmupAmbiguous,
     EnergyConflictAmbiguous
 }
+
+public sealed record NoiseFloorPolicyDescriptor(
+    string Version,
+    int WindowFrameCount,
+    double Percentile,
+    float InitialFloorDbfs,
+    int WarmupFrameCount,
+    float RiseSmoothing,
+    float FallSmoothing,
+    int StableStepFrameCount,
+    float StableStepMaximumSpreadDb);
 
 public sealed record NoiseBoundaryFrameTrace(
     long TimelineStartSample,
@@ -30,15 +47,19 @@ public sealed record NoiseBoundaryFrameTrace(
     float RmsDbfs,
     float NoiseFloorBeforeDbfs,
     float NoiseFloorAfterDbfs,
+    bool NoiseFloorReadyBefore,
+    bool NoiseFloorReadyAfter,
     NoiseFloorTrainingDecision NoiseFloorTrainingDecision,
     bool IsVadSpeech,
     bool IsDirectEvidence,
     bool IsAboveDirectEnergyThreshold,
+    bool IsWarmupUncertain,
     NoiseBoundaryFrameState BoundaryState);
 
 public sealed record NoiseBoundaryTrackTrace(
     int TrackIndex,
     NoiseBoundaryAnalysisMode Mode,
+    NoiseFloorPolicyDescriptor Policy,
     IReadOnlyList<NoiseBoundaryFrameTrace> Frames);
 
 public sealed record NoiseBoundaryFrameDifference(
@@ -61,6 +82,8 @@ public sealed record NoiseBoundaryTrackComparison(
     int TrackIndex,
     NoiseBoundaryAnalysisMode BaselineMode,
     NoiseBoundaryAnalysisMode CandidateMode,
+    string BaselinePolicyVersion,
+    string CandidatePolicyVersion,
     int ObservationCount,
     int ChangedFrameCount,
     int PhraseDifferenceCount,
@@ -78,8 +101,11 @@ public sealed record NoiseBoundaryShadowAnalysis(
 internal sealed record NoiseFloorFrameSnapshot(
     float NoiseFloorBeforeDbfs,
     float NoiseFloorAfterDbfs,
+    bool NoiseFloorReadyBefore,
+    bool NoiseFloorReadyAfter,
     NoiseFloorTrainingDecision TrainingDecision);
 
 internal sealed record AudioFrameEvidenceBuildResult(
     IReadOnlyList<AudioFrameEvidence> Evidence,
-    IReadOnlyList<NoiseFloorFrameSnapshot> NoiseFloorTrace);
+    IReadOnlyList<NoiseFloorFrameSnapshot> NoiseFloorTrace,
+    NoiseFloorPolicyDescriptor Policy);

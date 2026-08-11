@@ -25,7 +25,7 @@ Kế hoạch triển khai và tiêu chí nghiệm thu nằm trong [docs/IMPLEMEN
 
 ## Trạng thái
 
-Phase 00–09 đã hoàn tất trên `main`. Phase 09 thêm resampler chống alias, shadow gate bảo thủ và validator trước XML; đạt HGE/Premiere round-trip/CI rồi merge qua PR `#12` tại `50ee4f9`. Phase 10 Slice 10A đã thêm corpus tổng hợp, trace baseline/candidate và comparator shadow-only trên branch riêng; đường phân tích sản xuất và XML output vẫn là Phase 09. Xem [docs/PHASE09_AUDIO_XML_HARDENING.md](docs/PHASE09_AUDIO_XML_HARDENING.md) và [docs/PHASE10_NOISE_BOUNDARY_STABILITY.md](docs/PHASE10_NOISE_BOUNDARY_STABILITY.md). Cổng nhãn nghe Mục tiêu được chủ dự án miễn, nên dự án không tuyên bố các tỷ lệ 100%/90%/0% chưa đo. RC1 hiện hành vẫn là bản đã qua Premiere round-trip A1–A7 và xác minh installer/signer nội bộ; Phase 09/10 chưa tự động tạo một release mới.
+Phase 00–09 đã hoàn tất trên `main`. Phase 09 thêm resampler chống alias, shadow gate bảo thủ và validator trước XML; đạt HGE/Premiere round-trip/CI rồi merge qua PR `#12` tại `50ee4f9`. Phase 10 Slice 10A–10B đã thêm corpus, trace/comparator và estimator background-eligible candidate trên branch riêng; candidate vẫn shadow-only, còn đường phân tích sản xuất và XML output vẫn là Phase 09. Xem [docs/PHASE09_AUDIO_XML_HARDENING.md](docs/PHASE09_AUDIO_XML_HARDENING.md) và [docs/PHASE10_NOISE_BOUNDARY_STABILITY.md](docs/PHASE10_NOISE_BOUNDARY_STABILITY.md). Cổng nhãn nghe Mục tiêu được chủ dự án miễn, nên dự án không tuyên bố các tỷ lệ 100%/90%/0% chưa đo. RC1 hiện hành vẫn là bản đã qua Premiere round-trip A1–A7 và xác minh installer/signer nội bộ; Phase 09/10 chưa tự động tạo một release mới.
 
 ## Hệ điều hành mục tiêu
 

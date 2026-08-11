@@ -11,7 +11,7 @@ public sealed class NoiseBoundarySyntheticCorpusTests
     private const int ObservationSamples = 1_536;
 
     [TestMethod]
-    public void AnalyzeShadowKeepsPhase09AndCandidateIdenticalAcrossSyntheticCorpus()
+    public void AnalyzeShadowKeepsCandidateSafeAcrossSyntheticCorpus()
     {
         var scenarios = new Dictionary<string, IReadOnlyList<AudioFrameObservation>>
         {
@@ -83,7 +83,7 @@ public sealed class NoiseBoundarySyntheticCorpusTests
                 scenario.Value,
                 DialogueProcessingPreset.Balanced);
 
-            AssertShadowIsUnchanged(scenario.Key, scenario.Value.Count, shadow);
+            AssertShadowIsSafe(scenario.Key, scenario.Value.Count, shadow);
         }
     }
 
@@ -108,7 +108,7 @@ public sealed class NoiseBoundarySyntheticCorpusTests
         CollectionAssert.AreEqual(production.Phrases.ToArray(), shadow.Baseline.Phrases.ToArray());
         CollectionAssert.AreEqual(production.Segments.ToArray(), shadow.Baseline.Segments.ToArray());
         Assert.AreEqual(production.LearnedDirectVoiceRmsDbfs, shadow.Baseline.LearnedDirectVoiceRmsDbfs);
-        AssertShadowIsUnchanged("default-path", observations.Count, shadow);
+        AssertShadowIsSafe("default-path", observations.Count, shadow);
     }
 
     [TestMethod]
@@ -132,7 +132,18 @@ public sealed class NoiseBoundarySyntheticCorpusTests
             frame.NoiseFloorTrainingDecision);
         Assert.IsFalse(frame.IsAboveDirectEnergyThreshold);
         Assert.AreEqual(NoiseBoundaryFrameState.VadNegative, frame.BoundaryState);
-        AssertShadowIsUnchanged("loud-first", observations.Count, shadow);
+        var candidateFrame = shadow.Candidate.NoiseBoundaryTrace!.Frames.Single();
+        Assert.AreEqual(-90f, candidateFrame.NoiseFloorBeforeDbfs, 0.001f);
+        Assert.AreEqual(-90f, candidateFrame.NoiseFloorAfterDbfs, 0.001f);
+        Assert.AreEqual(
+            NoiseFloorTrainingDecision.WarmupCandidate,
+            candidateFrame.NoiseFloorTrainingDecision);
+        Assert.IsTrue(candidateFrame.IsWarmupUncertain);
+        Assert.AreEqual(NoiseBoundaryFrameState.WarmupAmbiguous, candidateFrame.BoundaryState);
+        Assert.IsTrue(shadow.Candidate.Segments.Any(segment =>
+            segment.Status == AudioSegmentStatus.Ambiguous &&
+            segment.Reason == "ambiguous-noise-floor-warmup"));
+        AssertShadowIsSafe("loud-first", observations.Count, shadow);
     }
 
     [TestMethod]
@@ -161,7 +172,9 @@ public sealed class NoiseBoundarySyntheticCorpusTests
             frame.NoiseFloorTrainingDecision == NoiseFloorTrainingDecision.EligibleVadNegative));
         Assert.IsTrue(conflictFrames.All(frame =>
             frame.BoundaryState == NoiseBoundaryFrameState.EnergyConflictAmbiguous));
-        AssertShadowIsUnchanged("energy-conflict", observations.Count, shadow);
+        Assert.IsTrue(shadow.Candidate.NoiseBoundaryTrace!.Frames.All(frame =>
+            frame.NoiseFloorTrainingDecision == NoiseFloorTrainingDecision.WarmupCandidate));
+        AssertShadowIsSafe("energy-conflict", observations.Count, shadow);
     }
 
     [TestMethod]
@@ -184,7 +197,12 @@ public sealed class NoiseBoundarySyntheticCorpusTests
         Assert.AreEqual(NoiseFloorTrainingDecision.NotEligibleNoMedia, gap.NoiseFloorTrainingDecision);
         Assert.AreEqual(NoiseBoundaryFrameState.NoMedia, gap.BoundaryState);
         Assert.AreEqual(gap.NoiseFloorBeforeDbfs, gap.NoiseFloorAfterDbfs);
-        AssertShadowIsUnchanged("media-gap", observations.Count, shadow);
+        var candidateGap = shadow.Candidate.NoiseBoundaryTrace!.Frames[1];
+        Assert.AreEqual(
+            NoiseFloorTrainingDecision.NotEligibleNoMedia,
+            candidateGap.NoiseFloorTrainingDecision);
+        Assert.AreEqual(NoiseBoundaryFrameState.NoMedia, candidateGap.BoundaryState);
+        AssertShadowIsSafe("media-gap", observations.Count, shadow);
     }
 
     [TestMethod]
@@ -214,10 +232,10 @@ public sealed class NoiseBoundarySyntheticCorpusTests
 
         Assert.IsTrue(shadow.Baseline.Segments.Any(segment => segment.SourceClipId == "clip-a"));
         Assert.IsTrue(shadow.Baseline.Segments.Any(segment => segment.SourceClipId == "clip-b"));
-        AssertShadowIsUnchanged("clip-boundary", observations.Length, shadow);
+        AssertShadowIsSafe("clip-boundary", observations.Length, shadow);
     }
 
-    private static void AssertShadowIsUnchanged(
+    private static void AssertShadowIsSafe(
         string scenario,
         int observationCount,
         NoiseBoundaryShadowAnalysis shadow)
@@ -232,12 +250,26 @@ public sealed class NoiseBoundarySyntheticCorpusTests
             NoiseBoundaryAnalysisMode.NoiseBoundaryCandidate,
             shadow.Candidate.NoiseBoundaryTrace.Mode,
             scenario);
+        Assert.AreEqual(
+            "phase09-adaptive-p20-v1",
+            shadow.Comparison.BaselinePolicyVersion,
+            scenario);
+        Assert.AreEqual(
+            "phase10-background-eligible-p20-v1",
+            shadow.Comparison.CandidatePolicyVersion,
+            scenario);
         Assert.AreEqual(observationCount, shadow.Comparison.ObservationCount, scenario);
-        Assert.AreEqual(0, shadow.Comparison.ChangedFrameCount, scenario);
-        Assert.AreEqual(0, shadow.Comparison.PhraseDifferenceCount, scenario);
-        Assert.AreEqual(0, shadow.Comparison.SegmentDifferenceCount, scenario);
         Assert.AreEqual(0, shadow.Comparison.BaselineEnabledCandidateDisabledCount, scenario);
-        Assert.AreEqual(0, shadow.Comparison.BaselineDisabledCandidateEnabledCount, scenario);
+        Assert.IsTrue(shadow.Baseline.NoiseBoundaryTrace.Frames.All(frame =>
+            float.IsFinite(frame.NoiseFloorBeforeDbfs) &&
+            float.IsFinite(frame.NoiseFloorAfterDbfs) &&
+            frame.NoiseFloorBeforeDbfs is >= AudioMath.SilenceDbfs and <= 0 &&
+            frame.NoiseFloorAfterDbfs is >= AudioMath.SilenceDbfs and <= 0), scenario);
+        Assert.IsTrue(shadow.Candidate.NoiseBoundaryTrace.Frames.All(frame =>
+            float.IsFinite(frame.NoiseFloorBeforeDbfs) &&
+            float.IsFinite(frame.NoiseFloorAfterDbfs) &&
+            frame.NoiseFloorBeforeDbfs is >= AudioMath.SilenceDbfs and <= 0 &&
+            frame.NoiseFloorAfterDbfs is >= AudioMath.SilenceDbfs and <= 0), scenario);
     }
 
     private static TrackDialogueAnalyzer Analyzer() =>
