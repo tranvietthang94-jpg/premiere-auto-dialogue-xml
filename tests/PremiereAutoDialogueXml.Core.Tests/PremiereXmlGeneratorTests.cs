@@ -248,6 +248,11 @@ public sealed class PremiereXmlGeneratorTests
                 sourceHash,
                 new("sequence-source", "11111111-1111-1111-1111-111111111111", "Show", 25, 10, 2, 48_000, [track]));
             var compensatedGain = (float)(6 + DialogueProcessingPreset.Balanced.PremiereCenterPanCompensationDb);
+            var measuredPeak = gainWasCapped
+                ? (float)(DialogueProcessingPreset.Balanced.TargetSamplePeakDbfs +
+                          DialogueProcessingPreset.Balanced.PremiereCenterPanCompensationDb -
+                          24)
+                : -12;
             var phrase = new DialoguePhrase(
                 "T01-P000001",
                 1,
@@ -255,7 +260,7 @@ public sealed class PremiereXmlGeneratorTests
                 11_520,
                 3_840,
                 15_360,
-                -12,
+                measuredPeak,
                 gainWasCapped ? 24 : compensatedGain,
                 gainWasCapped ? 18 : compensatedGain,
                 gainWasCapped);

@@ -15,6 +15,14 @@ public sealed class TrackAudioScanner(PcmWaveSampleReader sampleReader)
         PremiereAudioTrack track,
         IVoiceActivityDetector detector,
         DialogueProcessingPreset preset,
+        CancellationToken cancellationToken = default) =>
+        Scan(track, detector, preset, VadResamplingMode.LegacyStride3, cancellationToken);
+
+    public IReadOnlyList<AudioFrameObservation> Scan(
+        PremiereAudioTrack track,
+        IVoiceActivityDetector detector,
+        DialogueProcessingPreset preset,
+        VadResamplingMode resamplingMode,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(track);
@@ -31,6 +39,9 @@ public sealed class TrackAudioScanner(PcmWaveSampleReader sampleReader)
         var sourceChunk = new float[SourceSamplesPerVadChunk];
         var silence = new float[SourceSamplesPerVadChunk];
         var vadChunk = new float[SileroVoiceActivityDetector.SupportedChunkSampleCount];
+        var antiAliasResampler = resamplingMode == VadResamplingMode.AntiAliasFir
+            ? new StreamingFirDecimator3()
+            : null;
         var filled = 0;
         var chunkStart = 0L;
         var cursor = 0L;
@@ -47,9 +58,21 @@ public sealed class TrackAudioScanner(PcmWaveSampleReader sampleReader)
 
             cancellationToken.ThrowIfCancellationRequested();
             sourceChunk.AsSpan(filled).Clear();
-            for (var index = 0; index < vadChunk.Length; index++)
+            if (antiAliasResampler is null)
             {
-                vadChunk[index] = sourceChunk[index * 3];
+                for (var index = 0; index < vadChunk.Length; index++)
+                {
+                    vadChunk[index] = sourceChunk[index * 3];
+                }
+            }
+            else
+            {
+                var outputCount = antiAliasResampler.Process(sourceChunk, vadChunk);
+                if (outputCount != vadChunk.Length)
+                {
+                    throw new InvalidDataException(
+                        $"Resampler tạo {outputCount} mẫu thay vì {vadChunk.Length} mẫu VAD.");
+                }
             }
 
             double squareSum = 0;
@@ -121,6 +144,7 @@ public sealed class TrackAudioScanner(PcmWaveSampleReader sampleReader)
                 cursor = clipStart;
                 hasCursor = true;
                 detector.Reset();
+                antiAliasResampler?.Reset();
             }
             else if (clipStart > cursor)
             {
@@ -129,6 +153,7 @@ public sealed class TrackAudioScanner(PcmWaveSampleReader sampleReader)
                 {
                     EmitChunk();
                     detector.Reset();
+                    antiAliasResampler?.Reset();
                     cursor = clipStart;
                 }
                 else

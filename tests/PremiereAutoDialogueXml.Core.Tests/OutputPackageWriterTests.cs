@@ -41,7 +41,7 @@ public sealed class OutputPackageWriterTests
 
         using var audit = JsonDocument.Parse(await File.ReadAllTextAsync(result.AuditPath));
         var root = audit.RootElement;
-        Assert.AreEqual("1.4", root.GetProperty("schemaVersion").GetString());
+        Assert.AreEqual("1.5", root.GetProperty("schemaVersion").GetString());
         Assert.AreEqual(fixture.Project.SourceXmlSha256, root.GetProperty("sourceXmlSha256").GetString());
         Assert.AreEqual(result.OutputXmlSha256, root.GetProperty("outputXmlSha256").GetString());
         Assert.AreEqual("6.2.1", root.GetProperty("model").GetProperty("version").GetString());
@@ -154,6 +154,43 @@ public sealed class OutputPackageWriterTests
         Assert.AreEqual("likelyBleed", review.GetProperty("groups")[0].GetProperty("representativeShadowOutcome").GetString());
         Assert.AreEqual("medium", review.GetProperty("groups")[0].GetProperty("priority").GetString());
         StringAssert.Contains(await File.ReadAllTextAsync(result.ReviewCsvPath!), "Có khả năng bleed");
+    }
+
+    [TestMethod]
+    public async Task WriteAsyncPersistsVadFrontEndComparisonAndSafetyDecision()
+    {
+        using var fixture = PremiereXmlGeneratorTests.WriterFixture.Create();
+        var difference = new VadDecisionDifference(
+            1,
+            "clip-source",
+            11_520,
+            15_360,
+            AudioSegmentStatus.Ambiguous,
+            "ambiguous-near-speech",
+            AudioSegmentStatus.Noise,
+            "vad-negative-noise",
+            AudioSegmentStatus.Ambiguous,
+            "ambiguous-vad-front-end-disagreement");
+        var comparison = new VadFrontEndComparison(
+            "LegacyStride3",
+            "AntiAliasFir",
+            [new(1, 7, 3, 0.42f, 1, 1, 0, [difference])]);
+        var analysis = fixture.Analysis with { VadFrontEndComparison = comparison };
+
+        var result = await new OutputPackageWriter().WriteAsync(new(
+            fixture.Project,
+            analysis,
+            DialogueProcessingPreset.Balanced,
+            fixture.Directory));
+
+        using var audit = JsonDocument.Parse(await File.ReadAllTextAsync(result.AuditPath));
+        var frontEnd = audit.RootElement.GetProperty("vadFrontEndComparison");
+        Assert.AreEqual("LegacyStride3", frontEnd.GetProperty("legacyResampling").GetString());
+        Assert.AreEqual("AntiAliasFir", frontEnd.GetProperty("candidateResampling").GetString());
+        Assert.AreEqual(1, frontEnd.GetProperty("legacyEnabledCandidateDisabledCount").GetInt32());
+        Assert.AreEqual(
+            "ambiguous-vad-front-end-disagreement",
+            frontEnd.GetProperty("tracks")[0].GetProperty("differences")[0].GetProperty("finalReason").GetString());
     }
 
     [TestMethod]

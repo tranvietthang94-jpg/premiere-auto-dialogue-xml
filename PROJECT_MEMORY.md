@@ -1,4 +1,4 @@
-# Memory handoff — Premiere Auto Dialogue XML, Phase 00–08
+# Memory handoff — Premiere Auto Dialogue XML, Phase 00–09
 
 Ngày chốt: 2026-08-09 (Asia/Saigon). Đây là memory source-of-truth để một phiên Codex mới tiếp tục nâng cấp dự án mà không làm lại các phase đã hoàn tất.
 
@@ -6,10 +6,10 @@ Ngày chốt: 2026-08-09 (Asia/Saigon). Đây là memory source-of-truth để m
 
 - Workspace thật: `F:\RIN APP\App-Auto-Edit_codex_2`.
 - Private GitHub repo: `tranvietthang94-jpg/premiere-auto-dialogue-xml`.
-- Phase 00–07 đã merge vào `main`; merge commit Phase 07: `8bdf47d0dc3a3eb17a143a3145b5cf59369d9b9b`.
-- Phase 08 đã đạt cổng kỹ thuật trên nhánh `phase/08-review-queue`, draft PR `#10`; chưa coi là nằm trên `main` cho tới khi PR được merge.
+- Phase 00–08 đã merge vào `main`; Phase 08 qua PR `#10`, merge commit `26e8dac925f5e41622e1c0ce7237ef0bbb09b06b`; CI hậu merge đạt.
+- Chủ dự án không muốn preview/review UI; app chỉ tập trung xử lý âm thanh và xuất XML. Phase 09 trên `phase/09-audio-xml-hardening`, PR `#12`, đã đạt toàn bộ test/HGE/Premiere round-trip/CI và đang chờ merge vào `main`.
 - Private draft prerelease: tag `v0.1.0-rc.1`, tên `Premiere Auto Dialogue XML 0.1.0 RC1`, target `8bdf47d`; URL draft hiện tại `https://github.com/tranvietthang94-jpg/premiere-auto-dialogue-xml/releases/tag/untagged-1c4ff86dc76dc88c43e3`.
-- Tài liệu phase đầy đủ nằm trong `docs/`; đọc trước `README.md`, `docs/IMPLEMENTATION_PLAN.md`, `docs/PHASE00_RESULT.md`, `docs/PHASE06_PILOT_RESULT.md`, `docs/PHASE07_INSTALLER_RELEASE.md`, `docs/PHASE08_REVIEW_QUEUE.md`, `docs/INTERNAL_CODE_SIGNING.md`.
+- Tài liệu phase đầy đủ nằm trong `docs/`; đọc trước `README.md`, `docs/IMPLEMENTATION_PLAN.md`, `docs/PHASE00_RESULT.md`, `docs/PHASE06_PILOT_RESULT.md`, `docs/PHASE07_INSTALLER_RELEASE.md`, `docs/PHASE08_REVIEW_QUEUE.md`, `docs/PHASE09_AUDIO_XML_HARDENING.md`, `docs/INTERNAL_CODE_SIGNING.md`.
 
 ## Sản phẩm đã khóa
 
@@ -67,6 +67,22 @@ Ngày chốt: 2026-08-09 (Asia/Saigon). Đây là memory source-of-truth để m
 - Phase 08 thêm shadow evidence đa mic chỉ để tư vấn, audit schema `1.4` và CSV review tiếng Việt được gom nhóm/xếp ưu tiên. Shadow evidence không thay `Status`, `Enabled`, gain, marker hay XML audio.
 - Package writer phát XML theo streaming để full HGE không giữ cây XML hàng trăm MB trong RAM. Pilot cuối: HGE2 `42,7 giây`/`174,2 MB`; full HGE `25 phút 6 giây`/`785,6 MB`, dưới cổng 90 phút/1,5 GB.
 
+## Phase 09 — candidate làm chắc audio/XML
+
+- Commit triển khai: `a04b9f6` thêm FIR chống alias; `16cc369` thêm shadow merge bảo thủ, audit `1.5` và validator trước writer; `8e989d2` cho phép phrase supersession do căn frame chỉ khi toàn bộ lõi vẫn Enabled.
+- FIR streaming 127 tap/Blackman/cutoff 7 kHz/decimation 3 đạt block invariance, passband `<0,05 dB`, stopband tone 12 kHz `>60 dB`; không đổi model Silero 6.2.1, preset, gain/routing hoặc XML encoding Phase 00.
+- Default analyzer chạy cả legacy stride-3 và anti-alias FIR. Legacy Enabled/candidate Disabled luôn thành ambiguous Enabled; candidate có thể mở thêm vùng legacy Disabled. `OutputDecisionContractValidator` dừng trước publication nếu status/Enabled, coverage, phrase gain/target/cap hoặc marker không nhất quán.
+- PCM A1 từ HGE2 candidate đầu xác nhận Premiere áp đúng source-linked gain/timing 287/287 phrase, nhưng loại candidate vì 11 `legacy-safety` phrase không cap chỉ chứa mẩu 1–32 frame, kế thừa peak không thuộc output fragment và trượt target. XML `DE06C...`/audit `16C154...` không còn hợp lệ để test.
+- Fix giữ trọn phrase component legacy cùng gain khi có disagreement; candidate-only trong component được giữ ambiguous unity-gain. Merger có postcondition coverage và 2 regression mới; Release đạt `122/122` test.
+- HGE2 replacement `phase09-hge2-pilot-20260809-4` đạt `84,200 giây`/`203,3 MB`, 0 error, 2.183 phrase/10.831 fragment/5.219 marker. XML SHA-256 `A11D046019BDF0F8677E9E952FE45DE7489DF3C079F578CAABCDF3F38FE57AA3`; audit SHA-256 `D62901F88A3A5EDC380D548FE43B2440D7CAC1C77A24F739E525B43C91519C7A`.
+- Comparator replacement vs Phase 08: source hash khớp, coverage mismatch 0, legacy Enabled bị mất `0 interval/0 frame`, giữ thêm 2.424 interval/8.333 frame, temp 0; M19/A3 11214–11218 Enabled. Đây là candidate duy nhất để import/retest A1.
+- Premiere PCM round-trip của replacement đạt A1–A7: 2.183/2.183 phrase khớp timing/gain; 940/940 uncapped ở `-6,000019084..-5,999973633 dBFS`; 1.243/1.243 capped khớp dự đoán, capped nóng nhất `-6,004387657 dBFS`; max audit/source-linked delta dưới `0,000027 dB`. User xác nhận M19 vẫn Enabled và nghe được.
+- Full HGE cuối `phase09-full-hge-pilot-20260809-2` đạt `38 phút 33,1 giây`/`1.065 MB`, 0 error, 43.603 phrase/247.515 fragment/126.485 marker. XML `0E8D67...`, audit `0BC66E...`; comparator với Phase 08 có source hash khớp, coverage mismatch 0, mất legacy Enabled `0 interval/0 frame`, giữ thêm 55.177 interval/189.571 frame, temp 0.
+- Publish giữ 410 payload; installer unsigned private SHA-256 `225AD65E68D6806AC8426E4C39A8907CDD527E431E2154A7C0BA8A18A3C35CC8` qua cài/mở/xác minh 410/410/gỡ/sentinel/registry. Nó không thay RC1 và không được phát hành.
+- GitHub Actions PR run `31317023545` trên commit validator round-trip `20cfb1a` đạt trong 3 phút 6 giây: restore/build/122 test/publish/Inno Setup/installer/upload đều xanh.
+- Premiere XML re-export SHA-256 `51E69A2B255E451EDA6D267F05AB3CABFA4301801528B2247CEC46491F9BE3E0` đạt report `phase09-roundtrip-compatible` SHA-256 `1D60F50FF06D98D34607AD4480BEA136BDFF7A072BA927C2693C9E0CFC7E7A3B`: 10.831/10.831 clip, 7.025 Enabled, 3.806 Disabled, timing/source/media khớp, max gain delta `0,000055244 dB`, 5.219 marker giữ nguyên semantic. Premiere đổi thứ tự marker và normalize 3.783 Gain filter thành Audio Levels đúng hành vi Phase 00.
+- `scripts/phase09/Test-Phase09RoundTrip.ps1` là validator lặp lại được cho input/result XML. Phase 09 đã `passed` trên branch; PR sẵn sàng khỏi draft sau CI tài liệu cuối, còn `main` vẫn ở Phase 08 cho tới khi merge.
+
 ## Lỗi đã gặp và cách tránh
 
 1. Gain XML: không stack hai Audio Levels cùng loại và không ghi literal dB vào Gain filter. Dùng encoding Phase 00.
@@ -98,4 +114,4 @@ Ngày chốt: 2026-08-09 (Asia/Saigon). Đây là memory source-of-truth để m
 
 ## Trạng thái bàn giao
 
-Phase 00–07 hoàn tất trên `main`; Phase 08 đã đạt code, regression, HGE2 và full HGE pilot trên `phase/08-review-queue`. HGE2 giữ 0 khác biệt semantic so với baseline, M19 vẫn Enabled/ưu tiên cao; full HGE phủ 97.453/97.453 marker mơ hồ vào 52.069 review group. Cần giữ PR `#10` ở draft cho tới khi CI của commit Phase 08 cuối cùng xanh; sau đó có thể chuyển ready/merge theo quyết định của chủ dự án.
+Phase 00–08 hoàn tất trên `main` tại merge commit Phase 08 `26e8dac925f5e41622e1c0ce7237ef0bbb09b06b`; CI hậu merge run `31295051393` đạt. Phase 09 PR `#12`: candidate đầu bị loại; fix phrase-component đạt `122/122` test, HGE2 replacement `A11D046...`, Premiere PCM A1–A7, M19, XML re-export, full HGE và CI/packaging cuối mà không làm mất frame legacy Enabled. Phase 09 đã `passed` trên branch; việc tiếp theo là đưa PR khỏi draft và merge riêng. Không bắt đầu Phase 10 trước khi Phase 09 vào `main`.

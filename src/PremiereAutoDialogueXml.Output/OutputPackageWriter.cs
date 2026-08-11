@@ -1,8 +1,10 @@
 using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using PremiereAutoDialogueXml.Audio.Analysis;
 using PremiereAutoDialogueXml.Output.Audit;
 using PremiereAutoDialogueXml.Output.Review;
+using PremiereAutoDialogueXml.Output.Validation;
 using PremiereAutoDialogueXml.Output.Xml;
 
 namespace PremiereAutoDialogueXml.Output;
@@ -65,6 +67,11 @@ public sealed class OutputPackageWriter
         }
 
         var generated = _xmlGenerator.GeneratePlan(request.Project, request.Analysis, cancellationToken);
+        new OutputDecisionContractValidator().Validate(
+            request.Project,
+            request.Analysis,
+            request.Preset,
+            generated);
         cancellationToken.ThrowIfCancellationRequested();
 
         var xmlFileName = $"{safeSequenceName}_AutoAudio.xml";
@@ -105,7 +112,7 @@ public sealed class OutputPackageWriter
                 .SelectMany(track => track.Phrases)
                 .ToDictionary(phrase => phrase.Id, StringComparer.Ordinal);
             var audit = new OutputAudit(
-                SchemaVersion: "1.4",
+                SchemaVersion: "1.5",
                 RunId: runId,
                 CreatedAtUtc: generatedAt,
                 SourceXmlFileName: Path.GetFileName(request.Project.SourceXmlPath),
@@ -121,6 +128,7 @@ public sealed class OutputPackageWriter
                 Fragments: generated.AudioFragments.Select(fragment => FragmentAudit.From(fragment, phrases)).ToArray(),
                 Markers: generated.Markers.Select(MarkerAudit.From).ToArray())
             {
+                VadFrontEndComparison = request.Analysis.VadFrontEndComparison,
                 Review = new(
                     FileName: reviewFileName,
                     Sha256: reviewSha256,
@@ -220,10 +228,40 @@ public sealed class OutputPackageWriter
             actual.Preset != expected.Preset ||
             !actual.Fragments.SequenceEqual(expected.Fragments) ||
             !actual.Markers.SequenceEqual(expected.Markers) ||
+            !VadFrontEndComparisonMatches(
+                actual.VadFrontEndComparison,
+                expected.VadFrontEndComparison) ||
             !ReviewMatches(actual.Review, expected.Review))
         {
             throw new InvalidDataException("Audit đọc lại không khớp dữ liệu kết quả trong bộ nhớ.");
         }
+    }
+
+    private static bool VadFrontEndComparisonMatches(
+        VadFrontEndComparison? actual,
+        VadFrontEndComparison? expected)
+    {
+        if (actual is null || expected is null)
+        {
+            return actual is null && expected is null;
+        }
+
+        if (actual.LegacyResampling != expected.LegacyResampling ||
+            actual.CandidateResampling != expected.CandidateResampling ||
+            actual.Tracks.Count != expected.Tracks.Count)
+        {
+            return false;
+        }
+
+        return actual.Tracks.Zip(expected.Tracks).All(pair =>
+            pair.First.TrackIndex == pair.Second.TrackIndex &&
+            pair.First.ObservationCount == pair.Second.ObservationCount &&
+            pair.First.ChangedObservationCount == pair.Second.ChangedObservationCount &&
+            Math.Abs(pair.First.MaximumProbabilityDelta - pair.Second.MaximumProbabilityDelta) <= 0.000001f &&
+            pair.First.SegmentDifferenceCount == pair.Second.SegmentDifferenceCount &&
+            pair.First.LegacyEnabledCandidateDisabledCount == pair.Second.LegacyEnabledCandidateDisabledCount &&
+            pair.First.LegacyDisabledCandidateEnabledCount == pair.Second.LegacyDisabledCandidateEnabledCount &&
+            pair.First.Differences.SequenceEqual(pair.Second.Differences));
     }
 
     private static bool ReviewMatches(ReviewListAudit? actual, ReviewListAudit? expected)
