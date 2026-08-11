@@ -66,6 +66,29 @@ public sealed class NoiseBoundaryShadowComparerTests
             NoiseBoundaryShadowComparer.Compare(baseline, candidate));
     }
 
+    [TestMethod]
+    public void CompareRejectsCandidateTraceWithBaselineBoundaryPolicy()
+    {
+        var baseline = Analysis(
+            NoiseBoundaryAnalysisMode.Phase09Baseline,
+            AudioSegmentStatus.Ambiguous,
+            "baseline");
+        var candidate = Analysis(
+            NoiseBoundaryAnalysisMode.NoiseBoundaryCandidate,
+            AudioSegmentStatus.Ambiguous,
+            "candidate");
+        candidate = candidate with
+        {
+            NoiseBoundaryTrace = candidate.NoiseBoundaryTrace! with
+            {
+                BoundaryPolicy = baseline.NoiseBoundaryTrace!.BoundaryPolicy
+            }
+        };
+
+        Assert.ThrowsExactly<InvalidDataException>(() =>
+            NoiseBoundaryShadowComparer.Compare(baseline, candidate));
+    }
+
     private static TrackAudioAnalysis Analysis(
         NoiseBoundaryAnalysisMode mode,
         AudioSegmentStatus status,
@@ -93,6 +116,9 @@ public sealed class NoiseBoundaryShadowComparerTests
                 TrackIndex: 1,
                 Mode: mode,
                 Policy: NoiseFloorPolicyCatalog.For(mode),
+                BoundaryPolicy: VadBoundaryPolicyCatalog.For(
+                    mode,
+                    PremiereAutoDialogueXml.Core.Domain.DialogueProcessingPreset.Balanced),
                 Frames:
                 [
                     new(

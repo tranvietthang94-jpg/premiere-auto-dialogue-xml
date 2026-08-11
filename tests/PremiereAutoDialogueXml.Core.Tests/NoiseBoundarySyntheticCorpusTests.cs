@@ -258,6 +258,14 @@ public sealed class NoiseBoundarySyntheticCorpusTests
             "phase10-background-eligible-p20-v1",
             shadow.Comparison.CandidatePolicyVersion,
             scenario);
+        Assert.AreEqual(
+            "phase09-vad-single-threshold-v1",
+            shadow.Comparison.BaselineBoundaryPolicyVersion,
+            scenario);
+        Assert.AreEqual(
+            "phase10-vad-start050-continue040-v1",
+            shadow.Comparison.CandidateBoundaryPolicyVersion,
+            scenario);
         Assert.AreEqual(observationCount, shadow.Comparison.ObservationCount, scenario);
         Assert.AreEqual(0, shadow.Comparison.BaselineEnabledCandidateDisabledCount, scenario);
         Assert.IsTrue(shadow.Baseline.NoiseBoundaryTrace.Frames.All(frame =>

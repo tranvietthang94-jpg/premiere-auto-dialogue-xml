@@ -1,6 +1,6 @@
 # Phase 10 — Ổn định noise floor và ranh giới câu
 
-Trạng thái: `Slice 10B implemented; candidate shadow-only` ngày 2026-08-11 trên branch `codex/phase10-noise-boundary-stability`. Phase này bắt đầu từ `main` commit `06ad4d6`; baseline logic audio/XML là Phase 09 merge commit `50ee4f9`. Slice 10A–10B thêm corpus, trace, comparator và estimator candidate; đường production/ XML output chưa thay đổi.
+Trạng thái: `Slice 10C implemented; candidate shadow-only` ngày 2026-08-11 trên branch `codex/phase10-noise-boundary-stability`. Phase này bắt đầu từ `main` commit `06ad4d6`; baseline logic audio/XML là Phase 09 merge commit `50ee4f9`. Slice 10A–10C thêm corpus, trace, comparator, estimator và VAD hysteresis candidate; đường production/XML output chưa thay đổi.
 
 ## Quyết định sản phẩm
 
@@ -114,6 +114,16 @@ Kết quả triển khai 10B:
 - Borderline context thiếu direct evidence vẫn là Ambiguous Enabled, không được nâng thành Speech chỉ để giảm fragment count.
 - Padding `200/300 ms`, midpoint split và frame-safe gain reference giữ nguyên.
 
+Kết quả triển khai 10C:
+
+- Policy `phase10-vad-start050-continue040-v1` khóa start `0,50`, continue `0,40`, phrase break `350 ms`, minimum start evidence `120 ms` và minimum direct evidence `120 ms`. Candidate từ chối preset shadow nếu start bị đổi khỏi `0,50` khi chưa có nghiên cứu mới.
+- State machine chỉ mở group bằng frame đạt start. Sau đó frame có media và probability `>=0,40` mới được dùng làm continue context; probability dưới `0,40` không được nhận. Gap từ accepted frame cuối `>=350 ms` hoặc no-media đóng group ngay.
+- Continue frame không được cộng vào start/direct evidence. Vì vậy một start 96 ms cộng nhiều context vẫn không thành phrase; chuỗi `0,40..0,49` không có start cũng không tạo phrase.
+- Continue context đã có start hợp lệ nhưng thiếu direct-energy được giữ `Ambiguous`, Enabled, cùng phrase/gain với reason `ambiguous-vad-continue-context-near-speech`; không được nâng thành Speech để làm đẹp fragment count.
+- Boundary trace phân biệt confirmed/unconfirmed start, confirmed/unconfirmed continue và continue-ambiguous. Trace ghi đầy đủ VAD boundary policy; comparator từ chối policy provenance sai.
+- Synthetic response khóa các trường hợp: `.50` start, `.40` continue, `.39` reject; jitter quanh threshold; không hạ minimum evidence; không bridge đúng mốc 350 ms; media gap đóng context; baseline Enabled → candidate Disabled bằng `0` trên corpus.
+- Release đạt `146/146` test; build không warning/error; `dotnet format --verify-no-changes` sạch. Candidate vẫn chỉ chạy qua `AnalyzeShadow`; chưa có audit `1.6`, XML candidate, HGE/Premiere pilot hoặc thay đổi app production.
+
 ### Slice 10D — shadow comparison và merge bảo thủ
 
 - Với mỗi resampling front-end, chạy baseline/candidate trên cùng observation để tách chênh lệch noise/boundary khỏi chênh lệch FIR Phase 09.
@@ -171,4 +181,4 @@ Kết quả triển khai 10B:
 
 ## Bước tiếp theo
 
-Thực hiện riêng Slice 10C trên mode `NoiseBoundaryCandidate`: thêm VAD start/continue hysteresis với start giữ `0,50`, khóa continue threshold bằng synthetic response, không bridge gap `>=350 ms` và không hạ direct evidence `120 ms`. Candidate vẫn shadow-only; chưa adopt vào XML trước comparator/audit và các gate bảo thủ của 10D.
+Thực hiện Slice 10D: tích hợp shadow comparison ở cấp project/front-end, thêm audit `1.6` và conservative merge giữ mọi baseline Enabled; mở rộng validator để chặn coverage/status/phrase/gain/marker sai trước publication. Chưa chạy Premiere pilot hoặc adopt candidate nếu các gate 10D chưa đạt.

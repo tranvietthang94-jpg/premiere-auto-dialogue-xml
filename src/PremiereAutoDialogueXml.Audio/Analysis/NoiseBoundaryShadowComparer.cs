@@ -31,6 +31,11 @@ public static class NoiseBoundaryShadowComparer
             throw new InvalidDataException("Noise-boundary trace không đúng policy provenance.");
         }
 
+        if (!BoundaryPoliciesMatch(baselineTrace.BoundaryPolicy, candidateTrace.BoundaryPolicy))
+        {
+            throw new InvalidDataException("Noise-boundary trace không đúng VAD boundary policy provenance.");
+        }
+
         if (baselineTrace.TrackIndex != baseline.TrackIndex ||
             candidateTrace.TrackIndex != candidate.TrackIndex ||
             baselineTrace.Frames.Count != candidateTrace.Frames.Count)
@@ -62,6 +67,8 @@ public static class NoiseBoundaryShadowComparer
             candidateTrace.Mode,
             baselineTrace.Policy.Version,
             candidateTrace.Policy.Version,
+            baselineTrace.BoundaryPolicy.Version,
+            candidateTrace.BoundaryPolicy.Version,
             baselineTrace.Frames.Count,
             frameDifferences.Count,
             CountPhraseDifferences(baseline.Phrases, candidate.Phrases),
@@ -73,6 +80,20 @@ public static class NoiseBoundaryShadowComparer
             frameDifferences,
             decisionDifferences);
     }
+
+    private static bool BoundaryPoliciesMatch(
+        VadBoundaryPolicyDescriptor baseline,
+        VadBoundaryPolicyDescriptor candidate) =>
+        baseline.Version == "phase09-vad-single-threshold-v1" &&
+        candidate.Version == "phase10-vad-start050-continue040-v1" &&
+        Math.Abs(baseline.StartThreshold - candidate.StartThreshold) <= FloatTolerance &&
+        Math.Abs(candidate.StartThreshold - 0.50) <= FloatTolerance &&
+        Math.Abs(baseline.StartThreshold - baseline.ContinueThreshold) <= FloatTolerance &&
+        Math.Abs(candidate.ContinueThreshold - 0.40) <= FloatTolerance &&
+        candidate.ContinueThreshold < candidate.StartThreshold &&
+        baseline.PhraseBreakMilliseconds == candidate.PhraseBreakMilliseconds &&
+        baseline.MinimumStartEvidenceMilliseconds == candidate.MinimumStartEvidenceMilliseconds &&
+        baseline.MinimumDirectEvidenceMilliseconds == candidate.MinimumDirectEvidenceMilliseconds;
 
     private static bool FramesMatch(
         NoiseBoundaryFrameTrace baseline,

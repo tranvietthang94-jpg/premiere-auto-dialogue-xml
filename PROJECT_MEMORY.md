@@ -93,7 +93,10 @@ Ngày chốt: 2026-08-11 (Asia/Saigon). Đây là memory source-of-truth để m
 - Slice 10B thêm policy `phase10-background-eligible-p20-v1`: P20/window 512, warm-up 8 frame, rise `0,05`, fall `0,20`; stable step-up chỉ promote sau 16 frame liên tục/spread tối đa 3 dB.
 - Candidate đánh giá frame bằng floor trước update; VAD speech/no-media/non-finite/high-energy conflict không được học. Warm-up high-energy thành `ambiguous-noise-floor-warmup` Enabled; floor luôn finite trong `[-144,0]`.
 - Trace ghi policy/readiness/eligibility/floor trước-sau; comparator từ chối policy provenance sai. Step-response rise/fall đơn điệu và bounded; Release đạt `137/137`; format sạch.
-- Candidate 10B vẫn chỉ chạy trong `AnalyzeShadow`; app/output vẫn dùng Phase 09, không có audit/XML candidate hoặc Premiere pilot mới. Bước tiếp theo là Slice 10C VAD start/continue hysteresis trong shadow.
+- Slice 10C khóa `phase10-vad-start050-continue040-v1`: start `0,50`, continue `0,40`, break `350 ms`, start/direct evidence vẫn `120 ms`. No-media đóng context; gap đúng 350 ms không bridge.
+- Continue không được cộng vào start/direct evidence. Context thiếu direct giữ `ambiguous-vad-continue-context-near-speech`, Enabled và cùng phrase/gain; không có start thì không tạo phrase.
+- Trace/comparator có boundary policy provenance và state start/continue riêng. Synthetic khóa `.40` accept/`.39` reject, jitter, evidence minimum, gap/media; Release đạt `146/146`; format sạch.
+- Candidate 10C vẫn chỉ chạy trong `AnalyzeShadow`; app/output vẫn dùng Phase 09, không có audit/XML candidate hoặc Premiere pilot mới. Bước tiếp theo là Slice 10D project shadow + audit `1.6` + conservative merge/validator.
 
 ## Lỗi đã gặp và cách tránh
 
@@ -126,4 +129,4 @@ Ngày chốt: 2026-08-11 (Asia/Saigon). Đây là memory source-of-truth để m
 
 ## Trạng thái bàn giao
 
-Phase 00–09 hoàn tất trên `main`. Phase 10 Slice 10A–10B đã có code/test candidate shadow-only trên `codex/phase10-noise-boundary-stability`; chưa có XML candidate và chưa tuning VAD hysteresis. Việc tiếp theo là Slice 10C trong candidate shadow. Hợp đồng Phase 09 về Enabled/gain/XML/M19 là baseline không được làm yếu.
+Phase 00–09 hoàn tất trên `main`. Phase 10 Slice 10A–10C đã có code/test candidate shadow-only trên `codex/phase10-noise-boundary-stability`; chưa có audit/XML candidate hoặc pilot. Việc tiếp theo là Slice 10D project shadow, audit `1.6`, conservative merge và validator. Hợp đồng Phase 09 về Enabled/gain/XML/M19 là baseline không được làm yếu.

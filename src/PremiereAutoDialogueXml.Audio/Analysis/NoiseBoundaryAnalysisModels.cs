@@ -24,6 +24,9 @@ public enum NoiseBoundaryFrameState
     VadNegative,
     ConfirmedStartEvidence,
     UnconfirmedStartEvidence,
+    ConfirmedContinueEvidence,
+    UnconfirmedContinueEvidence,
+    ContinueAmbiguous,
     BorderlineAmbiguous,
     WarmupAmbiguous,
     EnergyConflictAmbiguous
@@ -39,6 +42,14 @@ public sealed record NoiseFloorPolicyDescriptor(
     float FallSmoothing,
     int StableStepFrameCount,
     float StableStepMaximumSpreadDb);
+
+public sealed record VadBoundaryPolicyDescriptor(
+    string Version,
+    double StartThreshold,
+    double ContinueThreshold,
+    int PhraseBreakMilliseconds,
+    int MinimumStartEvidenceMilliseconds,
+    int MinimumDirectEvidenceMilliseconds);
 
 public sealed record NoiseBoundaryFrameTrace(
     long TimelineStartSample,
@@ -60,6 +71,7 @@ public sealed record NoiseBoundaryTrackTrace(
     int TrackIndex,
     NoiseBoundaryAnalysisMode Mode,
     NoiseFloorPolicyDescriptor Policy,
+    VadBoundaryPolicyDescriptor BoundaryPolicy,
     IReadOnlyList<NoiseBoundaryFrameTrace> Frames);
 
 public sealed record NoiseBoundaryFrameDifference(
@@ -84,6 +96,8 @@ public sealed record NoiseBoundaryTrackComparison(
     NoiseBoundaryAnalysisMode CandidateMode,
     string BaselinePolicyVersion,
     string CandidatePolicyVersion,
+    string BaselineBoundaryPolicyVersion,
+    string CandidateBoundaryPolicyVersion,
     int ObservationCount,
     int ChangedFrameCount,
     int PhraseDifferenceCount,
