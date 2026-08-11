@@ -48,10 +48,16 @@ public sealed class AudioProjectAnalyzer
         }
 
         var tracks = project.Sequence.AudioTracks;
-        var legacyResults = new TrackAudioAnalysis[tracks.Count];
-        var candidateResults = _enableVadFrontEndShadow
+        var legacyBaselineResults = new TrackAudioAnalysis[tracks.Count];
+        var legacyNoiseCandidateResults = _enableVadFrontEndShadow
             ? new TrackAudioAnalysis[tracks.Count]
-            : legacyResults;
+            : legacyBaselineResults;
+        var antiAliasBaselineResults = _enableVadFrontEndShadow
+            ? new TrackAudioAnalysis[tracks.Count]
+            : legacyBaselineResults;
+        var antiAliasNoiseCandidateResults = _enableVadFrontEndShadow
+            ? new TrackAudioAnalysis[tracks.Count]
+            : legacyBaselineResults;
         var observationComparisons = _enableVadFrontEndShadow
             ? new ObservationComparison[tracks.Count]
             : [];
@@ -84,10 +90,12 @@ public sealed class AudioProjectAnalyzer
                         preset,
                         VadResamplingMode.LegacyStride3,
                         token);
-                    legacyResults[position] = analyzer.Analyze(track, observations, preset, token);
-
                     if (_enableVadFrontEndShadow)
                     {
+                        var legacyShadow = analyzer.AnalyzeShadow(track, observations, preset, token);
+                        legacyBaselineResults[position] = legacyShadow.Baseline;
+                        legacyNoiseCandidateResults[position] = legacyShadow.Candidate;
+
                         using var candidateDetector = _detectorFactory();
                         var candidateObservations = scanner.Scan(
                             track,
@@ -95,14 +103,18 @@ public sealed class AudioProjectAnalyzer
                             preset,
                             VadResamplingMode.AntiAliasFir,
                             token);
-                        candidateResults[position] = analyzer.Analyze(
-                            track,
-                            candidateObservations,
-                            preset,
-                            token);
+                        var antiAliasShadow = analyzer.AnalyzeShadow(
+                            track, candidateObservations, preset, token);
+                        antiAliasBaselineResults[position] = antiAliasShadow.Baseline;
+                        antiAliasNoiseCandidateResults[position] = antiAliasShadow.Candidate;
                         observationComparisons[position] = CompareObservations(
                             observations,
                             candidateObservations);
+                    }
+                    else
+                    {
+                        legacyBaselineResults[position] = analyzer.Analyze(
+                            track, observations, preset, token);
                     }
                 }
 
@@ -117,16 +129,57 @@ public sealed class AudioProjectAnalyzer
 
         progress?.Report(new(tracks.Count, tracks.Count, null, "Đang đối chiếu bleed giữa các track."));
         var bleedResolver = new BleedResolver(new TimelinePcmAccessor(_sampleReader));
-        var resolvedLegacy = bleedResolver.Resolve(project.Sequence, legacyResults, preset, cancellationToken);
+        var resolvedLegacyBaseline = bleedResolver.Resolve(
+            project.Sequence,
+            legacyBaselineResults,
+            preset,
+            cancellationToken);
         IReadOnlyList<TrackAudioAnalysis> resolved;
         VadFrontEndComparison? frontEndComparison = null;
+        NoiseBoundaryProjectComparison? noiseBoundaryComparison = null;
         if (_enableVadFrontEndShadow)
         {
-            var resolvedCandidate = bleedResolver.Resolve(
+            var resolvedLegacyNoiseCandidate = bleedResolver.Resolve(
                 project.Sequence,
-                candidateResults,
+                legacyNoiseCandidateResults,
                 preset,
                 cancellationToken);
+            var resolvedAntiAliasBaseline = bleedResolver.Resolve(
+                project.Sequence,
+                antiAliasBaselineResults,
+                preset,
+                cancellationToken);
+            var resolvedAntiAliasNoiseCandidate = bleedResolver.Resolve(
+                project.Sequence,
+                antiAliasNoiseCandidateResults,
+                preset,
+                cancellationToken);
+            var mergedLegacyNoise = new TrackAudioAnalysis[tracks.Count];
+            var mergedAntiAliasNoise = new TrackAudioAnalysis[tracks.Count];
+            var legacyNoiseComparisons = new NoiseBoundaryTrackComparison[tracks.Count];
+            var antiAliasNoiseComparisons = new NoiseBoundaryTrackComparison[tracks.Count];
+            for (var position = 0; position < tracks.Count; position++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var legacyComparison = NoiseBoundaryShadowComparer.Compare(
+                    resolvedLegacyBaseline[position],
+                    resolvedLegacyNoiseCandidate[position]);
+                (mergedLegacyNoise[position], legacyNoiseComparisons[position]) =
+                    ConservativeNoiseBoundaryAnalysisMerger.Merge(
+                        resolvedLegacyBaseline[position],
+                        resolvedLegacyNoiseCandidate[position],
+                        legacyComparison);
+
+                var antiAliasComparison = NoiseBoundaryShadowComparer.Compare(
+                    resolvedAntiAliasBaseline[position],
+                    resolvedAntiAliasNoiseCandidate[position]);
+                (mergedAntiAliasNoise[position], antiAliasNoiseComparisons[position]) =
+                    ConservativeNoiseBoundaryAnalysisMerger.Merge(
+                        resolvedAntiAliasBaseline[position],
+                        resolvedAntiAliasNoiseCandidate[position],
+                        antiAliasComparison);
+            }
+
             var merged = new TrackAudioAnalysis[tracks.Count];
             var trackComparisons = new VadFrontEndTrackComparison[tracks.Count];
             for (var position = 0; position < tracks.Count; position++)
@@ -134,8 +187,8 @@ public sealed class AudioProjectAnalyzer
                 cancellationToken.ThrowIfCancellationRequested();
                 var observationComparison = observationComparisons[position];
                 (merged[position], trackComparisons[position]) = ConservativeVadAnalysisMerger.Merge(
-                    resolvedLegacy[position],
-                    resolvedCandidate[position],
+                    mergedLegacyNoise[position],
+                    mergedAntiAliasNoise[position],
                     observationComparison.ObservationCount,
                     observationComparison.ChangedObservationCount,
                     observationComparison.MaximumProbabilityDelta);
@@ -146,10 +199,15 @@ public sealed class AudioProjectAnalyzer
                 VadResamplingMode.LegacyStride3.ToString(),
                 VadResamplingMode.AntiAliasFir.ToString(),
                 trackComparisons);
+            noiseBoundaryComparison = new(
+            [
+                new(VadResamplingMode.LegacyStride3.ToString(), legacyNoiseComparisons),
+                new(VadResamplingMode.AntiAliasFir.ToString(), antiAliasNoiseComparisons)
+            ]);
         }
         else
         {
-            resolved = resolvedLegacy;
+            resolved = resolvedLegacyBaseline;
         }
 
         progress?.Report(new(tracks.Count, tracks.Count, null, "Đang tạo bằng chứng review đa mic."));
@@ -165,7 +223,8 @@ public sealed class AudioProjectAnalyzer
         return new(resolved, SileroVadModelInfo.Version, SileroVadModelInfo.Sha256)
         {
             ShadowEvidence = shadowEvidence,
-            VadFrontEndComparison = frontEndComparison
+            VadFrontEndComparison = frontEndComparison,
+            NoiseBoundaryComparison = noiseBoundaryComparison
         };
     }
 

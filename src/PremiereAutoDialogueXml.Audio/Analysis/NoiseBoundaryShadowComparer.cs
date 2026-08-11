@@ -44,6 +44,8 @@ public static class NoiseBoundaryShadowComparer
         }
 
         var frameDifferences = new List<NoiseBoundaryFrameDifference>();
+        var maximumNoiseFloorDeltaDb = 0f;
+        var trainingEligibilityDifferenceCount = 0;
         for (var index = 0; index < baselineTrace.Frames.Count; index++)
         {
             var baselineFrame = baselineTrace.Frames[index];
@@ -58,8 +60,20 @@ public static class NoiseBoundaryShadowComparer
             {
                 frameDifferences.Add(new(baselineFrame, candidateFrame));
             }
+
+            maximumNoiseFloorDeltaDb = Math.Max(
+                maximumNoiseFloorDeltaDb,
+                Math.Max(
+                    MathF.Abs(baselineFrame.NoiseFloorBeforeDbfs - candidateFrame.NoiseFloorBeforeDbfs),
+                    MathF.Abs(baselineFrame.NoiseFloorAfterDbfs - candidateFrame.NoiseFloorAfterDbfs)));
+            if (IsTrainingEligible(baselineFrame.NoiseFloorTrainingDecision) !=
+                IsTrainingEligible(candidateFrame.NoiseFloorTrainingDecision))
+            {
+                trainingEligibilityDifferenceCount++;
+            }
         }
 
+        var phraseDifferences = ComparePhrases(baseline.Phrases, candidate.Phrases);
         var decisionDifferences = CompareDecisions(baseline.Segments, candidate.Segments);
         return new(
             baseline.TrackIndex,
@@ -71,14 +85,23 @@ public static class NoiseBoundaryShadowComparer
             candidateTrace.BoundaryPolicy.Version,
             baselineTrace.Frames.Count,
             frameDifferences.Count,
-            CountPhraseDifferences(baseline.Phrases, candidate.Phrases),
+            phraseDifferences.Count,
             decisionDifferences.Count,
             decisionDifferences.Count(difference =>
                 difference.BaselineEnabled && !difference.CandidateEnabled),
             decisionDifferences.Count(difference =>
                 !difference.BaselineEnabled && difference.CandidateEnabled),
             frameDifferences,
-            decisionDifferences);
+            decisionDifferences)
+        {
+            BaselinePolicy = baselineTrace.Policy,
+            CandidatePolicy = candidateTrace.Policy,
+            BaselineBoundaryPolicy = baselineTrace.BoundaryPolicy,
+            CandidateBoundaryPolicy = candidateTrace.BoundaryPolicy,
+            MaximumNoiseFloorDeltaDb = maximumNoiseFloorDeltaDb,
+            TrainingEligibilityDifferenceCount = trainingEligibilityDifferenceCount,
+            PhraseDifferences = phraseDifferences
+        };
     }
 
     private static bool BoundaryPoliciesMatch(
@@ -111,24 +134,90 @@ public static class NoiseBoundaryShadowComparer
         baseline.IsWarmupUncertain == candidate.IsWarmupUncertain &&
         baseline.BoundaryState == candidate.BoundaryState;
 
-    private static int CountPhraseDifferences(
+    private static IReadOnlyList<NoiseBoundaryPhraseDifference> ComparePhrases(
         IReadOnlyList<DialoguePhrase> baseline,
         IReadOnlyList<DialoguePhrase> candidate)
     {
-        var baselineCounts = baseline
-            .GroupBy(PhraseSignature)
-            .ToDictionary(group => group.Key, group => group.Count());
-        var candidateCounts = candidate
-            .GroupBy(PhraseSignature)
-            .ToDictionary(group => group.Key, group => group.Count());
-        return baselineCounts.Keys
-            .Concat(candidateCounts.Keys)
-            .Distinct()
-            .Sum(signature =>
-                Math.Abs(
-                    baselineCounts.GetValueOrDefault(signature) -
-                    candidateCounts.GetValueOrDefault(signature)));
+        var nodes = baseline.Select(phrase => new PhraseNode(phrase, IsBaseline: true))
+            .Concat(candidate.Select(phrase => new PhraseNode(phrase, IsBaseline: false)))
+            .OrderBy(node => node.Phrase.PaddedStartSample)
+            .ThenBy(node => node.Phrase.PaddedEndSample)
+            .ToArray();
+        if (nodes.Length == 0)
+        {
+            return [];
+        }
+
+        var differences = new List<NoiseBoundaryPhraseDifference>();
+        var component = new List<PhraseNode> { nodes[0] };
+        var componentEnd = nodes[0].Phrase.PaddedEndSample;
+        for (var index = 1; index < nodes.Length; index++)
+        {
+            var node = nodes[index];
+            if (node.Phrase.PaddedStartSample < componentEnd)
+            {
+                component.Add(node);
+                componentEnd = Math.Max(componentEnd, node.Phrase.PaddedEndSample);
+                continue;
+            }
+
+            AddPhraseDifference(differences, component);
+            component = [node];
+            componentEnd = node.Phrase.PaddedEndSample;
+        }
+
+        AddPhraseDifference(differences, component);
+        return differences;
     }
+
+    private static void AddPhraseDifference(
+        List<NoiseBoundaryPhraseDifference> differences,
+        IReadOnlyList<PhraseNode> component)
+    {
+        var baseline = component.Where(node => node.IsBaseline).Select(node => node.Phrase).ToArray();
+        var candidate = component.Where(node => !node.IsBaseline).Select(node => node.Phrase).ToArray();
+        if (PhraseMultisetMatches(baseline, candidate))
+        {
+            return;
+        }
+
+        var changeKind = (baseline.Length, candidate.Length) switch
+        {
+            (0, _) => "candidate-only",
+            (_, 0) => "baseline-only",
+            (1, 1) => "boundary-or-gain-changed",
+            (1, > 1) => "split",
+            ( > 1, 1) => "merge",
+            _ => "resegmented"
+        };
+        differences.Add(new(
+            changeKind,
+            baseline.Select(PhraseSnapshot).ToArray(),
+            candidate.Select(PhraseSnapshot).ToArray()));
+    }
+
+    private static bool PhraseMultisetMatches(
+        IReadOnlyList<DialoguePhrase> baseline,
+        IReadOnlyList<DialoguePhrase> candidate)
+    {
+        var baselineCounts = baseline.GroupBy(PhraseSignature)
+            .ToDictionary(group => group.Key, group => group.Count());
+        var candidateCounts = candidate.GroupBy(PhraseSignature)
+            .ToDictionary(group => group.Key, group => group.Count());
+        return baselineCounts.Count == candidateCounts.Count &&
+               baselineCounts.All(pair => candidateCounts.GetValueOrDefault(pair.Key) == pair.Value);
+    }
+
+    private static NoiseBoundaryPhraseSnapshot PhraseSnapshot(DialoguePhrase phrase) => new(
+        phrase.Id,
+        phrase.CoreStartSample,
+        phrase.CoreEndSample,
+        phrase.PaddedStartSample,
+        phrase.PaddedEndSample,
+        phrase.MeasuredPeakDbfs,
+        phrase.RequiredGainDb,
+        phrase.AppliedGainDb,
+        phrase.GainWasCapped);
 
     private static PhraseComparisonSignature PhraseSignature(DialoguePhrase phrase) => new(
         phrase.CoreStartSample,
@@ -184,7 +273,13 @@ public static class NoiseBoundaryShadowComparer
                 candidateSegment?.SourceClipId,
                 candidateSegment?.Status,
                 candidateSegment?.Reason,
-                IsEnabled(candidateSegment)));
+                IsEnabled(candidateSegment))
+            {
+                BaselinePhraseId = baselineSegment?.PhraseId,
+                BaselineGainDb = baselineSegment?.GainDb,
+                CandidatePhraseId = candidateSegment?.PhraseId,
+                CandidateGainDb = candidateSegment?.GainDb
+            });
         }
 
         return differences;
@@ -233,6 +328,12 @@ public static class NoiseBoundaryShadowComparer
     private static bool IsEnabled(AnalyzedAudioSegment? segment) =>
         segment?.Status is AudioSegmentStatus.Speech or AudioSegmentStatus.Ambiguous;
 
+    private static bool IsTrainingEligible(NoiseFloorTrainingDecision decision) => decision is
+        NoiseFloorTrainingDecision.WarmupCandidate or
+        NoiseFloorTrainingDecision.EligibleVadNegative or
+        NoiseFloorTrainingDecision.EligibleBackground or
+        NoiseFloorTrainingDecision.EligibleStableFloorStep;
+
     private readonly record struct PhraseComparisonSignature(
         long CoreStartSample,
         long CoreEndSample,
@@ -242,4 +343,6 @@ public static class NoiseBoundaryShadowComparer
         float RequiredGainDb,
         float AppliedGainDb,
         bool GainWasCapped);
+
+    private readonly record struct PhraseNode(DialoguePhrase Phrase, bool IsBaseline);
 }

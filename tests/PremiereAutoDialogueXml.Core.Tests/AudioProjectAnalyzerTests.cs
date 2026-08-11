@@ -154,6 +154,12 @@ public sealed class AudioProjectAnalyzerTests
             });
 
         Assert.IsNotNull(result.VadFrontEndComparison);
+        Assert.IsNotNull(result.NoiseBoundaryComparison);
+        Assert.HasCount(2, result.NoiseBoundaryComparison.FrontEnds);
+        Assert.AreEqual(0, result.NoiseBoundaryComparison.BaselineEnabledFinalDisabledCount);
+        Assert.IsTrue(result.NoiseBoundaryComparison.FrontEnds.All(frontEnd =>
+            frontEnd.Tracks.Single().BaselinePolicyVersion == "phase09-adaptive-p20-v1" &&
+            frontEnd.Tracks.Single().CandidatePolicyVersion == "phase10-background-eligible-p20-v1"));
         Assert.IsGreaterThan(0, result.VadFrontEndComparison.ChangedObservationCount);
         Assert.IsGreaterThan(0, result.VadFrontEndComparison.LegacyEnabledCandidateDisabledCount);
         Assert.IsTrue(result.Tracks.Single().Segments.All(segment =>

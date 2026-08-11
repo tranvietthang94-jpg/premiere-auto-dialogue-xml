@@ -41,7 +41,7 @@ public sealed class OutputPackageWriterTests
 
         using var audit = JsonDocument.Parse(await File.ReadAllTextAsync(result.AuditPath));
         var root = audit.RootElement;
-        Assert.AreEqual("1.5", root.GetProperty("schemaVersion").GetString());
+        Assert.AreEqual("1.6", root.GetProperty("schemaVersion").GetString());
         Assert.AreEqual(fixture.Project.SourceXmlSha256, root.GetProperty("sourceXmlSha256").GetString());
         Assert.AreEqual(result.OutputXmlSha256, root.GetProperty("outputXmlSha256").GetString());
         Assert.AreEqual("6.2.1", root.GetProperty("model").GetProperty("version").GetString());
@@ -175,7 +175,11 @@ public sealed class OutputPackageWriterTests
             "LegacyStride3",
             "AntiAliasFir",
             [new(1, 7, 3, 0.42f, 1, 1, 0, [difference])]);
-        var analysis = fixture.Analysis with { VadFrontEndComparison = comparison };
+        var analysis = fixture.Analysis with
+        {
+            VadFrontEndComparison = comparison,
+            NoiseBoundaryComparison = NoiseBoundaryAuditComparison(1)
+        };
 
         var result = await new OutputPackageWriter().WriteAsync(new(
             fixture.Project,
@@ -191,6 +195,15 @@ public sealed class OutputPackageWriterTests
         Assert.AreEqual(
             "ambiguous-vad-front-end-disagreement",
             frontEnd.GetProperty("tracks")[0].GetProperty("differences")[0].GetProperty("finalReason").GetString());
+        var noiseBoundary = audit.RootElement.GetProperty("noiseBoundaryComparison");
+        Assert.AreEqual(2, noiseBoundary.GetProperty("frontEnds").GetArrayLength());
+        Assert.AreEqual(0, noiseBoundary.GetProperty("baselineEnabledFinalDisabledCount").GetInt32());
+        var noiseTrack = noiseBoundary.GetProperty("frontEnds")[0].GetProperty("tracks")[0];
+        Assert.AreEqual(8, noiseTrack.GetProperty("candidatePolicy").GetProperty("warmupFrameCount").GetInt32());
+        Assert.AreEqual(
+            0.40,
+            noiseTrack.GetProperty("candidateBoundaryPolicy").GetProperty("continueThreshold").GetDouble(),
+            0.000001);
     }
 
     [TestMethod]
@@ -238,6 +251,44 @@ public sealed class OutputPackageWriterTests
     }
 
     [TestMethod]
+    public async Task WriteAsyncRejectsUnsafeNoiseBoundaryAuditBeforeCreatingRunDirectory()
+    {
+        using var fixture = PremiereXmlGeneratorTests.WriterFixture.Create();
+        var noiseBoundary = NoiseBoundaryAuditComparison(1);
+        var firstFrontEnd = noiseBoundary.FrontEnds[0];
+        var unsafeTrack = firstFrontEnd.Tracks[0] with
+        {
+            BaselineEnabledFinalDisabledCount = 1
+        };
+        var unsafeComparison = noiseBoundary with
+        {
+            FrontEnds =
+            [
+                firstFrontEnd with { Tracks = [unsafeTrack] },
+                noiseBoundary.FrontEnds[1]
+            ]
+        };
+        var analysis = fixture.Analysis with
+        {
+            VadFrontEndComparison = new(
+                "LegacyStride3",
+                "AntiAliasFir",
+                [new(1, 7, 0, 0, 0, 0, 0, [])]),
+            NoiseBoundaryComparison = unsafeComparison
+        };
+        var before = Directory.GetDirectories(fixture.Directory);
+
+        await Assert.ThrowsExactlyAsync<InvalidDataException>(() =>
+            new OutputPackageWriter().WriteAsync(new(
+                fixture.Project,
+                analysis,
+                DialogueProcessingPreset.Balanced,
+                fixture.Directory)));
+
+        CollectionAssert.AreEqual(before, Directory.GetDirectories(fixture.Directory));
+    }
+
+    [TestMethod]
     public async Task WriteAsyncStaleSourceLeavesNoRunDirectory()
     {
         using var fixture = PremiereXmlGeneratorTests.WriterFixture.Create();
@@ -280,6 +331,42 @@ public sealed class OutputPackageWriterTests
     {
         var counter = 0;
         return new(() => Guid.Parse($"00000000-0000-0000-0000-{++counter:D12}"));
+    }
+
+    private static NoiseBoundaryProjectComparison NoiseBoundaryAuditComparison(int trackIndex)
+    {
+        NoiseBoundaryTrackComparison Track() => new(
+            trackIndex,
+            NoiseBoundaryAnalysisMode.Phase09Baseline,
+            NoiseBoundaryAnalysisMode.NoiseBoundaryCandidate,
+            "phase09-adaptive-p20-v1",
+            "phase10-background-eligible-p20-v1",
+            "phase09-vad-single-threshold-v1",
+            "phase10-vad-start050-continue040-v1",
+            7,
+            0,
+            0,
+            0,
+            0,
+            0,
+            [],
+            [])
+        {
+            BaselinePolicy = NoiseFloorPolicyCatalog.Phase09Baseline,
+            CandidatePolicy = NoiseFloorPolicyCatalog.NoiseBoundaryCandidate,
+            BaselineBoundaryPolicy = VadBoundaryPolicyCatalog.For(
+                NoiseBoundaryAnalysisMode.Phase09Baseline,
+                DialogueProcessingPreset.Balanced),
+            CandidateBoundaryPolicy = VadBoundaryPolicyCatalog.For(
+                NoiseBoundaryAnalysisMode.NoiseBoundaryCandidate,
+                DialogueProcessingPreset.Balanced)
+        };
+
+        return new(
+        [
+            new("LegacyStride3", [Track()]),
+            new("AntiAliasFir", [Track()])
+        ]);
     }
 
     private static XElement WithoutInsignificantWhitespace(XElement element)

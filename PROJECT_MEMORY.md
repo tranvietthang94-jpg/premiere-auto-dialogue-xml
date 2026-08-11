@@ -97,6 +97,9 @@ Ngày chốt: 2026-08-11 (Asia/Saigon). Đây là memory source-of-truth để m
 - Continue không được cộng vào start/direct evidence. Context thiếu direct giữ `ambiguous-vad-continue-context-near-speech`, Enabled và cùng phrase/gain; không có start thì không tạo phrase.
 - Trace/comparator có boundary policy provenance và state start/continue riêng. Synthetic khóa `.40` accept/`.39` reject, jitter, evidence minimum, gap/media; Release đạt `146/146`; format sạch.
 - Candidate 10C vẫn chỉ chạy trong `AnalyzeShadow`; app/output vẫn dùng Phase 09, không có audit/XML candidate hoặc Premiere pilot mới. Bước tiếp theo là Slice 10D project shadow + audit `1.6` + conservative merge/validator.
+- Slice 10D đã nối project production theo hai lớp fail-safe: Phase 09 baseline và Phase 10 candidate được merge bảo thủ riêng trên từng `LegacyStride3`/`AntiAliasFir`, sau đó kết quả tiếp tục qua merge front-end Phase 09. Mọi baseline Enabled được giữ; disagreement thành Ambiguous/Enabled và whole-phrase fallback giữ nguyên coverage/gain.
+- Audit schema `1.6` ghi policy provenance, floor/eligibility/frame differences, phrase boundary/split/merge với gain/cap, decision baseline/candidate/final. Validator tự tính lại comparison và dừng trước khi tạo run directory nếu shadow thiếu, sai policy/cùng-observation/count/gain hoặc làm mất baseline Enabled.
+- Slice 10D đạt `150/150` test; build/format sạch. Chưa có HGE2/full HGE/Premiere/publish candidate mới. Bước tiếp theo là 10E pilot trên artifact directory mới; nếu XML đổi phải dùng đúng hash đó cho PCM A1–A7, M19 và Premiere XML re-export.
 
 ## Lỗi đã gặp và cách tránh
 
@@ -129,4 +132,4 @@ Ngày chốt: 2026-08-11 (Asia/Saigon). Đây là memory source-of-truth để m
 
 ## Trạng thái bàn giao
 
-Phase 00–09 hoàn tất trên `main`. Phase 10 Slice 10A–10C đã có code/test candidate shadow-only trên `codex/phase10-noise-boundary-stability`; chưa có audit/XML candidate hoặc pilot. Việc tiếp theo là Slice 10D project shadow, audit `1.6`, conservative merge và validator. Hợp đồng Phase 09 về Enabled/gain/XML/M19 là baseline không được làm yếu.
+Phase 00–09 hoàn tất trên `main`. Phase 10 Slice 10A–10D đã có code/test trên `codex/phase10-noise-boundary-stability`; production analysis nay dùng merge bảo thủ hai tầng và audit `1.6`, nhưng chưa có XML HGE2/full HGE hoặc Premiere pilot mới. Việc tiếp theo là Slice 10E pilot, round-trip và đóng gói. Hợp đồng Phase 09 về Enabled/gain/XML/M19 là baseline không được làm yếu.

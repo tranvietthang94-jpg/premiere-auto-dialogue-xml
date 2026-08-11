@@ -89,6 +89,51 @@ public sealed class NoiseBoundaryShadowComparerTests
             NoiseBoundaryShadowComparer.Compare(baseline, candidate));
     }
 
+    [TestMethod]
+    public void CompareRecordsFloorEligibilityAndPhraseSplitDetails()
+    {
+        var baseline = Analysis(
+            NoiseBoundaryAnalysisMode.Phase09Baseline,
+            AudioSegmentStatus.Ambiguous,
+            "same") with
+        {
+            Phrases = [Phrase("baseline", 0, 4_800)]
+        };
+        var candidate = Analysis(
+            NoiseBoundaryAnalysisMode.NoiseBoundaryCandidate,
+            AudioSegmentStatus.Ambiguous,
+            "same");
+        candidate = candidate with
+        {
+            Phrases = [Phrase("candidate-1", 0, 2_400), Phrase("candidate-2", 2_400, 4_800)],
+            NoiseBoundaryTrace = candidate.NoiseBoundaryTrace! with
+            {
+                Frames =
+                [
+                    candidate.NoiseBoundaryTrace.Frames[0] with
+                    {
+                        NoiseFloorAfterDbfs = -75f,
+                        NoiseFloorTrainingDecision =
+                            NoiseFloorTrainingDecision.NotEligibleHighEnergyConflict
+                    }
+                ]
+            }
+        };
+
+        var comparison = NoiseBoundaryShadowComparer.Compare(baseline, candidate);
+
+        Assert.AreEqual(15f, comparison.MaximumNoiseFloorDeltaDb, 0.0001f);
+        Assert.AreEqual(1, comparison.TrainingEligibilityDifferenceCount);
+        Assert.AreEqual(1, comparison.PhraseDifferenceCount);
+        Assert.HasCount(1, comparison.PhraseDifferences);
+        Assert.AreEqual("split", comparison.PhraseDifferences[0].ChangeKind);
+        Assert.HasCount(1, comparison.PhraseDifferences[0].BaselinePhrases);
+        Assert.HasCount(2, comparison.PhraseDifferences[0].CandidatePhrases);
+    }
+
+    private static DialoguePhrase Phrase(string id, long start, long end) =>
+        new(id, 1, start, end, start, end, -12, 9.01f, 9.01f, false);
+
     private static TrackAudioAnalysis Analysis(
         NoiseBoundaryAnalysisMode mode,
         AudioSegmentStatus status,

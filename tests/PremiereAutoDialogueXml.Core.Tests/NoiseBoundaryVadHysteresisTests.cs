@@ -238,6 +238,24 @@ public sealed class NoiseBoundaryVadHysteresisTests
                 changedPreset));
     }
 
+    [TestMethod]
+    public void CandidateRejectsUnprovenBoundaryTimingChange()
+    {
+        var changedPresets = new[]
+        {
+            DialogueProcessingPreset.Balanced with { PhraseBreakMilliseconds = 400 },
+            DialogueProcessingPreset.Balanced with { MinimumSpeechMilliseconds = 100 }
+        };
+
+        foreach (var changedPreset in changedPresets)
+        {
+            Assert.ThrowsExactly<InvalidOperationException>(() =>
+                VadBoundaryPolicyCatalog.For(
+                    NoiseBoundaryAnalysisMode.NoiseBoundaryCandidate,
+                    changedPreset));
+        }
+    }
+
     private static NoiseBoundaryShadowAnalysis Analyze(
         TestAudioFixture fixture,
         IReadOnlyList<AudioFrameObservation> observations)

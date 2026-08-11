@@ -12,10 +12,12 @@ internal static class VadBoundaryPolicyCatalog
     {
         ArgumentNullException.ThrowIfNull(preset);
         if (mode == NoiseBoundaryAnalysisMode.NoiseBoundaryCandidate &&
-            Math.Abs(preset.VadThreshold - 0.50) > 0.0001)
+            (Math.Abs(preset.VadThreshold - 0.50) > 0.0001 ||
+             preset.PhraseBreakMilliseconds != 350 ||
+             preset.MinimumSpeechMilliseconds != 120))
         {
             throw new InvalidOperationException(
-                "Candidate Phase 10C chỉ hỗ trợ start threshold 0,50 đã khóa.");
+                "Candidate Phase 10C chỉ hỗ trợ start 0,50, break 350 ms và evidence 120 ms đã khóa.");
         }
 
         return mode switch

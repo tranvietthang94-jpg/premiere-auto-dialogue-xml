@@ -112,7 +112,7 @@ public sealed class OutputPackageWriter
                 .SelectMany(track => track.Phrases)
                 .ToDictionary(phrase => phrase.Id, StringComparer.Ordinal);
             var audit = new OutputAudit(
-                SchemaVersion: "1.5",
+                SchemaVersion: "1.6",
                 RunId: runId,
                 CreatedAtUtc: generatedAt,
                 SourceXmlFileName: Path.GetFileName(request.Project.SourceXmlPath),
@@ -129,6 +129,7 @@ public sealed class OutputPackageWriter
                 Markers: generated.Markers.Select(MarkerAudit.From).ToArray())
             {
                 VadFrontEndComparison = request.Analysis.VadFrontEndComparison,
+                NoiseBoundaryComparison = request.Analysis.NoiseBoundaryComparison,
                 Review = new(
                     FileName: reviewFileName,
                     Sha256: reviewSha256,
@@ -231,6 +232,9 @@ public sealed class OutputPackageWriter
             !VadFrontEndComparisonMatches(
                 actual.VadFrontEndComparison,
                 expected.VadFrontEndComparison) ||
+            !NoiseBoundaryComparisonMatches(
+                actual.NoiseBoundaryComparison,
+                expected.NoiseBoundaryComparison) ||
             !ReviewMatches(actual.Review, expected.Review))
         {
             throw new InvalidDataException("Audit đọc lại không khớp dữ liệu kết quả trong bộ nhớ.");
@@ -263,6 +267,60 @@ public sealed class OutputPackageWriter
             pair.First.LegacyDisabledCandidateEnabledCount == pair.Second.LegacyDisabledCandidateEnabledCount &&
             pair.First.Differences.SequenceEqual(pair.Second.Differences));
     }
+
+    private static bool NoiseBoundaryComparisonMatches(
+        NoiseBoundaryProjectComparison? actual,
+        NoiseBoundaryProjectComparison? expected)
+    {
+        if (actual is null || expected is null)
+        {
+            return actual is null && expected is null;
+        }
+
+        return actual.FrontEnds.Count == expected.FrontEnds.Count &&
+               actual.FrontEnds.Zip(expected.FrontEnds).All(pair =>
+                   pair.First.Resampling == pair.Second.Resampling &&
+                   pair.First.Tracks.Count == pair.Second.Tracks.Count &&
+                   pair.First.Tracks.Zip(pair.Second.Tracks).All(trackPair =>
+                       NoiseBoundaryTrackComparisonMatches(trackPair.First, trackPair.Second)));
+    }
+
+    private static bool NoiseBoundaryTrackComparisonMatches(
+        NoiseBoundaryTrackComparison actual,
+        NoiseBoundaryTrackComparison expected) =>
+        actual.TrackIndex == expected.TrackIndex &&
+        actual.BaselineMode == expected.BaselineMode &&
+        actual.CandidateMode == expected.CandidateMode &&
+        actual.BaselinePolicyVersion == expected.BaselinePolicyVersion &&
+        actual.CandidatePolicyVersion == expected.CandidatePolicyVersion &&
+        actual.BaselineBoundaryPolicyVersion == expected.BaselineBoundaryPolicyVersion &&
+        actual.CandidateBoundaryPolicyVersion == expected.CandidateBoundaryPolicyVersion &&
+        actual.ObservationCount == expected.ObservationCount &&
+        actual.ChangedFrameCount == expected.ChangedFrameCount &&
+        actual.PhraseDifferenceCount == expected.PhraseDifferenceCount &&
+        actual.SegmentDifferenceCount == expected.SegmentDifferenceCount &&
+        actual.BaselineEnabledCandidateDisabledCount == expected.BaselineEnabledCandidateDisabledCount &&
+        actual.BaselineDisabledCandidateEnabledCount == expected.BaselineDisabledCandidateEnabledCount &&
+        actual.BaselinePolicy == expected.BaselinePolicy &&
+        actual.CandidatePolicy == expected.CandidatePolicy &&
+        actual.BaselineBoundaryPolicy == expected.BaselineBoundaryPolicy &&
+        actual.CandidateBoundaryPolicy == expected.CandidateBoundaryPolicy &&
+        Math.Abs(actual.MaximumNoiseFloorDeltaDb - expected.MaximumNoiseFloorDeltaDb) <= 0.0001f &&
+        actual.TrainingEligibilityDifferenceCount == expected.TrainingEligibilityDifferenceCount &&
+        actual.BaselineEnabledFinalDisabledCount == expected.BaselineEnabledFinalDisabledCount &&
+        actual.FrameDifferences.SequenceEqual(expected.FrameDifferences) &&
+        actual.DecisionDifferences.SequenceEqual(expected.DecisionDifferences) &&
+        actual.FinalDifferences.SequenceEqual(expected.FinalDifferences) &&
+        NoiseBoundaryPhraseDifferencesMatch(actual.PhraseDifferences, expected.PhraseDifferences);
+
+    private static bool NoiseBoundaryPhraseDifferencesMatch(
+        IReadOnlyList<NoiseBoundaryPhraseDifference> actual,
+        IReadOnlyList<NoiseBoundaryPhraseDifference> expected) =>
+        actual.Count == expected.Count &&
+        actual.Zip(expected).All(pair =>
+            pair.First.ChangeKind == pair.Second.ChangeKind &&
+            pair.First.BaselinePhrases.SequenceEqual(pair.Second.BaselinePhrases) &&
+            pair.First.CandidatePhrases.SequenceEqual(pair.Second.CandidatePhrases));
 
     private static bool ReviewMatches(ReviewListAudit? actual, ReviewListAudit? expected)
     {

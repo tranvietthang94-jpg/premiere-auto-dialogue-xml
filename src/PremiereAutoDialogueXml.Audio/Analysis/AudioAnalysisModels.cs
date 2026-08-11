@@ -87,6 +87,8 @@ public sealed record ProjectAudioAnalysis(
     public IReadOnlyList<CrossTrackShadowEvidence> ShadowEvidence { get; init; } = [];
 
     public VadFrontEndComparison? VadFrontEndComparison { get; init; }
+
+    public NoiseBoundaryProjectComparison? NoiseBoundaryComparison { get; init; }
 }
 
 public sealed record VadDecisionDifference(

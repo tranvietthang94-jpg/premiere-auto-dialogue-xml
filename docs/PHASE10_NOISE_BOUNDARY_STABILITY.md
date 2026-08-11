@@ -133,6 +133,15 @@ Kết quả triển khai 10C:
 - Nếu bất kỳ phần nào của phrase baseline cần fail-safe, whole-phrase coverage/gain Phase 09 vẫn được giữ trọn.
 - `OutputDecisionContractValidator` phải thất bại trước publication nếu coverage, Enabled/status, phrase/gain/target/cap hoặc marker không nhất quán.
 
+Kết quả triển khai 10D:
+
+- Mỗi front-end `LegacyStride3` và `AntiAliasFir` chạy Phase 09 baseline cùng Phase 10 candidate trên chính cùng một observation stream. Bleed reconciliation được áp dụng độc lập cho cả bốn project result trước khi so sánh và merge.
+- Merge noise/boundary tái sử dụng whole-phrase fail-safe đã được Premiere kiểm chứng ở Phase 09. Baseline Enabled không thể thành final Disabled; disagreement giữ `Ambiguous/Enabled`, còn phrase baseline cần fallback được giữ nguyên toàn bộ coverage và gain.
+- Sau hai merge noise/boundary độc lập, merge front-end Phase 09 vẫn chạy như lớp an toàn ngoài cùng. Candidate không thể đóng vùng baseline đang nghe được; mọi thay đổi segmentation/gain còn lại đều đi qua audit và validator trước XML.
+- Audit tăng lên schema `1.6`, ghi policy provenance, floor delta, training eligibility, frame differences, phrase boundary/split/merge cùng peak/gain/cap, decision baseline/candidate và decision final theo interval.
+- `OutputDecisionContractValidator` tự đối chiếu policy, track/front-end coverage, aggregate frame/phrase/decision, cùng-observation, gain/target/cap và mọi baseline Enabled trước khi writer tạo thư mục run. Regression xác nhận lỗi safety bị từ chối mà không để lại XML/audit tạm.
+- Release unit/integration đạt `150/150`; build và format sạch. Chưa tạo XML HGE2/full HGE, chưa chạy Premiere round-trip hoặc đóng gói mới; các việc đó thuộc 10E.
+
 ### Slice 10E — pilot, round-trip và đóng gói
 
 - Chạy synthetic corpus, HGE2 và full HGE trên artifact directory mới.
