@@ -1,15 +1,15 @@
-# Memory handoff — Premiere Auto Dialogue XML, Phase 00–09
+# Memory handoff — Premiere Auto Dialogue XML, Phase 00–10
 
-Ngày chốt: 2026-08-09 (Asia/Saigon). Đây là memory source-of-truth để một phiên Codex mới tiếp tục nâng cấp dự án mà không làm lại các phase đã hoàn tất.
+Ngày chốt: 2026-08-11 (Asia/Saigon). Đây là memory source-of-truth để một phiên Codex mới tiếp tục nâng cấp dự án mà không làm lại các phase đã hoàn tất.
 
 ## Định hướng và vị trí dự án
 
 - Workspace thật: `F:\RIN APP\App-Auto-Edit_codex_2`.
 - Private GitHub repo: `tranvietthang94-jpg/premiere-auto-dialogue-xml`.
 - Phase 00–09 đã merge vào `main`. Phase 09 qua PR `#12`, merge commit `50ee4f9fb14d58e1dffbd1d23b807f2d58802976`; CI hậu merge `31461869682` đạt.
-- Chủ dự án không muốn preview/review UI; app chỉ tập trung xử lý âm thanh và xuất XML. Phase 09 đã hoàn tất; nâng cấp tiếp theo dự kiến là Phase 10 về noise floor và ranh giới câu, trên branch riêng.
+- Chủ dự án không muốn preview/review UI; app chỉ tập trung xử lý âm thanh và xuất XML. Phase 10 đã mở ở trạng thái `planned; not-implemented` trên `codex/phase10-noise-boundary-stability`; mục tiêu là noise floor background-eligible và ranh giới câu start/continue hysteresis có shadow/fail-safe.
 - Private draft prerelease: tag `v0.1.0-rc.1`, tên `Premiere Auto Dialogue XML 0.1.0 RC1`, target `8bdf47d`; URL draft hiện tại `https://github.com/tranvietthang94-jpg/premiere-auto-dialogue-xml/releases/tag/untagged-1c4ff86dc76dc88c43e3`.
-- Tài liệu phase đầy đủ nằm trong `docs/`; đọc trước `README.md`, `docs/IMPLEMENTATION_PLAN.md`, `docs/PHASE00_RESULT.md`, `docs/PHASE06_PILOT_RESULT.md`, `docs/PHASE07_INSTALLER_RELEASE.md`, `docs/PHASE08_REVIEW_QUEUE.md`, `docs/PHASE09_AUDIO_XML_HARDENING.md`, `docs/INTERNAL_CODE_SIGNING.md`.
+- Tài liệu phase đầy đủ nằm trong `docs/`; đọc trước `README.md`, `docs/IMPLEMENTATION_PLAN.md`, `docs/PHASE00_RESULT.md`, `docs/PHASE06_PILOT_RESULT.md`, `docs/PHASE07_INSTALLER_RELEASE.md`, `docs/PHASE08_REVIEW_QUEUE.md`, `docs/PHASE09_AUDIO_XML_HARDENING.md`, `docs/PHASE10_NOISE_BOUNDARY_STABILITY.md`, `docs/INTERNAL_CODE_SIGNING.md`.
 
 ## Sản phẩm đã khóa
 
@@ -114,4 +114,4 @@ Ngày chốt: 2026-08-09 (Asia/Saigon). Đây là memory source-of-truth để m
 
 ## Trạng thái bàn giao
 
-Phase 00–09 hoàn tất trên `main`. Phase 09 PR `#12`: candidate đầu bị loại; fix phrase-component đạt `122/122` test, HGE2 replacement `A11D046...`, Premiere PCM A1–A7, M19, XML re-export, full HGE và CI/packaging mà không làm mất frame legacy Enabled. Merge commit `50ee4f9`; CI hậu merge `31461869682` đạt. Việc tiếp theo là xác định mục tiêu và mở tài liệu Phase 10 trên branch mới; tiếp tục giữ app tập trung xử lý âm thanh và xuất XML, không mở preview/review UI.
+Phase 00–09 hoàn tất trên `main`. Phase 10 chỉ mới có tài liệu mục tiêu trên `codex/phase10-noise-boundary-stability`, chưa có code hoặc output candidate. Việc tiếp theo là Slice 10A: thêm corpus/test baseline và cấu trúc comparison shadow-only; chưa đổi XML, chưa tuning threshold, chưa chạy Premiere pilot. Hợp đồng Phase 09 về Enabled/gain/XML/M19 là baseline không được làm yếu.

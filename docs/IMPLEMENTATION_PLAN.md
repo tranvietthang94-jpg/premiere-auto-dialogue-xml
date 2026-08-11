@@ -16,8 +16,11 @@ Mỗi phase dùng branch và draft pull request riêng. Các thay đổi có ý 
 8. `phase/07-installer-release`
 9. `phase/08-review-queue`
 10. `phase/09-audio-xml-hardening`
+11. `codex/phase10-noise-boundary-stability`
 
 Phase 00–09 đã hoàn tất và merge vào `main`. Theo quyết định sản phẩm ngày 2026-08-09, app không mở nhánh preview/review UI; Phase 09 tập trung làm chắc đầu vào VAD, safety validator và XML output. Phase 09 đạt mọi gate HGE2/full HGE, Premiere PCM A1–A7, Final Cut Pro XML re-export và CI/packaging; merge qua PR `#12` tại `50ee4f9`, CI hậu merge `31461869682` đạt. Xem [PHASE09_AUDIO_XML_HARDENING.md](PHASE09_AUDIO_XML_HARDENING.md).
+
+Phase 10 đã mở ở trạng thái kế hoạch trên branch riêng. Mục tiêu là noise floor chỉ học background đủ điều kiện và biên câu dùng start/continue hysteresis có shadow/fail-safe; không đổi model, gain/routing, XML contract hoặc UI sản phẩm. Xem [PHASE10_NOISE_BOUNDARY_STABILITY.md](PHASE10_NOISE_BOUNDARY_STABILITY.md).
 
 ## Kiến trúc
 
