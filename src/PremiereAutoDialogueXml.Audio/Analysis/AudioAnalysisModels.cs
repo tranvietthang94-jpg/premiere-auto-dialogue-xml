@@ -55,7 +55,10 @@ public sealed record TrackAudioAnalysis(
     long AnalyzedFrameCount,
     IReadOnlyList<DialoguePhrase> Phrases,
     IReadOnlyList<AnalyzedAudioSegment> Segments,
-    float LearnedDirectVoiceRmsDbfs);
+    float LearnedDirectVoiceRmsDbfs)
+{
+    public NoiseBoundaryTrackTrace? NoiseBoundaryTrace { get; init; }
+}
 
 public enum CrossTrackShadowOutcome
 {

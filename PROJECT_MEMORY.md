@@ -83,6 +83,15 @@ Ngày chốt: 2026-08-11 (Asia/Saigon). Đây là memory source-of-truth để m
 - Premiere XML re-export SHA-256 `51E69A2B255E451EDA6D267F05AB3CABFA4301801528B2247CEC46491F9BE3E0` đạt report `phase09-roundtrip-compatible` SHA-256 `1D60F50FF06D98D34607AD4480BEA136BDFF7A072BA927C2693C9E0CFC7E7A3B`: 10.831/10.831 clip, 7.025 Enabled, 3.806 Disabled, timing/source/media khớp, max gain delta `0,000055244 dB`, 5.219 marker giữ nguyên semantic. Premiere đổi thứ tự marker và normalize 3.783 Gain filter thành Audio Levels đúng hành vi Phase 00.
 - `scripts/phase09/Test-Phase09RoundTrip.ps1` là validator lặp lại được cho input/result XML. Phase 09 đã `passed` và merge vào `main` tại `50ee4f9`; CI hậu merge `31461869682` đạt trong 2 phút 53 giây.
 
+## Phase 10 — noise floor và ranh giới câu
+
+- Slice 10A đã triển khai trên `codex/phase10-noise-boundary-stability`: mode `Phase09Baseline`/`NoiseBoundaryCandidate`, per-frame noise/boundary trace, comparator theo frame/phrase/interval và corpus tổng hợp không chứa dữ liệu riêng tư.
+- Candidate 10A cố ý giống hệt baseline. Chỉ `AnalyzeShadow` chạy hai pipeline/capture trace; đường `Analyze` mà app dùng vẫn chạy một lần theo Phase 09 và không gắn trace vào output. Vì vậy 10A không đổi status, Enabled, gain, marker, audit hoặc XML.
+- Corpus bao phủ room tone, floor step-up/down, silence, loud-first, VAD-negative high-energy conflict, speech sát ngưỡng, jitter, media gap và clip boundary. Comparator có test phát hiện `baseline Enabled → candidate Disabled` giả lập.
+- Baseline trace khóa hai khoản nợ cần sửa ở 10B: loud-first-frame hiện tự đặt floor theo chính nó; high-energy VAD-negative conflict hiện vẫn training-eligible. Không sửa hoặc diễn giải lại chúng trong 10A.
+- Release đạt `130/130`; build sạch warning/error; format verify sạch. Chưa chạy HGE2/full HGE/Premiere vì chưa có XML candidate.
+- Bước tiếp theo là Slice 10B: chỉ thay estimator trong candidate shadow, dùng floor trước frame, background eligibility, warm-up fail-safe và attack/release được khóa bằng synthetic step-response.
+
 ## Lỗi đã gặp và cách tránh
 
 1. Gain XML: không stack hai Audio Levels cùng loại và không ghi literal dB vào Gain filter. Dùng encoding Phase 00.
@@ -114,4 +123,4 @@ Ngày chốt: 2026-08-11 (Asia/Saigon). Đây là memory source-of-truth để m
 
 ## Trạng thái bàn giao
 
-Phase 00–09 hoàn tất trên `main`. Phase 10 chỉ mới có tài liệu mục tiêu trên `codex/phase10-noise-boundary-stability`, chưa có code hoặc output candidate. Việc tiếp theo là Slice 10A: thêm corpus/test baseline và cấu trúc comparison shadow-only; chưa đổi XML, chưa tuning threshold, chưa chạy Premiere pilot. Hợp đồng Phase 09 về Enabled/gain/XML/M19 là baseline không được làm yếu.
+Phase 00–09 hoàn tất trên `main`. Phase 10 Slice 10A đã có code/test shadow-only trên `codex/phase10-noise-boundary-stability`; chưa có XML candidate và chưa tuning threshold. Việc tiếp theo là Slice 10B trong candidate shadow. Hợp đồng Phase 09 về Enabled/gain/XML/M19 là baseline không được làm yếu.

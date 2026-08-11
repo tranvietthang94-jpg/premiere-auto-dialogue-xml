@@ -1,6 +1,6 @@
 # Phase 10 — Ổn định noise floor và ranh giới câu
 
-Trạng thái: `planned; not-implemented` ngày 2026-08-11. Phase này bắt đầu từ `main` commit `06ad4d6`; baseline logic audio/XML là Phase 09 merge commit `50ee4f9`. Tài liệu này khóa mục tiêu và cổng nghiệm thu, chưa thay đổi thuật toán hoặc XML output.
+Trạng thái: `Slice 10A implemented; shadow-only` ngày 2026-08-11 trên branch `codex/phase10-noise-boundary-stability`. Phase này bắt đầu từ `main` commit `06ad4d6`; baseline logic audio/XML là Phase 09 merge commit `50ee4f9`. Slice 10A thêm corpus, trace và comparator nghiên cứu; chưa thay đổi thuật toán hoặc XML output.
 
 ## Quyết định sản phẩm
 
@@ -78,6 +78,15 @@ Baseline dùng để đối chiếu regression và provenance. Không lấy tổ
 - Ghi baseline theo từng frame: floor trước update, điều kiện học, floor sau update, VAD state và boundary state.
 - Chưa cho candidate thay XML ở slice này.
 
+Kết quả triển khai 10A:
+
+- Có hai mode tường minh `Phase09Baseline` và `NoiseBoundaryCandidate`; cả hai nhận cùng track, observation, PCM và preset. Candidate 10A cố ý chạy đúng logic Phase 09 để tạo mốc so sánh bằng `0` trước khi 10B đổi estimator.
+- API `AnalyzeShadow` chạy riêng baseline/candidate và giữ per-frame trace gồm floor trước update, eligibility, floor sau update, VAD/direct-energy và boundary state. Luồng `Analyze` sản xuất không capture trace, không chạy candidate và không đưa dữ liệu Phase 10 vào XML/audit.
+- Comparator báo frame/phrase/interval khác nhau và đếm riêng `baseline Enabled → candidate Disabled`; test đã chứng minh comparator phát hiện một regression Enabled giả lập.
+- Corpus tổng hợp không chứa dữ liệu riêng tư bao phủ stationary room tone, step-up/step-down, silence, loud-first-frame, VAD-negative high-energy conflict, speech sát ngưỡng, probability jitter, media gap và clip boundary.
+- Test baseline khóa rõ hai khoản nợ hiện tại để 10B sửa có chủ đích: loud-first-frame tự học chính nó; high-energy VAD-negative conflict vẫn được coi là training-eligible trong Phase 09.
+- Release đạt `130/130` test; build không warning/error; `dotnet format --verify-no-changes` sạch. Chưa chạy HGE2/full HGE/Premiere vì 10A không tạo XML candidate.
+
 ### Slice 10B — estimator background-eligible
 
 - Quyết định direct/high-energy của frame hiện tại phải dùng floor từ state trước frame; chỉ sau đó mới xem frame có đủ điều kiện học hay không.
@@ -151,4 +160,4 @@ Baseline dùng để đối chiếu regression và provenance. Không lấy tổ
 
 ## Bước tiếp theo
 
-Thực hiện riêng Slice 10A: thêm corpus/test baseline và cấu trúc comparison shadow-only. Chưa đổi XML output, chưa tuning threshold và chưa chạy pilot Premiere trước khi 10A khóa được hợp đồng estimator/boundary.
+Thực hiện riêng Slice 10B trên mode `NoiseBoundaryCandidate`: dùng floor trước frame để đánh giá frame hiện tại, chỉ học từ background đủ điều kiện, thêm warm-up fail-safe và khóa attack/release bằng step-response. Candidate vẫn shadow-only; chưa adopt vào XML trước comparator và các gate bảo thủ của 10D.

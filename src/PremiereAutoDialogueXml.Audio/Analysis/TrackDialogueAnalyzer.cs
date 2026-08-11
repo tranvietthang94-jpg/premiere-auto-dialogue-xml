@@ -11,13 +11,55 @@ public sealed class TrackDialogueAnalyzer(TimelinePcmAccessor pcmAccessor)
         PremiereAudioTrack track,
         IReadOnlyList<AudioFrameObservation> observations,
         DialogueProcessingPreset preset,
+        CancellationToken cancellationToken = default) =>
+        AnalyzeCore(
+            track,
+            observations,
+            preset,
+            NoiseBoundaryAnalysisMode.Phase09Baseline,
+            captureNoiseBoundaryTrace: false,
+            cancellationToken);
+
+    public NoiseBoundaryShadowAnalysis AnalyzeShadow(
+        PremiereAudioTrack track,
+        IReadOnlyList<AudioFrameObservation> observations,
+        DialogueProcessingPreset preset,
         CancellationToken cancellationToken = default)
+    {
+        var baseline = AnalyzeCore(
+            track,
+            observations,
+            preset,
+            NoiseBoundaryAnalysisMode.Phase09Baseline,
+            captureNoiseBoundaryTrace: true,
+            cancellationToken);
+        var candidate = AnalyzeCore(
+            track,
+            observations,
+            preset,
+            NoiseBoundaryAnalysisMode.NoiseBoundaryCandidate,
+            captureNoiseBoundaryTrace: true,
+            cancellationToken);
+        return new(baseline, candidate, NoiseBoundaryShadowComparer.Compare(baseline, candidate));
+    }
+
+    private TrackAudioAnalysis AnalyzeCore(
+        PremiereAudioTrack track,
+        IReadOnlyList<AudioFrameObservation> observations,
+        DialogueProcessingPreset preset,
+        NoiseBoundaryAnalysisMode mode,
+        bool captureNoiseBoundaryTrace,
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(track);
         ArgumentNullException.ThrowIfNull(observations);
         ArgumentNullException.ThrowIfNull(preset);
 
-        var evidence = new AudioFrameEvidenceBuilder().Build(observations, preset);
+        var evidenceBuilder = new AudioFrameEvidenceBuilder();
+        AudioFrameEvidenceBuildResult? evidenceWithTrace = null;
+        var evidence = captureNoiseBoundaryTrace
+            ? (evidenceWithTrace = evidenceBuilder.BuildWithTrace(observations, preset, mode)).Evidence
+            : evidenceBuilder.Build(observations, preset);
         var minimumSpeechSamples = AudioMath.MillisecondsToSamples(preset.MinimumSpeechMilliseconds);
         var phraseBreakSamples = AudioMath.MillisecondsToSamples(preset.PhraseBreakMilliseconds);
         var candidateGroups = BuildVadGroups(evidence, phraseBreakSamples);
@@ -72,7 +114,84 @@ public sealed class TrackDialogueAnalyzer(TimelinePcmAccessor pcmAccessor)
             segments,
             preset,
             cancellationToken);
-        return new(track.Index, observations.Count, phrases, segments, learnedVoiceRms);
+        var result = new TrackAudioAnalysis(
+            track.Index,
+            observations.Count,
+            phrases,
+            segments,
+            learnedVoiceRms);
+        return evidenceWithTrace is null
+            ? result
+            : result with
+            {
+                NoiseBoundaryTrace = BuildNoiseBoundaryTrace(
+                    track.Index,
+                    mode,
+                    preset.VadThreshold,
+                    evidence,
+                    evidenceWithTrace.NoiseFloorTrace,
+                    confirmedGroups,
+                    energyVadConflicts)
+            };
+    }
+
+    private static NoiseBoundaryTrackTrace BuildNoiseBoundaryTrace(
+        int trackIndex,
+        NoiseBoundaryAnalysisMode mode,
+        double vadThreshold,
+        IReadOnlyList<AudioFrameEvidence> evidence,
+        IReadOnlyList<NoiseFloorFrameSnapshot> noiseFloorTrace,
+        IReadOnlyList<CandidateGroup> confirmedGroups,
+        IReadOnlyList<TimelineInterval> energyVadConflicts)
+    {
+        if (evidence.Count != noiseFloorTrace.Count)
+        {
+            throw new InvalidDataException("Noise-boundary evidence/trace không cùng số frame.");
+        }
+
+        var confirmedFrames = confirmedGroups
+            .SelectMany(group => group.Frames)
+            .Select(frame => (
+                frame.Observation.TimelineStartSample,
+                frame.Observation.TimelineEndSample))
+            .ToHashSet();
+        var frames = new NoiseBoundaryFrameTrace[evidence.Count];
+        for (var index = 0; index < evidence.Count; index++)
+        {
+            var frame = evidence[index];
+            var floor = noiseFloorTrace[index];
+            var observation = frame.Observation;
+            var midpoint = observation.TimelineStartSample +
+                           ((observation.TimelineEndSample - observation.TimelineStartSample) / 2);
+            var state = !observation.ContainsMedia
+                ? NoiseBoundaryFrameState.NoMedia
+                : energyVadConflicts.Any(interval => interval.Contains(midpoint))
+                    ? NoiseBoundaryFrameState.EnergyConflictAmbiguous
+                    : frame.IsVadSpeech
+                        ? confirmedFrames.Contains((
+                            observation.TimelineStartSample,
+                            observation.TimelineEndSample))
+                            ? NoiseBoundaryFrameState.ConfirmedStartEvidence
+                            : NoiseBoundaryFrameState.UnconfirmedStartEvidence
+                        : observation.VadProbability >= vadThreshold - VadAmbiguityMargin &&
+                          frame.IsAboveDirectEnergyThreshold
+                            ? NoiseBoundaryFrameState.BorderlineAmbiguous
+                            : NoiseBoundaryFrameState.VadNegative;
+            frames[index] = new(
+                observation.TimelineStartSample,
+                observation.TimelineEndSample,
+                observation.VadProbability,
+                observation.RmsDbfs,
+                floor.NoiseFloorBeforeDbfs,
+                floor.NoiseFloorAfterDbfs,
+                floor.TrainingDecision,
+                frame.IsVadSpeech,
+                frame.IsDirectEvidence,
+                frame.IsAboveDirectEnergyThreshold,
+                state);
+        }
+
+        return new(trackIndex, mode, frames);
     }
 
     private (IReadOnlyList<DialoguePhrase> Phrases, IReadOnlyList<AnalyzedAudioSegment> Segments)
