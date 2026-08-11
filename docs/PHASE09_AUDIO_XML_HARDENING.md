@@ -1,6 +1,6 @@
 # Phase 09 — Làm chắc lõi xử lý âm thanh và XML
 
-Trạng thái: `passed; pending-merge` ngày 2026-08-09. PCM A1 từ candidate đầu đã phát hiện một lỗi phrase safety và candidate đó bị loại. Bản sửa whole-phrase fallback đã đạt test, HGE2, Premiere PCM A1–A7, Final Cut Pro XML re-export, full HGE và CI/packaging. Phase 09 đã đóng đủ cổng nghiệm thu trên branch riêng; chưa merge vào `main`.
+Trạng thái: `passed; merged` ngày 2026-08-11. PCM A1 từ candidate đầu đã phát hiện một lỗi phrase safety và candidate đó bị loại. Bản sửa whole-phrase fallback đã đạt test, HGE2, Premiere PCM A1–A7, Final Cut Pro XML re-export, full HGE và CI/packaging. Phase 09 được merge vào `main` qua PR `#12` tại merge commit `50ee4f9fb14d58e1dffbd1d23b807f2d58802976`.
 
 ## Quyết định sản phẩm
 
@@ -119,6 +119,7 @@ Phase 09 bắt đầu từ một khoản nợ DSP cụ thể: baseline `TrackAud
 - Publish `win-x64` self-contained giữ đúng 410 payload file. Installer unsigned thử nghiệm được tạo bằng Inno Setup 7.0.2, SHA-256 `225AD65E68D6806AC8426E4C39A8907CDD527E431E2154A7C0BA8A18A3C35CC8`.
 - Smoke test installer đạt: cài, xác minh `410/410` file, mở app, gỡ payload, giữ file người dùng tạo và xóa đúng HKCU uninstall entry. Installer này chỉ là bằng chứng kỹ thuật private, không thay RC1 và không được phát hành.
 - GitHub Actions PR run `31317023545` trên commit validator round-trip `20cfb1a` đạt trong `3 phút 6 giây`: restore, build, `122/122` test, publish self-contained, xác minh Inno Setup 7, build/cài/gỡ installer và upload artifact đều thành công.
+- GitHub Actions hậu merge run `31461869682` trên `main` commit `50ee4f9` đạt trong `2 phút 53 giây` với cùng toàn bộ cổng build/test/publish/installer.
 
 ### Công cụ đối chiếu lặp lại được
 
@@ -164,4 +165,4 @@ Candidate hiện hành duy nhất là XML SHA-256 `A11D046019BDF0F8677E9E952FE45
 
 ## Bước tiếp theo
 
-Đưa PR `#12` khỏi draft sau khi CI của commit tài liệu cuối đạt. Merge Phase 09 vào `main` là thao tác riêng tiếp theo; chỉ sau đó mới mở branch Phase 10.
+Phase 09 đã kết thúc. Bước sản phẩm tiếp theo là mở Phase 10 trên branch riêng để nghiên cứu noise floor và ranh giới câu ổn định hơn; không thay đổi hợp đồng gain/XML đã khóa nếu chưa có một vòng bằng chứng Premiere mới tương xứng.
