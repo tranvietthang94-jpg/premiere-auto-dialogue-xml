@@ -304,9 +304,14 @@ internal sealed class CalibrationCorpus : IDisposable
                 }
             }
 
-            var delaySamples = checked(spec.DelayMilliseconds * 48);
             for (var sample = startSample; sample < endSample; sample++)
             {
+                var effectiveDelayMilliseconds =
+                    spec.SecondHalfDelayMilliseconds is { } secondHalfDelay &&
+                    sample >= startSample + ((endSample - startSample) / 2)
+                        ? secondHalfDelay
+                        : spec.DelayMilliseconds;
+                var delaySamples = checked(effectiveDelayMilliseconds * 48);
                 var sourceIndex = sample - delaySamples;
                 var transferSource = spec.IsIndependentCopy
                     ? independentSamples
@@ -447,6 +452,7 @@ internal sealed record CalibrationAnchorSpec(
     bool IsPolarityInverted = false,
     bool IsIndependentCopy = false,
     bool HasConfirmedSourceSpeech = true,
-    bool HasMatchingBaselineBleed = true);
+    bool HasMatchingBaselineBleed = true,
+    int? SecondHalfDelayMilliseconds = null);
 
 internal readonly record struct CalibrationAnchorRange(long StartSample, long EndSample);

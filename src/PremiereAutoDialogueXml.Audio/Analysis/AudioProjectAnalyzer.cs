@@ -230,12 +230,27 @@ public sealed class AudioProjectAnalyzer
             preset,
             cancellationToken);
 
+        progress?.Report(new(tracks.Count, tracks.Count, null, "Đang hiệu chỉnh bleed đa mic."));
+        var pcmAccessor = new TimelinePcmAccessor(_sampleReader);
+        var calibration = new DirectionalBleedCalibrator(pcmAccessor).Build(
+            project.Sequence,
+            resolved,
+            preset,
+            cancellationToken: cancellationToken);
+        var calibratedBleedShadow = new CalibratedBleedShadowScorer(pcmAccessor).Build(
+            project.Sequence,
+            resolved,
+            preset,
+            calibration,
+            cancellationToken);
+
         progress?.Report(new(tracks.Count, tracks.Count, null, "Đã phân tích xong toàn bộ track."));
         return new(resolved, SileroVadModelInfo.Version, SileroVadModelInfo.Sha256)
         {
             ShadowEvidence = shadowEvidence,
             VadFrontEndComparison = frontEndComparison,
-            NoiseBoundaryComparison = noiseBoundaryComparison
+            NoiseBoundaryComparison = noiseBoundaryComparison,
+            CalibratedBleedShadow = calibratedBleedShadow
         };
     }
 

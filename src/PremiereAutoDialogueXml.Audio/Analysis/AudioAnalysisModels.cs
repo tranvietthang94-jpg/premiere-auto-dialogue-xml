@@ -89,6 +89,8 @@ public sealed record ProjectAudioAnalysis(
     public VadFrontEndComparison? VadFrontEndComparison { get; init; }
 
     public NoiseBoundaryProjectComparison? NoiseBoundaryComparison { get; init; }
+
+    public CalibratedBleedProjectShadow? CalibratedBleedShadow { get; init; }
 }
 
 public sealed record VadDecisionDifference(

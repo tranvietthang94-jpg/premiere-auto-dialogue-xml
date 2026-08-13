@@ -8,7 +8,7 @@ Ngày chốt: 2026-08-13 (Asia/Saigon). Đây là memory source-of-truth để m
 - Private GitHub repo: `tranvietthang94-jpg/premiere-auto-dialogue-xml`.
 - Phase 00–09 đã merge vào `main`. Phase 09 qua PR `#12`, merge commit `50ee4f9fb14d58e1dffbd1d23b807f2d58802976`; CI hậu merge `31461869682` đạt.
 - Phase 10 qua PR `#14`, merge commit `19c6577f38b25a314e058b35c59f3219b4cfa4a8`; CI hậu merge `31691393143` đạt. Phase không tạo release mới.
-- Chủ dự án không muốn preview/review UI; app chỉ tập trung xử lý âm thanh và xuất XML. Phase 10 đã đạt mọi gate logic, HGE, Premiere round-trip và CI/installer. Phase 11 đã hoàn tất Slice 11A corpus/baseline và 11B calibrator shadow độc lập; chưa đổi logic production/XML.
+- Chủ dự án không muốn preview/review UI; app chỉ tập trung xử lý âm thanh và xuất XML. Phase 10 đã đạt mọi gate logic, HGE, Premiere round-trip và CI/installer. Phase 11 đã hoàn tất local Slice 11A–11C: corpus, directional calibrator, scorer nhiều cửa sổ, project shadow và audit `1.7`; production/XML vẫn giữ Phase 10.
 - Private draft prerelease: tag `v0.1.0-rc.1`, tên `Premiere Auto Dialogue XML 0.1.0 RC1`, target `8bdf47d`; URL draft hiện tại `https://github.com/tranvietthang94-jpg/premiere-auto-dialogue-xml/releases/tag/untagged-1c4ff86dc76dc88c43e3`.
 - Tài liệu phase đầy đủ nằm trong `docs/`; đọc trước `README.md`, `docs/IMPLEMENTATION_PLAN.md`, `docs/PHASE00_RESULT.md`, `docs/PHASE06_PILOT_RESULT.md`, `docs/PHASE07_INSTALLER_RELEASE.md`, `docs/PHASE08_REVIEW_QUEUE.md`, `docs/PHASE09_AUDIO_XML_HARDENING.md`, `docs/PHASE10_NOISE_BOUNDARY_STABILITY.md`, `docs/PHASE11_CALIBRATED_MULTIMIC_BLEED.md`, `docs/INTERNAL_CODE_SIGNING.md`.
 
@@ -123,7 +123,11 @@ Ngày chốt: 2026-08-13 (Asia/Saigon). Đây là memory source-of-truth để m
 - Anchor bắt buộc source Speech phủ toàn window và target baseline Bleed trỏ đúng source; loại thiếu media, clipping, polarity đảo, threshold fail hoặc residual xung đột. Leave-one-region-out được áp trước minimum support.
 - SHA-256 bao phủ toàn evidence; stats giữ tối đa 64 anchor bằng stable-priority sampling và chỉ giữ 16 sample. Thứ tự input không đổi hash/result; cancellation xảy ra trước media read.
 - Slice 11B targeted `8/8`, full Release `163/163`, build/format sạch. Calibrator chưa được gọi từ `AudioProjectAnalyzer`, chưa gắn `ProjectAudioAnalysis`/`OutputAudit`, vì vậy chưa đổi production/XML và chưa cần HGE/Premiere.
-- Bước kế tiếp là Slice 11C: scorer nhiều cửa sổ, project shadow comparison và audit `1.7`; final production vẫn giữ Phase 10.
+- Slice 11C thêm scorer policy `phase11-calibrated-multi-window-shadow-v1`: cửa sổ cân bằng 120–250 ms, minimum 2 cửa sổ và 75% Pass, giữ tối đa 16 sample/candidate; outcome gồm NoCalibration, BelowCalibratedThreshold, ConflictingEvidence và CalibratedLikelyBleed.
+- `AudioProjectAnalyzer` tạo calibration/scorer sau final Phase 10 rồi gắn `CalibratedBleedProjectShadow`; final status/reason/Enabled trong shadow luôn sao chép baseline. Audit tăng `1.6` → `1.7`; XML generator, gain, marker và production `TrackAudioAnalysis` không đổi.
+- Publication validator kiểm pair có hướng, policy, support/rejection counts, bounded sample, stable fingerprint reference, candidate coverage, window aggregate/hash và `ProductionChangedSegmentCount = 0`. Dự án đa track thiếu shadow hoặc shadow bị sửa policy/hash/Enabled bị từ chối trước khi tạo output.
+- Slice 11C full Release `171/171`, build/format/diff sạch. Synthetic khóa stable `2/2`, direct residual conflict, lag drift `1/2` và insufficient anchors; regression writer xác nhận thêm audit shadow không đổi deterministic XML SHA-256.
+- Bước kế tiếp là pilot shadow-only Slice 11E trên HGE2/full HGE để đo runtime/RAM, distribution và chứng minh XML semantic/Enabled không đổi. Không mở 11D adoption khi chưa có Target labels hợp lệ.
 
 ## Lỗi đã gặp và cách tránh
 
@@ -156,4 +160,4 @@ Ngày chốt: 2026-08-13 (Asia/Saigon). Đây là memory source-of-truth để m
 
 ## Trạng thái bàn giao
 
-Phase 00–10 hoàn tất trên `main`. Phase 10 dùng merge bảo thủ hai tầng, audit `1.6` và output bounded; HGE2/full HGE, M19, PCM A1–A7, Premiere XML re-export và CI/installer đều đạt. Phase 11 đã hoàn tất Slice 11A corpus/baseline và 11B calibrator độc lập; bước tiếp theo là Slice 11C scorer/project shadow/audit. Toàn bộ hợp đồng Enabled/gain/XML/M19 hiện tại vẫn là baseline bắt buộc.
+Phase 00–10 hoàn tất trên `main`. Phase 10 dùng merge bảo thủ hai tầng, audit `1.6` và output bounded; HGE2/full HGE, M19, PCM A1–A7, Premiere XML re-export và CI/installer đều đạt. Phase 11 đã hoàn tất local Slice 11A–11C với scorer/project shadow/audit `1.7`; bước tiếp theo là pilot shadow-only HGE2/full HGE. Toàn bộ hợp đồng Enabled/gain/XML/M19 hiện tại vẫn là baseline bắt buộc và chưa có adoption tăng mute.

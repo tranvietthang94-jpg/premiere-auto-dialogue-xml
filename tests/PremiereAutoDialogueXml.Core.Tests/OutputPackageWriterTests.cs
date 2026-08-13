@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using System.Xml.Linq;
 using PremiereAutoDialogueXml.Audio.Analysis;
+using PremiereAutoDialogueXml.Audio.Pcm;
 using PremiereAutoDialogueXml.Core.Domain;
 using PremiereAutoDialogueXml.Output;
 using PremiereAutoDialogueXml.Output.Xml;
@@ -41,7 +42,7 @@ public sealed class OutputPackageWriterTests
 
         using var audit = JsonDocument.Parse(await File.ReadAllTextAsync(result.AuditPath));
         var root = audit.RootElement;
-        Assert.AreEqual("1.6", root.GetProperty("schemaVersion").GetString());
+        Assert.AreEqual("1.7", root.GetProperty("schemaVersion").GetString());
         Assert.AreEqual(fixture.Project.SourceXmlSha256, root.GetProperty("sourceXmlSha256").GetString());
         Assert.AreEqual(result.OutputXmlSha256, root.GetProperty("outputXmlSha256").GetString());
         Assert.AreEqual("6.2.1", root.GetProperty("model").GetProperty("version").GetString());
@@ -154,6 +155,48 @@ public sealed class OutputPackageWriterTests
         Assert.AreEqual("likelyBleed", review.GetProperty("groups")[0].GetProperty("representativeShadowOutcome").GetString());
         Assert.AreEqual("high", review.GetProperty("groups")[0].GetProperty("priority").GetString());
         StringAssert.Contains(await File.ReadAllTextAsync(result.ReviewCsvPath!), "Có khả năng bleed");
+    }
+
+    [TestMethod]
+    public async Task WriteAsyncPersistsCalibratedBleedAuditWithoutChangingXml()
+    {
+        using var fixture = PremiereXmlGeneratorTests.WriterFixture.Create();
+        var accessor = new TimelinePcmAccessor(new PcmWaveSampleReader());
+        var calibration = new DirectionalBleedCalibrator(accessor).Build(
+            fixture.Project.Sequence,
+            fixture.Analysis.Tracks,
+            DialogueProcessingPreset.Balanced);
+        var calibratedShadow = new CalibratedBleedShadowScorer(accessor).Build(
+            fixture.Project.Sequence,
+            fixture.Analysis.Tracks,
+            DialogueProcessingPreset.Balanced,
+            calibration);
+        var analysis = fixture.Analysis with { CalibratedBleedShadow = calibratedShadow };
+
+        var baseline = await new OutputPackageWriter(DeterministicGenerator()).WriteAsync(new(
+            fixture.Project,
+            fixture.Analysis,
+            DialogueProcessingPreset.Balanced,
+            fixture.Directory));
+        var result = await new OutputPackageWriter(DeterministicGenerator()).WriteAsync(new(
+            fixture.Project,
+            analysis,
+            DialogueProcessingPreset.Balanced,
+            fixture.Directory));
+
+        Assert.AreEqual(baseline.OutputXmlSha256, result.OutputXmlSha256);
+        using var audit = JsonDocument.Parse(await File.ReadAllTextAsync(result.AuditPath));
+        var shadow = audit.RootElement.GetProperty("calibratedBleedShadow");
+        Assert.AreEqual(
+            DirectionalBleedCalibrationPolicy.CandidateVersion,
+            shadow.GetProperty("calibration").GetProperty("policy").GetProperty("version").GetString());
+        Assert.AreEqual(
+            CalibratedBleedScoringPolicy.CandidateVersion,
+            shadow.GetProperty("scoringPolicy").GetProperty("version").GetString());
+        Assert.AreEqual(0, shadow.GetProperty("productionChangedSegmentCount").GetInt32());
+        Assert.IsGreaterThan(0, shadow.GetProperty("candidates").GetArrayLength());
+        Assert.IsTrue(shadow.GetProperty("candidates").EnumerateArray().All(candidate =>
+            candidate.GetProperty("finalEnabled").GetBoolean()));
     }
 
     [TestMethod]

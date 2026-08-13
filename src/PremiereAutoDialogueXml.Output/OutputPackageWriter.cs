@@ -112,7 +112,7 @@ public sealed class OutputPackageWriter
                 .SelectMany(track => track.Phrases)
                 .ToDictionary(phrase => phrase.Id, StringComparer.Ordinal);
             var audit = new OutputAudit(
-                SchemaVersion: "1.6",
+                SchemaVersion: "1.7",
                 RunId: runId,
                 CreatedAtUtc: generatedAt,
                 SourceXmlFileName: Path.GetFileName(request.Project.SourceXmlPath),
@@ -130,6 +130,7 @@ public sealed class OutputPackageWriter
             {
                 VadFrontEndComparison = request.Analysis.VadFrontEndComparison,
                 NoiseBoundaryComparison = request.Analysis.NoiseBoundaryComparison,
+                CalibratedBleedShadow = request.Analysis.CalibratedBleedShadow,
                 Review = new(
                     FileName: reviewFileName,
                     Sha256: reviewSha256,

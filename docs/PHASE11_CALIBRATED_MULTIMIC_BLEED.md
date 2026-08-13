@@ -1,6 +1,6 @@
 # Phase 11 — Bleed đa mic có calibration
 
-Trạng thái: `in progress; Slice 11A–11B passed` ngày 2026-08-13. Phase được mở từ `main` commit `3f41d7cd2d8b4d90241b4bd2f50f798e23d65796`, sau khi Phase 10 đã merge và toàn bộ CI hậu merge đạt. Branch làm việc: `codex/phase11-calibrated-multimic-bleed`. Slice 11A khóa corpus/baseline; Slice 11B thêm calibrator shadow độc lập nhưng chưa nối vào `AudioProjectAnalyzer`. Production status, gain, marker, audit output và XML chưa thay đổi.
+Trạng thái: `in progress; Slice 11A–11C passed locally` ngày 2026-08-13. Phase được mở từ `main` commit `3f41d7cd2d8b4d90241b4bd2f50f798e23d65796`, sau khi Phase 10 đã merge và toàn bộ CI hậu merge đạt. Branch làm việc: `codex/phase11-calibrated-multimic-bleed`. Slice 11A khóa corpus/baseline; Slice 11B thêm calibrator có hướng; Slice 11C đã nối scorer nhiều cửa sổ vào project shadow và audit `1.7`. Production status, gain, marker và XML vẫn giữ nguyên Phase 10.
 
 ## Quyết định sản phẩm
 
@@ -110,7 +110,7 @@ Các trường hợp sau luôn fail-safe về Ambiguous/Enabled:
 - hai mic cùng có direct speech hoặc không xác định được hướng nguồn/đích;
 - calibration thiếu support hoặc không ổn định.
 
-Ngưỡng số anchor, thời lượng cửa sổ và tolerance chưa được khóa trong tài liệu mở phase. Chúng phải được chọn từ synthetic response và shadow distribution, rồi version hóa trước pilot adoption; không tuning theo một timecode riêng lẻ.
+Slice 11B–11C đã khóa các ngưỡng này bằng hai policy version riêng: minimum `3` anchor consistent với tỷ lệ `75%`, cửa sổ scorer `120–250 ms`, minimum `2` cửa sổ Pass với tỷ lệ `75%`, tolerance `2 ms / 3 dB` và output bounded. Mọi thay đổi ngưỡng sau đây phải mở policy version mới; không tuning theo một timecode riêng lẻ.
 
 ## Phạm vi triển khai
 
@@ -152,7 +152,17 @@ Kết quả triển khai 11B:
 - So candidate với cả resolver một cửa sổ hiện tại và final Phase 10 trên cùng PCM/observation.
 - Phân loại shadow: `NoCalibration`, `BelowCalibratedThreshold`, `ConflictingEvidence`, `CalibratedLikelyBleed`.
 - Audit dự kiến tăng `1.6` → `1.7`; validator kiểm track pair, policy, evidence hash, window counts, coverage và mọi trạng thái Enabled.
-- App không thêm màn hình; evidence kỹ thuật nằm trong audit/CSV output hiện có.
+- App không thêm màn hình; evidence calibrated nằm trong audit JSON, còn review CSV hiện hành không đổi.
+
+Kết quả triển khai 11C:
+
+- Thêm scorer policy `phase11-calibrated-multi-window-shadow-v1`. Mỗi candidate Phase 10 Speech/Ambiguous được chia thành các cửa sổ cân bằng `120–250 ms`; chỉ gọi `CalibratedLikelyBleed` trong shadow khi ít nhất `2` cửa sổ và tối thiểu `75%` cửa sổ được chấm khớp stable fingerprint. Audit chỉ giữ tối đa `16` cửa sổ mỗi candidate.
+- Scorer kế thừa calibration tolerance `2 ms / 3 dB`, correlation `0,80`, residual `-10 dB` và clipping `-0,05 dBFS`. Residual direct, polarity xung đột hoặc baseline Speech có bleed support đều ưu tiên `ConflictingEvidence`; thiếu stable pair/overlap thành `NoCalibration`; support không đủ thành `BelowCalibratedThreshold`.
+- `AudioProjectAnalyzer` tạo directional calibration rồi scorer shadow sau khi Phase 10 đã merge xong. `CalibratedBleedProjectShadow` được gắn vào `ProjectAudioAnalysis`; mọi `FinalStatus`, `FinalReason` và `FinalEnabled` trong shadow sao chép chính xác baseline Phase 10. Thuộc tính kiểm tra tổng hợp `ProductionChangedSegmentCount` phải luôn bằng `0`.
+- Audit tăng `1.6` → `1.7` và ghi calibration policy, fingerprint bounded, scoring policy, candidate/window counts cùng SHA-256 evidence; không ghi waveform hoặc đường dẫn media. XML generator, gain, marker, review CSV và production `TrackAudioAnalysis` không nhận candidate status.
+- Validator publication yêu cầu shadow trên dự án từ hai track trở lên; kiểm đúng mọi cặp track có hướng, policy, support/rejection aggregate, bounded samples, stable fingerprint reference, coverage mọi segment Enabled, window aggregate, SHA-256 scorer tự nhất quán và final Phase 10 không đổi. Policy/hash/final Enabled bị sửa đều bị từ chối trước khi tạo thư mục output.
+- Synthetic scorer khóa bốn tình huống: stable copy đạt `2/2` cửa sổ, residual direct thành conflict, lag trôi chỉ đạt `1/2` nên dưới ngưỡng, và hai anchor không đủ calibration. Regression writer chứng minh audit `1.7` có shadow mới nhưng XML SHA-256 deterministic giống hệt bản không có shadow.
+- Toàn bộ Release đạt `171/171`; build không warning/error, `dotnet format --verify-no-changes` và `git diff --check` sạch. Chưa chạy HGE2/full HGE hoặc Premiere trong 11C vì candidate vẫn shadow-only; pilot phân bố/runtime thực tế thuộc 11E và không được tái dùng để tự mở cổng mute.
 
 ### Slice 11D — cổng adoption có nhãn Target
 
@@ -202,4 +212,4 @@ Kết quả triển khai 11B:
 
 ## Bước tiếp theo
 
-Bắt đầu Slice 11C: dùng fingerprint ổn định để chấm candidate theo nhiều cửa sổ, nối calibration/scorer vào project shadow và audit `1.7`, rồi so với resolver Phase 10 trên cùng PCM. Final production status, gain, marker và XML vẫn phải giữ Phase 10 trong slice này.
+Không mở Slice 11D adoption khi chưa có nhãn Target hợp lệ. Bước tiếp theo an toàn là chạy phần shadow-only của Slice 11E trên HGE2/full HGE trong artifact directory mới để đo runtime/RAM, phân bố calibration/outcome, xác nhận `ProductionChangedSegmentCount = 0` và XML semantic vẫn đúng Phase 10. Nếu các gate đó đạt, Phase 11 có thể đóng ở trạng thái shadow-ready mà không tăng tự động mute và không thay RC1.

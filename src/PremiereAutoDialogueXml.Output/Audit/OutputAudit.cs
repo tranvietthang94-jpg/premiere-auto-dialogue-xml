@@ -26,6 +26,8 @@ public sealed record OutputAudit(
     public VadFrontEndComparison? VadFrontEndComparison { get; init; }
 
     public NoiseBoundaryProjectComparison? NoiseBoundaryComparison { get; init; }
+
+    public CalibratedBleedProjectShadow? CalibratedBleedShadow { get; init; }
 }
 
 public sealed record ModelAudit(string Version, string Sha256);

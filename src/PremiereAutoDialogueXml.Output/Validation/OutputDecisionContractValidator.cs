@@ -1,3 +1,6 @@
+using System.Buffers.Binary;
+using System.Security.Cryptography;
+using System.Text;
 using PremiereAutoDialogueXml.Audio.Analysis;
 using PremiereAutoDialogueXml.Core.Domain;
 using PremiereAutoDialogueXml.Core.ProjectModel;
@@ -24,6 +27,7 @@ public sealed class OutputDecisionContractValidator
         ArgumentNullException.ThrowIfNull(generated);
 
         ValidateNoiseBoundarySafety(analysis, preset);
+        ValidateCalibratedBleedSafety(project, analysis, preset);
         var phrases = analysis.Tracks
             .SelectMany(track => track.Phrases)
             .ToDictionary(phrase => phrase.Id, StringComparer.Ordinal);
@@ -231,6 +235,439 @@ public sealed class OutputDecisionContractValidator
             }
         }
     }
+
+    private static void ValidateCalibratedBleedSafety(
+        PremiereProject project,
+        ProjectAudioAnalysis analysis,
+        DialogueProcessingPreset preset)
+    {
+        if (analysis.CalibratedBleedShadow is not { } shadow)
+        {
+            Require(
+                project.Sequence.AudioTracks.Count < 2,
+                "Dự án đa mic thiếu calibrated bleed shadow trước publication.");
+            return;
+        }
+
+        var expectedCalibrationPolicy = DirectionalBleedCalibrationPolicy.From(preset);
+        var expectedScoringPolicy = CalibratedBleedScoringPolicy.From(
+            preset,
+            expectedCalibrationPolicy);
+        Require(
+            shadow.Calibration.Policy == expectedCalibrationPolicy &&
+            shadow.ScoringPolicy == expectedScoringPolicy,
+            "Calibrated bleed shadow sai policy provenance.");
+
+        var tracksByIndex = analysis.Tracks.ToDictionary(track => track.TrackIndex);
+        var sequenceTrackIndexes = project.Sequence.AudioTracks
+            .Select(track => track.Index)
+            .Order()
+            .ToArray();
+        Require(
+            tracksByIndex.Keys.Order().SequenceEqual(sequenceTrackIndexes),
+            "Calibrated bleed shadow không cùng tập track với sequence.");
+
+        var expectedPairs = sequenceTrackIndexes
+            .SelectMany(source => sequenceTrackIndexes
+                .Where(target => target != source)
+                .Select(target => (Source: source, Target: target)))
+            .OrderBy(pair => pair.Source)
+            .ThenBy(pair => pair.Target)
+            .ToArray();
+        var fingerprints = shadow.Calibration.Fingerprints
+            .OrderBy(fingerprint => fingerprint.SourceTrackIndex)
+            .ThenBy(fingerprint => fingerprint.TargetTrackIndex)
+            .ToArray();
+        Require(
+            fingerprints.Select(fingerprint =>
+                    (Source: fingerprint.SourceTrackIndex, Target: fingerprint.TargetTrackIndex))
+                .SequenceEqual(expectedPairs),
+            "Calibration bleed không phủ đúng mọi cặp track có hướng.");
+
+        var stableFingerprints = new Dictionary<(int Source, int Target), DirectionalBleedFingerprint>();
+        foreach (var fingerprint in fingerprints)
+        {
+            ValidateDirectionalFingerprint(fingerprint, tracksByIndex, shadow.Calibration.Policy);
+            if (fingerprint.Status == DirectionalBleedCalibrationStatus.Stable)
+            {
+                stableFingerprints.Add(
+                    (fingerprint.SourceTrackIndex, fingerprint.TargetTrackIndex),
+                    fingerprint);
+            }
+        }
+
+        var expectedCandidates = analysis.Tracks
+            .OrderBy(track => track.TrackIndex)
+            .SelectMany(track => track.Segments
+                .Where(segment => segment.Status is AudioSegmentStatus.Speech or AudioSegmentStatus.Ambiguous)
+                .OrderBy(segment => segment.TimelineStartSample)
+                .ThenBy(segment => segment.TimelineEndSample)
+                .ThenBy(segment => segment.SourceClipId, StringComparer.Ordinal))
+            .ToArray();
+        Require(
+            shadow.Candidates.Count == expectedCandidates.Length,
+            "Calibrated bleed shadow không phủ đúng mọi segment Enabled của Phase 10.");
+        for (var index = 0; index < expectedCandidates.Length; index++)
+        {
+            ValidateCalibratedCandidate(
+                shadow.Candidates[index],
+                expectedCandidates[index],
+                tracksByIndex,
+                stableFingerprints,
+                shadow.ScoringPolicy);
+        }
+
+        Require(
+            shadow.ProductionChangedSegmentCount == 0,
+            "Calibrated bleed shadow đã thay đổi quyết định production của Phase 10.");
+    }
+
+    private static void ValidateDirectionalFingerprint(
+        DirectionalBleedFingerprint fingerprint,
+        IReadOnlyDictionary<int, TrackAudioAnalysis> tracks,
+        DirectionalBleedCalibrationPolicy policy)
+    {
+        var sourcePhraseCount = tracks[fingerprint.SourceTrackIndex].Phrases.Count;
+        var rejectionCounts = new[]
+        {
+            fingerprint.Rejections.NoConfirmedSourceSpeech,
+            fingerprint.Rejections.NoMatchingBaselineBleed,
+            fingerprint.Rejections.TooShort,
+            fingerprint.Rejections.ExcludedCandidateRegion,
+            fingerprint.Rejections.IncompleteMedia,
+            fingerprint.Rejections.Clipped,
+            fingerprint.Rejections.PolarityInverted,
+            fingerprint.Rejections.BelowAdvantage,
+            fingerprint.Rejections.BelowCorrelation,
+            fingerprint.Rejections.LagOutOfRange,
+            fingerprint.Rejections.ConflictingResidual
+        };
+        Require(
+            fingerprint.SourceTrackIndex != fingerprint.TargetTrackIndex &&
+            fingerprint.SourcePhraseCount == sourcePhraseCount &&
+            fingerprint.AcceptedAnchorCount >= 0 &&
+            rejectionCounts.All(count => count >= 0) &&
+            fingerprint.AcceptedAnchorCount + fingerprint.Rejections.Total == sourcePhraseCount &&
+            fingerprint.RetainedAnchorCount == Math.Min(
+                fingerprint.AcceptedAnchorCount,
+                policy.MaximumRetainedAnchorCount) &&
+            fingerprint.ConsistentAnchorCount >= 0 &&
+            fingerprint.ConsistentAnchorCount <= fingerprint.RetainedAnchorCount &&
+            fingerprint.OutlierAnchorCount ==
+                fingerprint.RetainedAnchorCount - fingerprint.ConsistentAnchorCount &&
+            fingerprint.AnchorSamples.Count == Math.Min(
+                fingerprint.RetainedAnchorCount,
+                policy.MaximumAnchorSampleCount) &&
+            IsSha256(fingerprint.EvidenceSha256) &&
+            IsFiniteOptional(fingerprint.MedianLagMilliseconds) &&
+            IsFiniteOptional(fingerprint.LagSpreadMilliseconds) &&
+            IsFiniteOptional(fingerprint.MedianAttenuationDb) &&
+            IsFiniteOptional(fingerprint.AttenuationSpreadDb) &&
+            IsFiniteOptional(fingerprint.MedianCorrelation) &&
+            IsFiniteOptional(fingerprint.MaximumResidualToTargetDb),
+            $"Calibration bleed {fingerprint.SourceTrackIndex}->{fingerprint.TargetTrackIndex} có aggregate không hợp lệ.");
+
+        var expectedReason = fingerprint.Status switch
+        {
+            DirectionalBleedCalibrationStatus.Stable => "stable-directional-fingerprint",
+            DirectionalBleedCalibrationStatus.InsufficientSupport => "insufficient-eligible-anchors",
+            DirectionalBleedCalibrationStatus.UnstableFingerprint
+                when fingerprint.ConsistentAnchorCount < policy.MinimumAnchorCount =>
+                    "insufficient-consistent-anchors",
+            DirectionalBleedCalibrationStatus.UnstableFingerprint =>
+                "consistent-support-ratio-below-threshold",
+            _ => string.Empty
+        };
+        var hasStatistics = fingerprint.RetainedAnchorCount > 0;
+        var statistics = new float?[]
+        {
+            fingerprint.MedianLagMilliseconds,
+            fingerprint.LagSpreadMilliseconds,
+            fingerprint.MedianAttenuationDb,
+            fingerprint.AttenuationSpreadDb,
+            fingerprint.MedianCorrelation,
+            fingerprint.MaximumResidualToTargetDb
+        };
+        var unstableAsExpected =
+            fingerprint.ConsistentAnchorCount < policy.MinimumAnchorCount ||
+            fingerprint.ConsistentAnchorCount / (double)fingerprint.RetainedAnchorCount <
+                policy.MinimumConsistentSupportRatio;
+        Require(
+            fingerprint.Reason == expectedReason &&
+            statistics.All(value => value is not null) == hasStatistics &&
+            (fingerprint.Status == DirectionalBleedCalibrationStatus.Stable
+                ? fingerprint.RetainedAnchorCount >= policy.MinimumAnchorCount &&
+                  fingerprint.ConsistentAnchorCount >= policy.MinimumAnchorCount &&
+                  fingerprint.ConsistentAnchorCount / (double)fingerprint.RetainedAnchorCount >=
+                      policy.MinimumConsistentSupportRatio
+                : fingerprint.Status == DirectionalBleedCalibrationStatus.InsufficientSupport
+                    ? fingerprint.RetainedAnchorCount < policy.MinimumAnchorCount
+                    : unstableAsExpected),
+            $"Calibration bleed {fingerprint.SourceTrackIndex}->{fingerprint.TargetTrackIndex} sai status/reason.");
+
+        var sourcePhraseIds = tracks[fingerprint.SourceTrackIndex].Phrases
+            .Select(phrase => phrase.Id)
+            .ToHashSet(StringComparer.Ordinal);
+        foreach (var anchor in fingerprint.AnchorSamples)
+        {
+            Require(
+                sourcePhraseIds.Contains(anchor.SourcePhraseId) &&
+                !string.IsNullOrWhiteSpace(anchor.TargetSourceClipId) &&
+                anchor.TimelineEndSample > anchor.TimelineStartSample &&
+                anchor.TimelineEndSample - anchor.TimelineStartSample <=
+                    MillisecondsToSamples(policy.MaximumAnchorWindowMilliseconds) &&
+                float.IsFinite(anchor.OtherMicAdvantageDb) &&
+                anchor.OtherMicAdvantageDb >= policy.MinimumOtherMicAdvantageDb &&
+                float.IsFinite(anchor.WaveformCorrelation) &&
+                anchor.WaveformCorrelation >= policy.MinimumCorrelation &&
+                Math.Abs(anchor.LagMilliseconds) <= policy.MaximumLagMilliseconds &&
+                float.IsFinite(anchor.TransferScaleToTarget) &&
+                anchor.TransferScaleToTarget > 0 &&
+                float.IsFinite(anchor.ResidualToTargetDb) &&
+                anchor.ResidualToTargetDb <= policy.MaximumResidualToTargetDb,
+                $"Calibration bleed {fingerprint.SourceTrackIndex}->{fingerprint.TargetTrackIndex} có anchor sample không hợp lệ.");
+        }
+    }
+
+    private static void ValidateCalibratedCandidate(
+        CalibratedBleedCandidateEvidence candidate,
+        AnalyzedAudioSegment baseline,
+        IReadOnlyDictionary<int, TrackAudioAnalysis> tracks,
+        IReadOnlyDictionary<(int Source, int Target), DirectionalBleedFingerprint> stableFingerprints,
+        CalibratedBleedScoringPolicy policy)
+    {
+        Require(
+            candidate.TargetTrackIndex == baseline.TrackIndex &&
+            candidate.TargetSourceClipId == baseline.SourceClipId &&
+            candidate.TimelineStartSample == baseline.TimelineStartSample &&
+            candidate.TimelineEndSample == baseline.TimelineEndSample &&
+            candidate.BaselineStatus == baseline.Status &&
+            candidate.BaselineReason == baseline.Reason &&
+            candidate.FinalStatus == baseline.Status &&
+            candidate.FinalReason == baseline.Reason &&
+            candidate.FinalEnabled == IsEnabled(baseline.Status) &&
+            candidate.FinalEnabled &&
+            candidate.AvailableWindowCount >= 0 &&
+            candidate.EvaluatedWindowCount == candidate.WindowSamples.Count &&
+            candidate.EvaluatedWindowCount <= policy.MaximumRetainedWindowCount &&
+            candidate.AvailableWindowCount >= candidate.EvaluatedWindowCount &&
+            IsSha256(candidate.WindowEvidenceSha256) &&
+            candidate.WindowEvidenceSha256 == ComputeWindowEvidenceSha256(candidate, policy),
+            $"Calibrated bleed candidate track {baseline.TrackIndex} không giữ nguyên Phase 10.");
+
+        var passing = candidate.WindowSamples.Count(window =>
+            window.Disposition == CalibratedBleedWindowDisposition.Pass);
+        var conflicting = candidate.WindowSamples.Count(window => window.Disposition is
+            CalibratedBleedWindowDisposition.ConflictingResidual or
+            CalibratedBleedWindowDisposition.PolarityInverted);
+        Require(
+            candidate.PassingWindowCount == passing &&
+            candidate.ConflictingWindowCount == conflicting,
+            "Calibrated bleed candidate có aggregate cửa sổ không khớp.");
+
+        if (candidate.Outcome == CalibratedBleedShadowOutcome.NoCalibration)
+        {
+            Require(
+                candidate.OutcomeReason == "no-stable-overlapping-calibration" &&
+                candidate.SourceTrackIndex is null &&
+                candidate.FingerprintEvidenceSha256 is null &&
+                candidate.AvailableWindowCount == 0 &&
+                candidate.EvaluatedWindowCount == 0 &&
+                candidate.PassingWindowCount == 0 &&
+                candidate.ConflictingWindowCount == 0,
+                "Calibrated bleed NoCalibration có provenance không hợp lệ.");
+            return;
+        }
+
+        Require(
+            candidate.SourceTrackIndex is not null &&
+            candidate.EvaluatedWindowCount > 0,
+            "Calibrated bleed candidate không trỏ đúng stable fingerprint.");
+        var sourceTrackIndex = candidate.SourceTrackIndex.GetValueOrDefault();
+        var fingerprintKey = (sourceTrackIndex, candidate.TargetTrackIndex);
+        Require(
+            sourceTrackIndex != candidate.TargetTrackIndex &&
+            stableFingerprints.ContainsKey(fingerprintKey),
+            "Calibrated bleed candidate không trỏ đúng stable fingerprint.");
+        var fingerprint = stableFingerprints[fingerprintKey];
+        Require(
+            candidate.FingerprintEvidenceSha256 == fingerprint.EvidenceSha256,
+            "Calibrated bleed candidate sai fingerprint evidence hash.");
+
+        var sourcePhrases = tracks[sourceTrackIndex].Phrases
+            .ToDictionary(phrase => phrase.Id, StringComparer.Ordinal);
+        foreach (var window in candidate.WindowSamples)
+        {
+            ValidateCalibratedWindow(window, candidate, sourcePhrases, fingerprint, policy);
+        }
+
+        var meetsThreshold = passing >= policy.MinimumPassingWindowCount &&
+                             passing / (double)candidate.EvaluatedWindowCount >=
+                             policy.MinimumPassingWindowRatio;
+        var directSpeechConflict = baseline.Status == AudioSegmentStatus.Speech && passing > 0;
+        var expectedOutcome = conflicting > 0 || directSpeechConflict
+            ? CalibratedBleedShadowOutcome.ConflictingEvidence
+            : meetsThreshold
+                ? CalibratedBleedShadowOutcome.CalibratedLikelyBleed
+                : CalibratedBleedShadowOutcome.BelowCalibratedThreshold;
+        var expectedReason = expectedOutcome switch
+        {
+            CalibratedBleedShadowOutcome.ConflictingEvidence when directSpeechConflict =>
+                "baseline-direct-speech-conflicts-with-calibrated-bleed",
+            CalibratedBleedShadowOutcome.ConflictingEvidence =>
+                "multi-window-direct-or-polarity-conflict",
+            CalibratedBleedShadowOutcome.CalibratedLikelyBleed =>
+                "multi-window-matches-directional-fingerprint",
+            _ => "multi-window-support-below-threshold"
+        };
+        Require(
+            candidate.Outcome == expectedOutcome && candidate.OutcomeReason == expectedReason,
+            "Calibrated bleed candidate sai outcome/reason tổng hợp.");
+    }
+
+    private static void ValidateCalibratedWindow(
+        CalibratedBleedWindowEvidence window,
+        CalibratedBleedCandidateEvidence candidate,
+        IReadOnlyDictionary<string, DialoguePhrase> sourcePhrases,
+        DirectionalBleedFingerprint fingerprint,
+        CalibratedBleedScoringPolicy policy)
+    {
+        Require(sourcePhrases.ContainsKey(window.SourcePhraseId),
+            "Calibrated bleed có cửa sổ trỏ source phrase không tồn tại.");
+        var sourcePhrase = sourcePhrases[window.SourcePhraseId];
+        Require(
+            window.TimelineStartSample >= sourcePhrase.CoreStartSample &&
+            window.TimelineEndSample <= sourcePhrase.CoreEndSample &&
+            window.TimelineStartSample >= candidate.TimelineStartSample &&
+            window.TimelineEndSample <= candidate.TimelineEndSample &&
+            window.TimelineEndSample > window.TimelineStartSample &&
+            window.TimelineEndSample - window.TimelineStartSample >=
+                MillisecondsToSamples(policy.MinimumWindowMilliseconds) &&
+            window.TimelineEndSample - window.TimelineStartSample <=
+                MillisecondsToSamples(policy.MaximumWindowMilliseconds) &&
+            float.IsFinite(window.OtherMicAdvantageDb) &&
+            float.IsFinite(window.WaveformCorrelation) &&
+            window.WaveformCorrelation is >= -1 and <= 1 &&
+            float.IsFinite(window.TransferScaleToTarget) &&
+            float.IsFinite(window.ResidualToTargetDb),
+            "Calibrated bleed có cửa sổ bằng chứng không hợp lệ.");
+
+        if (window.Disposition == CalibratedBleedWindowDisposition.Pass)
+        {
+            Require(
+                fingerprint.MedianLagMilliseconds is { } expectedLag &&
+                fingerprint.MedianAttenuationDb is { } expectedAttenuation &&
+                window.WaveformCorrelation >= policy.MinimumCorrelation &&
+                Math.Abs(window.LagMilliseconds - expectedLag) <=
+                    policy.MaximumLagDeviationMilliseconds &&
+                Math.Abs(window.OtherMicAdvantageDb - expectedAttenuation) <=
+                    policy.MaximumAttenuationDeviationDb &&
+                window.TransferScaleToTarget > 0 &&
+                window.ResidualToTargetDb <= policy.MaximumResidualToTargetDb,
+                "Calibrated bleed có cửa sổ Pass không đạt policy.");
+        }
+
+        if (window.Disposition == CalibratedBleedWindowDisposition.ConflictingResidual)
+        {
+            Require(
+                window.TransferScaleToTarget > 0 &&
+                window.ResidualToTargetDb > policy.MaximumResidualToTargetDb,
+                "Calibrated bleed có residual conflict không hợp lệ.");
+        }
+
+        if (window.Disposition == CalibratedBleedWindowDisposition.PolarityInverted)
+        {
+            Require(
+                window.TransferScaleToTarget <= 0,
+                "Calibrated bleed có polarity conflict không hợp lệ.");
+        }
+    }
+
+    private static string ComputeWindowEvidenceSha256(
+        CalibratedBleedCandidateEvidence candidate,
+        CalibratedBleedScoringPolicy policy)
+    {
+        using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        AppendScoringPolicy(hash, policy);
+        AppendInt32(hash, candidate.TargetTrackIndex);
+        if (candidate.Outcome != CalibratedBleedShadowOutcome.NoCalibration)
+        {
+            AppendInt32(hash, candidate.SourceTrackIndex.GetValueOrDefault());
+        }
+
+        AppendString(hash, candidate.TargetSourceClipId);
+        AppendInt64(hash, candidate.TimelineStartSample);
+        AppendInt64(hash, candidate.TimelineEndSample);
+        if (candidate.Outcome != CalibratedBleedShadowOutcome.NoCalibration)
+        {
+            AppendString(hash, candidate.FingerprintEvidenceSha256 ?? string.Empty);
+            AppendInt32(hash, candidate.AvailableWindowCount);
+            foreach (var window in candidate.WindowSamples)
+            {
+                AppendString(hash, window.SourcePhraseId);
+                AppendInt64(hash, window.TimelineStartSample);
+                AppendInt64(hash, window.TimelineEndSample);
+                AppendInt32(hash, (int)window.Disposition);
+                AppendSingle(hash, window.OtherMicAdvantageDb);
+                AppendSingle(hash, window.WaveformCorrelation);
+                AppendInt32(hash, window.LagMilliseconds);
+                AppendSingle(hash, window.TransferScaleToTarget);
+                AppendSingle(hash, window.ResidualToTargetDb);
+            }
+        }
+
+        return Convert.ToHexString(hash.GetHashAndReset());
+    }
+
+    private static void AppendScoringPolicy(
+        IncrementalHash hash,
+        CalibratedBleedScoringPolicy policy)
+    {
+        AppendString(hash, policy.Version);
+        AppendInt32(hash, policy.MaximumWindowMilliseconds);
+        AppendInt32(hash, policy.MinimumWindowMilliseconds);
+        AppendInt32(hash, policy.MinimumPassingWindowCount);
+        AppendInt32(hash, policy.MaximumRetainedWindowCount);
+        AppendDouble(hash, policy.MinimumPassingWindowRatio);
+        AppendDouble(hash, policy.MaximumLagDeviationMilliseconds);
+        AppendDouble(hash, policy.MaximumAttenuationDeviationDb);
+        AppendDouble(hash, policy.ClippingPeakDbfs);
+        AppendDouble(hash, policy.MinimumCorrelation);
+        AppendDouble(hash, policy.MaximumResidualToTargetDb);
+    }
+
+    private static void AppendString(IncrementalHash hash, string value)
+    {
+        var bytes = Encoding.UTF8.GetBytes(value);
+        AppendInt32(hash, bytes.Length);
+        hash.AppendData(bytes);
+    }
+
+    private static void AppendInt32(IncrementalHash hash, int value)
+    {
+        Span<byte> buffer = stackalloc byte[sizeof(int)];
+        BinaryPrimitives.WriteInt32LittleEndian(buffer, value);
+        hash.AppendData(buffer);
+    }
+
+    private static void AppendInt64(IncrementalHash hash, long value)
+    {
+        Span<byte> buffer = stackalloc byte[sizeof(long)];
+        BinaryPrimitives.WriteInt64LittleEndian(buffer, value);
+        hash.AppendData(buffer);
+    }
+
+    private static void AppendSingle(IncrementalHash hash, float value) =>
+        AppendInt32(hash, BitConverter.SingleToInt32Bits(value));
+
+    private static void AppendDouble(IncrementalHash hash, double value) =>
+        AppendInt64(hash, BitConverter.DoubleToInt64Bits(value));
+
+    private static bool IsSha256(string value) =>
+        value.Length == 64 && value.All(Uri.IsHexDigit);
+
+    private static long MillisecondsToSamples(int milliseconds) =>
+        checked(milliseconds * 48L);
 
     private static bool IsEnabled(AudioSegmentStatus? status) =>
         status is AudioSegmentStatus.Speech or AudioSegmentStatus.Ambiguous;

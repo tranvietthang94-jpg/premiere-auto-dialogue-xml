@@ -1,4 +1,5 @@
 using PremiereAutoDialogueXml.Audio.Analysis;
+using PremiereAutoDialogueXml.Audio.Pcm;
 using PremiereAutoDialogueXml.Core.Domain;
 using PremiereAutoDialogueXml.Output.Validation;
 using PremiereAutoDialogueXml.Output.Xml;
@@ -149,5 +150,93 @@ public sealed class OutputDecisionContractValidatorTests
                 fixture.Analysis,
                 DialogueProcessingPreset.Balanced,
                 superseded));
+    }
+
+    [TestMethod]
+    public void ValidateRejectsCalibratedBleedShadowThatDisablesBaselineCandidate()
+    {
+        using var fixture = PremiereXmlGeneratorTests.WriterFixture.Create();
+        var analysis = WithCalibratedBleedShadow(fixture);
+        var shadow = analysis.CalibratedBleedShadow!;
+        var candidates = shadow.Candidates.ToArray();
+        candidates[0] = candidates[0] with
+        {
+            FinalStatus = AudioSegmentStatus.Bleed,
+            FinalReason = "tampered-calibrated-bleed",
+            FinalEnabled = false
+        };
+        var tampered = analysis with
+        {
+            CalibratedBleedShadow = shadow with { Candidates = candidates }
+        };
+        var generated = new PremiereXmlGenerator().GeneratePlan(fixture.Project, analysis);
+
+        Assert.ThrowsExactly<InvalidDataException>(() =>
+            new OutputDecisionContractValidator().Validate(
+                fixture.Project,
+                tampered,
+                DialogueProcessingPreset.Balanced,
+                generated));
+    }
+
+    [TestMethod]
+    public void ValidateRejectsCalibratedBleedShadowWithStalePolicy()
+    {
+        using var fixture = PremiereXmlGeneratorTests.WriterFixture.Create();
+        var analysis = WithCalibratedBleedShadow(fixture);
+        var shadow = analysis.CalibratedBleedShadow!;
+        var tampered = analysis with
+        {
+            CalibratedBleedShadow = shadow with
+            {
+                ScoringPolicy = shadow.ScoringPolicy with { MinimumPassingWindowCount = 1 }
+            }
+        };
+        var generated = new PremiereXmlGenerator().GeneratePlan(fixture.Project, analysis);
+
+        Assert.ThrowsExactly<InvalidDataException>(() =>
+            new OutputDecisionContractValidator().Validate(
+                fixture.Project,
+                tampered,
+                DialogueProcessingPreset.Balanced,
+                generated));
+    }
+
+    [TestMethod]
+    public void ValidateRejectsCalibratedBleedShadowWithStaleWindowHash()
+    {
+        using var fixture = PremiereXmlGeneratorTests.WriterFixture.Create();
+        var analysis = WithCalibratedBleedShadow(fixture);
+        var shadow = analysis.CalibratedBleedShadow!;
+        var candidates = shadow.Candidates.ToArray();
+        candidates[0] = candidates[0] with { WindowEvidenceSha256 = new('0', 64) };
+        var tampered = analysis with
+        {
+            CalibratedBleedShadow = shadow with { Candidates = candidates }
+        };
+        var generated = new PremiereXmlGenerator().GeneratePlan(fixture.Project, analysis);
+
+        Assert.ThrowsExactly<InvalidDataException>(() =>
+            new OutputDecisionContractValidator().Validate(
+                fixture.Project,
+                tampered,
+                DialogueProcessingPreset.Balanced,
+                generated));
+    }
+
+    private static ProjectAudioAnalysis WithCalibratedBleedShadow(
+        PremiereXmlGeneratorTests.WriterFixture fixture)
+    {
+        var accessor = new TimelinePcmAccessor(new PcmWaveSampleReader());
+        var calibration = new DirectionalBleedCalibrator(accessor).Build(
+            fixture.Project.Sequence,
+            fixture.Analysis.Tracks,
+            DialogueProcessingPreset.Balanced);
+        var shadow = new CalibratedBleedShadowScorer(accessor).Build(
+            fixture.Project.Sequence,
+            fixture.Analysis.Tracks,
+            DialogueProcessingPreset.Balanced,
+            calibration);
+        return fixture.Analysis with { CalibratedBleedShadow = shadow };
     }
 }

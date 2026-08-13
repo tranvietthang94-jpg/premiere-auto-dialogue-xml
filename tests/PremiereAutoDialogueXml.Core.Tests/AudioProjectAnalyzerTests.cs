@@ -152,6 +152,9 @@ public sealed class AudioProjectAnalyzerTests
         Assert.IsTrue(result.ShadowEvidence.Any(evidence =>
             evidence.TrackIndex == 1 &&
             evidence.Outcome == CrossTrackShadowOutcome.LikelyBleed));
+        Assert.IsNotNull(result.CalibratedBleedShadow);
+        Assert.AreEqual(0, result.CalibratedBleedShadow.ProductionChangedSegmentCount);
+        Assert.HasCount(2, result.CalibratedBleedShadow.Calibration.Fingerprints);
     }
 
     [TestMethod]
