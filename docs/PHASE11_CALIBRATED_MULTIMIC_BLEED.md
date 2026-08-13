@@ -1,6 +1,6 @@
 # Phase 11 — Bleed đa mic có calibration
 
-Trạng thái: `planned; not implemented` ngày 2026-08-13. Phase được mở từ `main` commit `3f41d7cd2d8b4d90241b4bd2f50f798e23d65796`, sau khi Phase 10 đã merge và toàn bộ CI hậu merge đạt. Branch làm việc: `codex/phase11-calibrated-multimic-bleed`.
+Trạng thái: `in progress; Slice 11A passed` ngày 2026-08-13. Phase được mở từ `main` commit `3f41d7cd2d8b4d90241b4bd2f50f798e23d65796`, sau khi Phase 10 đã merge và toàn bộ CI hậu merge đạt. Branch làm việc: `codex/phase11-calibrated-multimic-bleed`. Slice 11A chỉ thêm corpus/test baseline; production audio, status, gain, marker và XML chưa thay đổi.
 
 ## Quyết định sản phẩm
 
@@ -118,7 +118,15 @@ Ngưỡng số anchor, thời lượng cửa sổ và tolerance chưa được k
 
 - Thêm fixture tổng hợp: delayed/attenuated copy ổn định, nhiều delay/gain theo cặp, independent speech, simultaneous speech, room tone chung, polarity inversion, clipping, short overlap, media gap, clip boundary và drift theo thời gian.
 - Ghi rõ output của resolver Phase 10 trên corpus trước khi thêm candidate.
-- Tách API calibration/shadow khỏi production resolver; slice này không đổi XML.
+- Khóa ranh giới kiến trúc: calibrator ở 11B phải dùng API shadow riêng, không sửa trực tiếp production resolver hoặc XML trong 11A.
+
+Kết quả triển khai 11A:
+
+- `Phase11BleedSyntheticCorpus` tạo 11 kịch bản PCM deterministic, không chứa media riêng tư: copy trễ/suy hao ổn định, chọn đúng nguồn trong ba track, fingerprint trôi ngoài cửa sổ giữa, giọng độc lập, direct+bleed đồng thời, room tone chung, đảo cực, clipping, overlap dưới 120 ms, media gap chung và ranh giới hai clip liền nhau.
+- Snapshot Phase 10 khóa 8 ca hiện thành Bleed; 2 ca giữ Ambiguous không có evidence; ca direct+bleed đồng thời giữ Ambiguous với `conflicting-direct-and-bleed-evidence`. Mọi evidence vượt ngưỡng hiện hành vẫn phải đúng source track, correlation `>=0,80`, advantage `>=12 dB`, lag dự kiến và residual đúng phía của cổng `-10 dB`.
+- Ca dài 4 giây được lập trình delay/gain khác nhau ở ba vùng: ngoài trái `-8 ms / 0,06`, cửa sổ giữa `4 ms / 0,08`, ngoài phải `11 ms / 0,12`. Resolver Phase 10 vẫn kết luận Bleed với lag tuyệt đối `4 ms`, xác nhận nó chỉ dùng cửa sổ giữa tối đa một giây và chưa kiểm tính nhất quán toàn vùng.
+- Targeted test đạt `2/2`; toàn bộ Release đạt `155/155`; `dotnet format --verify-no-changes` và `git diff --check` sạch.
+- Không sửa file nào dưới `src/`, không đổi schema audit/XML và không tạo candidate output. Vì semantic production không thể thay đổi ở 11A, chưa chạy HGE2/full HGE/Premiere; các gate đó chỉ bắt buộc khi candidate được nối ở slice sau.
 
 ### Slice 11B — calibrator theo cặp track
 
@@ -182,4 +190,4 @@ Ngưỡng số anchor, thời lượng cửa sổ và tolerance chưa được k
 
 ## Bước tiếp theo
 
-Bắt đầu Slice 11A: khóa corpus tổng hợp và snapshot chính xác hành vi resolver một cửa sổ Phase 10. Chưa sửa production status, gain, marker hoặc XML ở bước này.
+Bắt đầu Slice 11B: xây calibrator có hướng theo cặp track, minimum support và leave-one-region-out trên corpus đã khóa. Calibrator tiếp tục chỉ tạo shadow evidence; chưa sửa production status, gain, marker hoặc XML.

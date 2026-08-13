@@ -23,7 +23,7 @@ Phase 00–09 đã hoàn tất và merge vào `main`. Theo quyết định sản
 
 Phase 10 đã đạt toàn bộ gate và merge qua PR `#14` tại `19c6577`; CI hậu merge `31691393143` đạt. Estimator background-eligible, start/continue hysteresis, shadow/fail-safe, audit `1.6` và output compaction qua synthetic, HGE2/full HGE với coverage mismatch `0` và mất Enabled `0`; Premiere PCM A1–A7/M19/XML re-export cùng CI/installer đều đạt. Phase không đổi model, gain/routing hoặc UI sản phẩm và không tạo release mới. Xem [PHASE10_NOISE_BOUNDARY_STABILITY.md](PHASE10_NOISE_BOUNDARY_STABILITY.md).
 
-Phase 11 đã mở trên branch `codex/phase11-calibrated-multimic-bleed` ở trạng thái kế hoạch. Mục tiêu là học fingerprint delay/gain có hướng theo từng cặp mic từ nhiều đoạn direct speech độc lập và chỉ gọi bleed khi correlation, lag, attenuation và residual cùng nhất quán qua nhiều cửa sổ. Không thêm preview/UI; khi chưa có nhãn Target hợp lệ, candidate chỉ được chạy shadow và không được tăng production Disabled. Xem [PHASE11_CALIBRATED_MULTIMIC_BLEED.md](PHASE11_CALIBRATED_MULTIMIC_BLEED.md).
+Phase 11 đang thực hiện trên branch `codex/phase11-calibrated-multimic-bleed`. Slice 11A đã khóa corpus PCM tổng hợp 11 kịch bản và snapshot resolver một cửa sổ Phase 10; toàn bộ Release đạt `155/155`, không có thay đổi dưới `src/` hoặc XML production. Bước tiếp theo là calibrator delay/gain có hướng theo từng cặp mic từ nhiều đoạn direct speech độc lập, với leave-one-region-out và shadow evidence. Không thêm preview/UI; khi chưa có nhãn Target hợp lệ, candidate không được tăng production Disabled. Xem [PHASE11_CALIBRATED_MULTIMIC_BLEED.md](PHASE11_CALIBRATED_MULTIMIC_BLEED.md).
 
 ## Kiến trúc
 
