@@ -27,8 +27,12 @@ public sealed class OutputDecisionContractValidatorTests
         using var fixture = PremiereXmlGeneratorTests.WriterFixture.Create();
         var generated = new PremiereXmlGenerator().GeneratePlan(fixture.Project, fixture.Analysis);
         var fragments = generated.AudioFragments.ToArray();
-        var position = Array.FindIndex(fragments, fragment => fragment.Status == AudioSegmentStatus.Speech);
-        fragments[position] = fragments[position] with { Enabled = false };
+        var position = Array.FindIndex(fragments, fragment => fragment.Enabled);
+        fragments[position] = fragments[position] with
+        {
+            Status = AudioSegmentStatus.Speech,
+            Enabled = false
+        };
         var tampered = generated with { AudioFragments = fragments };
 
         Assert.ThrowsExactly<InvalidDataException>(() =>

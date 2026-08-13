@@ -81,24 +81,29 @@ public sealed class OutputDecisionContractValidator
                     track.ObservationCount >= 0 &&
                     track.ChangedFrameCount >= 0 &&
                     track.ChangedFrameCount <= track.ObservationCount &&
+                    track.PhraseDifferenceCount >= 0 &&
+                    track.SegmentDifferenceCount >= 0 &&
+                    track.BaselineEnabledCandidateDisabledCount >= 0 &&
+                    track.BaselineDisabledCandidateEnabledCount >= 0 &&
                     track.TrainingEligibilityDifferenceCount >= 0 &&
                     track.TrainingEligibilityDifferenceCount <= track.ChangedFrameCount &&
                     float.IsFinite(track.MaximumNoiseFloorDeltaDb) &&
                     track.MaximumNoiseFloorDeltaDb >= 0,
                     $"Noise-boundary track {track.TrackIndex} có thống kê frame không hợp lệ.");
                 Require(
-                    track.ChangedFrameCount == track.FrameDifferences.Count &&
+                    track.CapturedFrameDifferenceCount == track.FrameDifferenceSamples.Count &&
+                    track.CapturedFrameDifferenceCount <= 64 &&
+                    track.CapturedFrameDifferenceCount <= track.ChangedFrameCount &&
+                    (track.ChangedFrameCount == 0 || track.CapturedFrameDifferenceCount > 0) &&
+                    track.FrameTraceSha256.Length == 64 &&
+                    track.FrameTraceSha256.All(Uri.IsHexDigit) &&
                     track.PhraseDifferenceCount == track.PhraseDifferences.Count &&
-                    track.SegmentDifferenceCount == track.DecisionDifferences.Count &&
-                    track.BaselineEnabledCandidateDisabledCount == track.DecisionDifferences.Count(difference =>
-                        difference.BaselineEnabled && !difference.CandidateEnabled) &&
-                    track.BaselineDisabledCandidateEnabledCount == track.DecisionDifferences.Count(difference =>
-                        !difference.BaselineEnabled && difference.CandidateEnabled),
+                    track.DecisionDifferences.Count == 0,
                     $"Noise-boundary track {track.TrackIndex} có comparison count không nhất quán.");
 
                 var maximumFloorDeltaDb = 0f;
-                var eligibilityDifferenceCount = 0;
-                foreach (var difference in track.FrameDifferences)
+                var hasEligibilityDifferenceSample = false;
+                foreach (var difference in track.FrameDifferenceSamples)
                 {
                     var baseline = difference.Baseline;
                     var candidate = difference.Candidate;
@@ -121,13 +126,31 @@ public sealed class OutputDecisionContractValidator
                     if (IsTrainingEligible(baseline.NoiseFloorTrainingDecision) !=
                         IsTrainingEligible(candidate.NoiseFloorTrainingDecision))
                     {
-                        eligibilityDifferenceCount++;
+                        hasEligibilityDifferenceSample = true;
                     }
                 }
 
+                var frameSummary = track.FrameDifferenceSummary;
+                var frameSummaryCounts = new[]
+                {
+                    frameSummary.NoiseFloorBeforeDifferenceCount,
+                    frameSummary.NoiseFloorAfterDifferenceCount,
+                    frameSummary.NoiseFloorReadyBeforeDifferenceCount,
+                    frameSummary.NoiseFloorReadyAfterDifferenceCount,
+                    frameSummary.TrainingDecisionDifferenceCount,
+                    frameSummary.VadSpeechDifferenceCount,
+                    frameSummary.DirectEvidenceDifferenceCount,
+                    frameSummary.DirectEnergyThresholdDifferenceCount,
+                    frameSummary.WarmupUncertainDifferenceCount,
+                    frameSummary.BoundaryStateDifferenceCount
+                };
                 Require(
                     Math.Abs(maximumFloorDeltaDb - track.MaximumNoiseFloorDeltaDb) <= 0.0001f &&
-                    eligibilityDifferenceCount == track.TrainingEligibilityDifferenceCount,
+                    frameSummaryCounts.All(count => count >= 0 && count <= track.ChangedFrameCount) &&
+                    frameSummaryCounts.Any(count => count > 0) == (track.ChangedFrameCount > 0) &&
+                    frameSummary.TrainingDecisionDifferenceCount >= track.TrainingEligibilityDifferenceCount &&
+                    frameSummary.VadSpeechDifferenceCount == 0 &&
+                    (track.TrainingEligibilityDifferenceCount == 0 || hasEligibilityDifferenceSample),
                     $"Noise-boundary track {track.TrackIndex} có floor/eligibility aggregate không nhất quán.");
 
                 foreach (var difference in track.PhraseDifferences)
@@ -198,6 +221,13 @@ public sealed class OutputDecisionContractValidator
                 Require(
                     lostBaselineCount == track.BaselineEnabledFinalDisabledCount && lostBaselineCount == 0,
                     $"Noise-boundary track {track.TrackIndex} làm mất vùng baseline Enabled.");
+                Require(
+                    (track.SegmentDifferenceCount == 0 || track.FinalDifferences.Count > 0) &&
+                    (track.BaselineEnabledCandidateDisabledCount == 0 || track.FinalDifferences.Any(difference =>
+                        difference.BaselineEnabled && !difference.CandidateEnabled)) &&
+                    (track.BaselineDisabledCandidateEnabledCount == 0 || track.FinalDifferences.Any(difference =>
+                        !difference.BaselineEnabled && difference.CandidateEnabled)),
+                    $"Noise-boundary track {track.TrackIndex} thiếu final interval provenance.");
             }
         }
     }

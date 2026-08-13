@@ -293,14 +293,55 @@ public sealed class PremiereXmlGenerator
                 continue;
             }
 
+            var decision = decisions[runStart].Decision;
+            var reasons = new List<string> { decision.Reason };
+            var aggregateStatus = decision.Status;
+            var aggregateBleedEvidence = decision.BleedEvidence;
+            for (var reasonFrame = runStart + 1; reasonFrame < frame; reasonFrame++)
+            {
+                var frameDecision = decisions[reasonFrame].Decision;
+                var reason = frameDecision.Reason;
+                if (!reasons.Contains(reason, StringComparer.Ordinal))
+                {
+                    reasons.Add(reason);
+                }
+
+                aggregateStatus = ConservativeAggregateStatus(aggregateStatus, frameDecision.Status);
+                aggregateBleedEvidence ??= frameDecision.BleedEvidence;
+            }
+
             runs.Add(new(
                 clip.TimelineStartFrame + runStart,
                 clip.TimelineStartFrame + frame,
-                decisions[runStart].Decision));
+                decision with
+                {
+                    Status = aggregateStatus,
+                    Reason = reasons.Count == 1 ? decision.Reason : string.Join(" | ", reasons),
+                    BleedEvidence = aggregateBleedEvidence
+                }));
             runStart = frame;
         }
 
         return runs;
+    }
+
+    private static AudioSegmentStatus ConservativeAggregateStatus(
+        AudioSegmentStatus left,
+        AudioSegmentStatus right)
+    {
+        if (left == AudioSegmentStatus.Ambiguous || right == AudioSegmentStatus.Ambiguous)
+        {
+            return AudioSegmentStatus.Ambiguous;
+        }
+
+        if (left == AudioSegmentStatus.Speech || right == AudioSegmentStatus.Speech)
+        {
+            return AudioSegmentStatus.Speech;
+        }
+
+        return left == AudioSegmentStatus.Bleed || right == AudioSegmentStatus.Bleed
+            ? AudioSegmentStatus.Bleed
+            : AudioSegmentStatus.Noise;
     }
 
     internal static XElement CreateFragmentElement(
@@ -697,9 +738,11 @@ public sealed class PremiereXmlGenerator
                 AudioSegmentStatus.Bleed => 2,
                 _ => 1
             };
-            var key = string.Create(
-                CultureInfo.InvariantCulture,
-                $"{segment.Status}|{segment.PhraseId}|{gain:R}|{reason}|{segment.BleedEvidence?.OtherTrackIndex}");
+            var key = enabled
+                ? string.Create(
+                    CultureInfo.InvariantCulture,
+                    $"enabled|{segment.PhraseId}|{gain:R}")
+                : "disabled";
             return new(
                 segment.TrackIndex,
                 segment.Status,

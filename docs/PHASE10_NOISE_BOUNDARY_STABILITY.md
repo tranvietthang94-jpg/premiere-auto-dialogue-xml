@@ -1,6 +1,6 @@
 # Phase 10 — Ổn định noise floor và ranh giới câu
 
-Trạng thái: `Slice 10C implemented; candidate shadow-only` ngày 2026-08-11 trên branch `codex/phase10-noise-boundary-stability`. Phase này bắt đầu từ `main` commit `06ad4d6`; baseline logic audio/XML là Phase 09 merge commit `50ee4f9`. Slice 10A–10C thêm corpus, trace, comparator, estimator và VAD hysteresis candidate; đường production/XML output chưa thay đổi.
+Trạng thái: `Slice 10E automated gates passed; Premiere round-trip pending` ngày 2026-08-13 trên branch `codex/phase10-noise-boundary-stability`. Phase này bắt đầu từ `main` commit `06ad4d6`; baseline logic audio/XML là Phase 09 merge commit `50ee4f9`. Candidate đã vào đường production qua merge bảo thủ, audit `1.6`, validator và writer có giới hạn bộ nhớ; synthetic, HGE2 và full HGE đều đạt. Phase 10 chưa hoàn tất vì XML đã đổi và còn phải import đúng candidate vào Premiere, kiểm M19, export PCM A1–A7 và Final Cut Pro XML trước khi đóng gói/merge.
 
 ## Quyết định sản phẩm
 
@@ -140,7 +140,7 @@ Kết quả triển khai 10D:
 - Sau hai merge noise/boundary độc lập, merge front-end Phase 09 vẫn chạy như lớp an toàn ngoài cùng. Candidate không thể đóng vùng baseline đang nghe được; mọi thay đổi segmentation/gain còn lại đều đi qua audit và validator trước XML.
 - Audit tăng lên schema `1.6`, ghi policy provenance, floor delta, training eligibility, frame differences, phrase boundary/split/merge cùng peak/gain/cap, decision baseline/candidate và decision final theo interval.
 - `OutputDecisionContractValidator` tự đối chiếu policy, track/front-end coverage, aggregate frame/phrase/decision, cùng-observation, gain/target/cap và mọi baseline Enabled trước khi writer tạo thư mục run. Regression xác nhận lỗi safety bị từ chối mà không để lại XML/audit tạm.
-- Release unit/integration đạt `150/150`; build và format sạch. Chưa tạo XML HGE2/full HGE, chưa chạy Premiere round-trip hoặc đóng gói mới; các việc đó thuộc 10E.
+- Release unit/integration tại mốc 10D đạt `150/150`; build và format sạch. Pilot và tối ưu output được thực hiện tiếp ở 10E.
 
 ### Slice 10E — pilot, round-trip và đóng gói
 
@@ -148,6 +148,30 @@ Kết quả triển khai 10D:
 - Dùng comparator đối chiếu candidate với đúng Phase 09 baseline; source hash, output hash và tệp tạm phải được xác minh.
 - Nếu XML audio thay đổi, bắt buộc Premiere import → PCM A1–A7 → M19 → Final Cut Pro XML re-export bằng đúng candidate hash. Không tái gắn PCM Phase 09.
 - Chạy Release tests, format, self-contained publish, installer smoke test và GitHub Actions trên HEAD cuối.
+
+Kết quả tự động 10E:
+
+- Trace theo frame được giữ bằng SHA-256 toàn bộ stream, summary count và tối đa 64 mẫu chẩn đoán mỗi track thay vì giữ hàng triệu record giống nhau trong audit. Validator kiểm policy, hash, count, sample bound và `baseline Enabled → final Disabled = 0` trước publication.
+- Timeline ước tính từ một triệu observation/track trở lên dùng một worker để tránh nhân bản PCM/trace trong RAM. Chỉ mục phrase được dùng chung cho bleed và shadow evidence; correlation tính raw moments trong một lượt. Full HGE vẫn chạy đầy đủ hai front-end và hai noise/boundary pipeline, không bỏ shadow evidence.
+- XML chỉ tách run khi semantic audio thực sự đổi: Disabled liền nhau được gộp; Enabled liền nhau chỉ gộp khi cùng phrase/gain. Khi nhãn nội bộ khác nhau trong cùng run, `Ambiguous` thắng `Speech`, reason được hợp nhất và mọi frame vẫn giữ đúng Enabled/gain. Regression test khóa coverage, gain và ưu tiên review bảo thủ.
+- Audit được ghi streaming dạng compact JSON. SHA-256 được tính trên chính byte stream serializer ghi ra rồi tính lại từ file trên đĩa trước publication; không deserialize thêm một cây audit hàng trăm MB vào RAM.
+- Release đạt `153/153` test; build Release sạch `0 warning / 0 error` tại binary dùng cho pilot.
+
+HGE2 candidate cuối:
+
+- Input `F:\demo\test HGE2.xml`, source SHA-256 `09FD290C5CB8401DEF7EA9701433F7BD1799B0300ABA9244A8BF88C022A8C897`; 7 warning metadata dự kiến, 0 error.
+- Run `private-artifacts/phase10-hge2-pilot-20260813-1/AN TRƯƠNG_AutoAudio_20260813-100128-b5295864a19042dbbf9d717f6b46db73`; runtime `78,356 giây`, peak toàn tiến trình `260,9 MB`, 2.136 phrase, 8.291 fragment, 5.207 marker và 2.126 review group.
+- XML SHA-256 `6F855699ED6D39712F3118A661DCF18943750F805D3EDB662546D033A808910E`, audit SHA-256 `21A18FB7799D171AB9BCD744B65D1ECEBF3E9EA8DE9321B0C707476AAAD6E534`, review SHA-256 `8FFDC3FFCEB96356C4053A639DCB3795AF9687B1ED1B14765D4B4FF7ABF288C7`; tệp tạm `0`.
+- Comparator với Phase 09 audit `D62901F...` đạt: source hash khớp, coverage mismatch `0 interval / 0 frame`, mất Enabled `0 interval / 0 frame`, giữ thêm `2.205 interval / 7.388 frame`. M19/A3 frame `11214–11218` là `Ambiguous`, `Enabled`, group ưu tiên cao tại `00:07:28:14–00:07:28:18`.
+
+Full HGE candidate cuối:
+
+- Input `F:\demo\test HGE.xml`, source SHA-256 `4497FBBA2E6D5B834AA73929D6A3C6BADF9392BC1F0168E583411A9515ABCE90`; 27 warning compatibility dự kiến, 0 error.
+- Run `private-artifacts/phase10-full-hge-pilot-20260811-8/TÙNG DƯƠNG_AutoAudio_20260811-143951-1b2aade220d94c168d72a4edf7eeac6d`; runtime `74 phút 56,5 giây`, peak toàn tiến trình `1.320,4 MB`, 40.686 phrase, 162.922 fragment, 107.831 marker và 39.096 review group.
+- XML dài `214.270.887 byte` (`204,34 MB`), dưới safety envelope `512 MB`; SHA-256 `627BA7EEEF777F4C8A2DF50FB551FD4B5AA9BEC71BE0D866A97D81066B6420FB`. Audit SHA-256 `A77E44B8C52547A0DC748C6E6BB8C328B988014D120672DB83BE847FC8FEBE51`; review SHA-256 `898C6C86246B2E6E71498D49A011AD3FE6E634AC32EEC7A62531C26CCF9FB7F3`; tệp tạm `0`.
+- Comparator với Phase 09 audit `0BC66E5...` đạt: source hash và embedded/actual output hash khớp, coverage mismatch `0 interval / 0 frame`, mất Enabled `0 interval / 0 frame`, giữ thêm `47.305 interval / 157.237 frame`.
+
+Các số phrase/fragment/marker khác Phase 09 là bằng chứng cấu trúc của estimator, hysteresis và XML compaction, không phải tuyên bố accuracy. XML audio đã đổi, nên PCM và XML re-export Phase 09 không được tái sử dụng. Premiere round-trip và packaging vẫn pending.
 
 ## Cổng nghiệm thu
 
@@ -190,4 +214,4 @@ Kết quả triển khai 10D:
 
 ## Bước tiếp theo
 
-Thực hiện Slice 10D: tích hợp shadow comparison ở cấp project/front-end, thêm audit `1.6` và conservative merge giữ mọi baseline Enabled; mở rộng validator để chặn coverage/status/phrase/gain/marker sai trước publication. Chưa chạy Premiere pilot hoặc adopt candidate nếu các gate 10D chưa đạt.
+Import đúng HGE2 XML SHA-256 `6F855699ED6D39712F3118A661DCF18943750F805D3EDB662546D033A808910E` vào Premiere. Xác nhận M19/A3 tại `00:07:28:15` vẫn nghe được/không Disable; export mới PCM A1–A7 từ đầu đến hết sequence và Final Cut Pro XML vào artifact directory Phase 10 mới. Sau khi validator PCM và round-trip XML đạt, mới chạy publish/installer/CI cuối và cân nhắc merge Phase 10.

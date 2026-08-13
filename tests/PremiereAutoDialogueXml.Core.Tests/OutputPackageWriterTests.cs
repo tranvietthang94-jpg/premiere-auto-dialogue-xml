@@ -34,7 +34,7 @@ public sealed class OutputPackageWriterTests
             result.XmlPath,
             result.OutputXmlSha256);
         Assert.AreEqual("xmeml", reloaded.Document.Root!.Name.LocalName);
-        Assert.AreEqual(4, result.FragmentCount);
+        Assert.AreEqual(3, result.FragmentCount);
         Assert.AreEqual(1, result.MarkerCount);
         Assert.AreEqual(1, result.ReviewGroupCount);
         Assert.IsFalse(Directory.EnumerateFiles(result.RunDirectory).Any(path => path.EndsWith(".tmp", StringComparison.Ordinal)));
@@ -56,8 +56,8 @@ public sealed class OutputPackageWriterTests
             "max-direct-speech-and-frame-aligned-enabled-phrase-peak",
             root.GetProperty("preset").GetProperty("gainReferencePeakPolicy").GetString());
         Assert.IsTrue(root.GetProperty("preset").GetProperty("preserveVadNegativeHighEnergyConflicts").GetBoolean());
-        Assert.AreEqual(4, root.GetProperty("fragments").GetArrayLength());
-        Assert.AreEqual("speech", root.GetProperty("fragments")[1].GetProperty("status").GetString());
+        Assert.AreEqual(3, root.GetProperty("fragments").GetArrayLength());
+        Assert.AreEqual("ambiguous", root.GetProperty("fragments")[1].GetProperty("status").GetString());
         Assert.AreEqual(
             9.010299956639812,
             root.GetProperty("fragments")[1].GetProperty("appliedGainDb").GetDouble(),
@@ -69,7 +69,7 @@ public sealed class OutputPackageWriterTests
         Assert.AreEqual(1, review.GetProperty("ambiguousMarkerCount").GetInt32());
         Assert.AreEqual(1, review.GetProperty("groupCount").GetInt32());
         Assert.AreEqual(0, review.GetProperty("shadowEvidence").GetArrayLength());
-        Assert.AreEqual("low", review.GetProperty("groups")[0].GetProperty("priority").GetString());
+        Assert.AreEqual("high", review.GetProperty("groups")[0].GetProperty("priority").GetString());
 
         var reviewBytes = await File.ReadAllBytesAsync(result.ReviewCsvPath);
         CollectionAssert.AreEqual(new byte[] { 0xEF, 0xBB, 0xBF }, reviewBytes[..3]);
@@ -152,7 +152,7 @@ public sealed class OutputPackageWriterTests
         var review = audit.RootElement.GetProperty("review");
         Assert.AreEqual(1, review.GetProperty("shadowEvidence").GetArrayLength());
         Assert.AreEqual("likelyBleed", review.GetProperty("groups")[0].GetProperty("representativeShadowOutcome").GetString());
-        Assert.AreEqual("medium", review.GetProperty("groups")[0].GetProperty("priority").GetString());
+        Assert.AreEqual("high", review.GetProperty("groups")[0].GetProperty("priority").GetString());
         StringAssert.Contains(await File.ReadAllTextAsync(result.ReviewCsvPath!), "Có khả năng bleed");
     }
 

@@ -33,6 +33,31 @@ public sealed class AudioProjectAnalyzerTests
     }
 
     [TestMethod]
+    public async Task AnalyzeAsyncLimitsLongTimelineToOneWorkerForMemorySafety()
+    {
+        using var fixture = TestAudioFixture.CreatePcm16(Enumerable.Repeat(0.01f, 1_920).ToArray());
+        var tracks = Enumerable.Range(1, 6)
+            .Select(index => new PremiereAudioTrack(
+                index,
+                index % 2 == 0 ? 2 : 1,
+                [fixture.Clip($"clip-{index}", 0, 1)]))
+            .ToArray();
+        var project = Project(tracks, durationFrames: 1_200_000);
+        using var probe = new ConcurrencyProbe(expectedParallelWorkers: 1);
+        var analyzer = new AudioProjectAnalyzer(
+            () => new ProbedDetector(probe),
+            new PcmWaveSampleReader());
+
+        var result = await analyzer.AnalyzeAsync(project, DialogueProcessingPreset.Balanced);
+
+        Assert.HasCount(6, result.Tracks);
+        Assert.AreEqual(1, probe.MaximumActive);
+        Assert.AreEqual(1, AudioProjectAnalyzer.DetermineMaximumWorkers(
+            project,
+            DialogueProcessingPreset.Balanced));
+    }
+
+    [TestMethod]
     public async Task AnalyzeAsyncHonorsCancellationBeforeOpeningMedia()
     {
         var missingWave = new PremiereAutoDialogueXml.Core.Media.WaveFileInfo(

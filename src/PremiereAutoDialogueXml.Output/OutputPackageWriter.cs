@@ -21,7 +21,7 @@ public sealed class OutputPackageWriter
 
     private static readonly JsonSerializerOptions AuditJsonOptions = new()
     {
-        WriteIndented = true,
+        WriteIndented = false,
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) }
     };
@@ -142,8 +142,8 @@ public sealed class OutputPackageWriter
                     Groups: reviewGroups)
             };
 
-            await WriteAuditAsync(audit, auditTempPath, cancellationToken);
-            await ValidateWrittenAuditAsync(audit, auditTempPath, cancellationToken);
+            var expectedAuditSha256 = await WriteAuditAsync(audit, auditTempPath, cancellationToken);
+            await ValidateWrittenAuditAsync(expectedAuditSha256, auditTempPath, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             File.Move(xmlTempPath, xmlPath);
             File.Move(reviewTempPath, reviewPath);
@@ -178,7 +178,7 @@ public sealed class OutputPackageWriter
         }
     }
 
-    private static async Task WriteAuditAsync(
+    private static async Task<string> WriteAuditAsync(
         OutputAudit audit,
         string path,
         CancellationToken cancellationToken)
@@ -192,170 +192,31 @@ public sealed class OutputPackageWriter
                 Share = FileShare.None,
                 Options = FileOptions.Asynchronous | FileOptions.WriteThrough
             });
-        await JsonSerializer.SerializeAsync(stream, audit, AuditJsonOptions, cancellationToken);
+        using var sha256 = SHA256.Create();
+        await using (var hashingStream = new CryptoStream(
+                         stream,
+                         sha256,
+                         CryptoStreamMode.Write,
+                         leaveOpen: true))
+        {
+            await JsonSerializer.SerializeAsync(hashingStream, audit, AuditJsonOptions, cancellationToken);
+        }
+
         await stream.FlushAsync(cancellationToken);
+        return Convert.ToHexString(
+            sha256.Hash ?? throw new CryptographicException("Không thể tính SHA-256 của audit vừa ghi."));
     }
 
     private static async Task ValidateWrittenAuditAsync(
-        OutputAudit expected,
+        string expectedSha256,
         string path,
         CancellationToken cancellationToken)
     {
-        await using var stream = new FileStream(
-            path,
-            new FileStreamOptions
-            {
-                Access = FileAccess.Read,
-                Mode = FileMode.Open,
-                Share = FileShare.Read,
-                Options = FileOptions.Asynchronous | FileOptions.SequentialScan
-            });
-        var actual = await JsonSerializer.DeserializeAsync<OutputAudit>(
-            stream,
-            AuditJsonOptions,
-            cancellationToken) ?? throw new InvalidDataException("Không thể đọc lại audit vừa ghi.");
-        if (actual.SchemaVersion != expected.SchemaVersion ||
-            actual.RunId != expected.RunId ||
-            actual.CreatedAtUtc != expected.CreatedAtUtc ||
-            actual.SourceXmlFileName != expected.SourceXmlFileName ||
-            actual.SourceXmlSha256 != expected.SourceXmlSha256 ||
-            actual.OutputXmlFileName != expected.OutputXmlFileName ||
-            actual.OutputXmlSha256 != expected.OutputXmlSha256 ||
-            actual.SourceSequenceId != expected.SourceSequenceId ||
-            actual.OutputSequenceId != expected.OutputSequenceId ||
-            actual.OutputSequenceUuid != expected.OutputSequenceUuid ||
-            actual.OutputSequenceName != expected.OutputSequenceName ||
-            actual.Model != expected.Model ||
-            actual.Preset != expected.Preset ||
-            !actual.Fragments.SequenceEqual(expected.Fragments) ||
-            !actual.Markers.SequenceEqual(expected.Markers) ||
-            !VadFrontEndComparisonMatches(
-                actual.VadFrontEndComparison,
-                expected.VadFrontEndComparison) ||
-            !NoiseBoundaryComparisonMatches(
-                actual.NoiseBoundaryComparison,
-                expected.NoiseBoundaryComparison) ||
-            !ReviewMatches(actual.Review, expected.Review))
+        var actualSha256 = await ComputeSha256Async(path, cancellationToken);
+        if (!string.Equals(actualSha256, expectedSha256, StringComparison.Ordinal))
         {
-            throw new InvalidDataException("Audit đọc lại không khớp dữ liệu kết quả trong bộ nhớ.");
+            throw new InvalidDataException("Audit đọc lại không khớp dữ liệu đã ghi.");
         }
-    }
-
-    private static bool VadFrontEndComparisonMatches(
-        VadFrontEndComparison? actual,
-        VadFrontEndComparison? expected)
-    {
-        if (actual is null || expected is null)
-        {
-            return actual is null && expected is null;
-        }
-
-        if (actual.LegacyResampling != expected.LegacyResampling ||
-            actual.CandidateResampling != expected.CandidateResampling ||
-            actual.Tracks.Count != expected.Tracks.Count)
-        {
-            return false;
-        }
-
-        return actual.Tracks.Zip(expected.Tracks).All(pair =>
-            pair.First.TrackIndex == pair.Second.TrackIndex &&
-            pair.First.ObservationCount == pair.Second.ObservationCount &&
-            pair.First.ChangedObservationCount == pair.Second.ChangedObservationCount &&
-            Math.Abs(pair.First.MaximumProbabilityDelta - pair.Second.MaximumProbabilityDelta) <= 0.000001f &&
-            pair.First.SegmentDifferenceCount == pair.Second.SegmentDifferenceCount &&
-            pair.First.LegacyEnabledCandidateDisabledCount == pair.Second.LegacyEnabledCandidateDisabledCount &&
-            pair.First.LegacyDisabledCandidateEnabledCount == pair.Second.LegacyDisabledCandidateEnabledCount &&
-            pair.First.Differences.SequenceEqual(pair.Second.Differences));
-    }
-
-    private static bool NoiseBoundaryComparisonMatches(
-        NoiseBoundaryProjectComparison? actual,
-        NoiseBoundaryProjectComparison? expected)
-    {
-        if (actual is null || expected is null)
-        {
-            return actual is null && expected is null;
-        }
-
-        return actual.FrontEnds.Count == expected.FrontEnds.Count &&
-               actual.FrontEnds.Zip(expected.FrontEnds).All(pair =>
-                   pair.First.Resampling == pair.Second.Resampling &&
-                   pair.First.Tracks.Count == pair.Second.Tracks.Count &&
-                   pair.First.Tracks.Zip(pair.Second.Tracks).All(trackPair =>
-                       NoiseBoundaryTrackComparisonMatches(trackPair.First, trackPair.Second)));
-    }
-
-    private static bool NoiseBoundaryTrackComparisonMatches(
-        NoiseBoundaryTrackComparison actual,
-        NoiseBoundaryTrackComparison expected) =>
-        actual.TrackIndex == expected.TrackIndex &&
-        actual.BaselineMode == expected.BaselineMode &&
-        actual.CandidateMode == expected.CandidateMode &&
-        actual.BaselinePolicyVersion == expected.BaselinePolicyVersion &&
-        actual.CandidatePolicyVersion == expected.CandidatePolicyVersion &&
-        actual.BaselineBoundaryPolicyVersion == expected.BaselineBoundaryPolicyVersion &&
-        actual.CandidateBoundaryPolicyVersion == expected.CandidateBoundaryPolicyVersion &&
-        actual.ObservationCount == expected.ObservationCount &&
-        actual.ChangedFrameCount == expected.ChangedFrameCount &&
-        actual.PhraseDifferenceCount == expected.PhraseDifferenceCount &&
-        actual.SegmentDifferenceCount == expected.SegmentDifferenceCount &&
-        actual.BaselineEnabledCandidateDisabledCount == expected.BaselineEnabledCandidateDisabledCount &&
-        actual.BaselineDisabledCandidateEnabledCount == expected.BaselineDisabledCandidateEnabledCount &&
-        actual.BaselinePolicy == expected.BaselinePolicy &&
-        actual.CandidatePolicy == expected.CandidatePolicy &&
-        actual.BaselineBoundaryPolicy == expected.BaselineBoundaryPolicy &&
-        actual.CandidateBoundaryPolicy == expected.CandidateBoundaryPolicy &&
-        Math.Abs(actual.MaximumNoiseFloorDeltaDb - expected.MaximumNoiseFloorDeltaDb) <= 0.0001f &&
-        actual.TrainingEligibilityDifferenceCount == expected.TrainingEligibilityDifferenceCount &&
-        actual.BaselineEnabledFinalDisabledCount == expected.BaselineEnabledFinalDisabledCount &&
-        actual.FrameDifferences.SequenceEqual(expected.FrameDifferences) &&
-        actual.DecisionDifferences.SequenceEqual(expected.DecisionDifferences) &&
-        actual.FinalDifferences.SequenceEqual(expected.FinalDifferences) &&
-        NoiseBoundaryPhraseDifferencesMatch(actual.PhraseDifferences, expected.PhraseDifferences);
-
-    private static bool NoiseBoundaryPhraseDifferencesMatch(
-        IReadOnlyList<NoiseBoundaryPhraseDifference> actual,
-        IReadOnlyList<NoiseBoundaryPhraseDifference> expected) =>
-        actual.Count == expected.Count &&
-        actual.Zip(expected).All(pair =>
-            pair.First.ChangeKind == pair.Second.ChangeKind &&
-            pair.First.BaselinePhrases.SequenceEqual(pair.Second.BaselinePhrases) &&
-            pair.First.CandidatePhrases.SequenceEqual(pair.Second.CandidatePhrases));
-
-    private static bool ReviewMatches(ReviewListAudit? actual, ReviewListAudit? expected)
-    {
-        if (actual is null || expected is null)
-        {
-            return actual is null && expected is null;
-        }
-
-        if (actual.FileName != expected.FileName ||
-            actual.Sha256 != expected.Sha256 ||
-            actual.TimecodeBasis != expected.TimecodeBasis ||
-            actual.FrameRate != expected.FrameRate ||
-            actual.GroupingGapFrames != expected.GroupingGapFrames ||
-            actual.AmbiguousMarkerCount != expected.AmbiguousMarkerCount ||
-            actual.GroupCount != expected.GroupCount ||
-            !actual.ShadowEvidence.SequenceEqual(expected.ShadowEvidence) ||
-            actual.Groups.Count != expected.Groups.Count)
-        {
-            return false;
-        }
-
-        return actual.Groups.Zip(expected.Groups).All(pair =>
-            pair.First.Id == pair.Second.Id &&
-            pair.First.Priority == pair.Second.Priority &&
-            pair.First.TrackIndex == pair.Second.TrackIndex &&
-            pair.First.InFrame == pair.Second.InFrame &&
-            pair.First.OutFrame == pair.Second.OutFrame &&
-            pair.First.InTimecode == pair.Second.InTimecode &&
-            pair.First.OutTimecode == pair.Second.OutTimecode &&
-            pair.First.MarkerCount == pair.Second.MarkerCount &&
-            pair.First.Reasons.SequenceEqual(pair.Second.Reasons) &&
-            pair.First.SourceFileNames.SequenceEqual(pair.Second.SourceFileNames) &&
-            pair.First.ShadowEvidenceCount == pair.Second.ShadowEvidenceCount &&
-            pair.First.RepresentativeShadowOutcome == pair.Second.RepresentativeShadowOutcome &&
-            pair.First.BestComparison == pair.Second.BestComparison);
     }
 
     private static async Task<string> ComputeSha256Async(string path, CancellationToken cancellationToken)

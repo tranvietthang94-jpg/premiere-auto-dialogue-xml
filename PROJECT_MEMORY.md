@@ -1,13 +1,13 @@
 # Memory handoff — Premiere Auto Dialogue XML, Phase 00–10
 
-Ngày chốt: 2026-08-11 (Asia/Saigon). Đây là memory source-of-truth để một phiên Codex mới tiếp tục nâng cấp dự án mà không làm lại các phase đã hoàn tất.
+Ngày chốt: 2026-08-13 (Asia/Saigon). Đây là memory source-of-truth để một phiên Codex mới tiếp tục nâng cấp dự án mà không làm lại các phase đã hoàn tất.
 
 ## Định hướng và vị trí dự án
 
 - Workspace thật: `F:\RIN APP\App-Auto-Edit_codex_2`.
 - Private GitHub repo: `tranvietthang94-jpg/premiere-auto-dialogue-xml`.
 - Phase 00–09 đã merge vào `main`. Phase 09 qua PR `#12`, merge commit `50ee4f9fb14d58e1dffbd1d23b807f2d58802976`; CI hậu merge `31461869682` đạt.
-- Chủ dự án không muốn preview/review UI; app chỉ tập trung xử lý âm thanh và xuất XML. Phase 10 đã mở ở trạng thái `planned; not-implemented` trên `codex/phase10-noise-boundary-stability`; mục tiêu là noise floor background-eligible và ranh giới câu start/continue hysteresis có shadow/fail-safe.
+- Chủ dự án không muốn preview/review UI; app chỉ tập trung xử lý âm thanh và xuất XML. Phase 10 trên `codex/phase10-noise-boundary-stability` đã qua các cổng tự động Slice 10E; Premiere round-trip và packaging/CI cuối còn pending.
 - Private draft prerelease: tag `v0.1.0-rc.1`, tên `Premiere Auto Dialogue XML 0.1.0 RC1`, target `8bdf47d`; URL draft hiện tại `https://github.com/tranvietthang94-jpg/premiere-auto-dialogue-xml/releases/tag/untagged-1c4ff86dc76dc88c43e3`.
 - Tài liệu phase đầy đủ nằm trong `docs/`; đọc trước `README.md`, `docs/IMPLEMENTATION_PLAN.md`, `docs/PHASE00_RESULT.md`, `docs/PHASE06_PILOT_RESULT.md`, `docs/PHASE07_INSTALLER_RELEASE.md`, `docs/PHASE08_REVIEW_QUEUE.md`, `docs/PHASE09_AUDIO_XML_HARDENING.md`, `docs/PHASE10_NOISE_BOUNDARY_STABILITY.md`, `docs/INTERNAL_CODE_SIGNING.md`.
 
@@ -100,6 +100,11 @@ Ngày chốt: 2026-08-11 (Asia/Saigon). Đây là memory source-of-truth để m
 - Slice 10D đã nối project production theo hai lớp fail-safe: Phase 09 baseline và Phase 10 candidate được merge bảo thủ riêng trên từng `LegacyStride3`/`AntiAliasFir`, sau đó kết quả tiếp tục qua merge front-end Phase 09. Mọi baseline Enabled được giữ; disagreement thành Ambiguous/Enabled và whole-phrase fallback giữ nguyên coverage/gain.
 - Audit schema `1.6` ghi policy provenance, floor/eligibility/frame differences, phrase boundary/split/merge với gain/cap, decision baseline/candidate/final. Validator tự tính lại comparison và dừng trước khi tạo run directory nếu shadow thiếu, sai policy/cùng-observation/count/gain hoặc làm mất baseline Enabled.
 - Slice 10D đạt `150/150` test; build/format sạch. Chưa có HGE2/full HGE/Premiere/publish candidate mới. Bước tiếp theo là 10E pilot trên artifact directory mới; nếu XML đổi phải dùng đúng hash đó cho PCM A1–A7, M19 và Premiere XML re-export.
+- Slice 10E giới hạn audit frame evidence bằng full-stream SHA-256 + summary + mẫu chẩn đoán bounded; long timeline dùng một worker; phrase interval index và one-pass correlation giảm CPU/RAM. Audit compact JSON được hash trong lúc ghi và hash lại từ đĩa, không deserialize thêm cây audit lớn.
+- XML frame run được gộp theo semantic audio thực: Disabled liền nhau; Enabled cùng phrase/gain. Aggregate ưu tiên Ambiguous để giữ review bảo thủ. Release đạt `153/153`; build sạch.
+- HGE2 cuối `phase10-hge2-pilot-20260813-1`: `78,356 giây`, peak `260,9 MB`, 2.136 phrase/8.291 fragment/5.207 marker; XML `6F855699ED6D39712F3118A661DCF18943750F805D3EDB662546D033A808910E`, audit `21A18FB7799D171AB9BCD744B65D1ECEBF3E9EA8DE9321B0C707476AAAD6E534`. So Phase 09: coverage mismatch 0, lost Enabled 0, newly Enabled 2.205 interval/7.388 frame, temp 0; M19/A3 11214–11218 Ambiguous/Enabled.
+- Full HGE cuối `phase10-full-hge-pilot-20260811-8`: `74 phút 56,5 giây`, peak `1.320,4 MB`, XML 204,34 MB `627BA7EEEF777F4C8A2DF50FB551FD4B5AA9BEC71BE0D866A97D81066B6420FB`, audit `A77E44B8C52547A0DC748C6E6BB8C328B988014D120672DB83BE847FC8FEBE51`; source hash khớp, coverage mismatch 0, lost Enabled 0, newly Enabled 47.305 interval/157.237 frame, temp 0.
+- Phase 10 chưa hoàn tất. Bước tiếp theo là import đúng HGE2 XML `6F855...` vào Premiere, xác nhận M19 nghe được, export mới PCM A1–A7 và Final Cut Pro XML; chỉ sau khi validator đạt mới packaging/CI/merge.
 
 ## Lỗi đã gặp và cách tránh
 
@@ -132,4 +137,4 @@ Ngày chốt: 2026-08-11 (Asia/Saigon). Đây là memory source-of-truth để m
 
 ## Trạng thái bàn giao
 
-Phase 00–09 hoàn tất trên `main`. Phase 10 Slice 10A–10D đã có code/test trên `codex/phase10-noise-boundary-stability`; production analysis nay dùng merge bảo thủ hai tầng và audit `1.6`, nhưng chưa có XML HGE2/full HGE hoặc Premiere pilot mới. Việc tiếp theo là Slice 10E pilot, round-trip và đóng gói. Hợp đồng Phase 09 về Enabled/gain/XML/M19 là baseline không được làm yếu.
+Phase 00–09 hoàn tất trên `main`. Phase 10 Slice 10A–10E đã có code/test và HGE2/full HGE automated evidence trên `codex/phase10-noise-boundary-stability`; production analysis dùng merge bảo thủ hai tầng, audit `1.6` và output bounded. Cổng tự động đạt nhưng Phase 10 vẫn pending Premiere round-trip bằng đúng XML `6F855...`, rồi packaging/CI. Hợp đồng Phase 09 về Enabled/gain/XML/M19 là baseline không được làm yếu.

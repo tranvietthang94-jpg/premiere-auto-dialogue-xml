@@ -113,28 +113,25 @@ internal static class WaveformCorrelation
     {
         double leftSum = 0;
         double rightSum = 0;
-        for (var index = 0; index < sampleCount16Khz; index++)
-        {
-            leftSum += left[(leftStart16Khz + index) * 3];
-            rightSum += right[(rightStart16Khz + index) * 3];
-        }
-
-        var leftMean = leftSum / sampleCount16Khz;
-        var rightMean = rightSum / sampleCount16Khz;
         double dot = 0;
-        double leftEnergy = 0;
-        double rightEnergy = 0;
+        double leftSquares = 0;
+        double rightSquares = 0;
         for (var index = 0; index < sampleCount16Khz; index++)
         {
-            var leftCentered = left[(leftStart16Khz + index) * 3] - leftMean;
-            var rightCentered = right[(rightStart16Khz + index) * 3] - rightMean;
-            dot += leftCentered * rightCentered;
-            leftEnergy += leftCentered * leftCentered;
-            rightEnergy += rightCentered * rightCentered;
+            var leftSample = left[(leftStart16Khz + index) * 3];
+            var rightSample = right[(rightStart16Khz + index) * 3];
+            leftSum += leftSample;
+            rightSum += rightSample;
+            dot += leftSample * rightSample;
+            leftSquares += leftSample * leftSample;
+            rightSquares += rightSample * rightSample;
         }
 
+        var leftEnergy = leftSquares - ((leftSum * leftSum) / sampleCount16Khz);
+        var rightEnergy = rightSquares - ((rightSum * rightSum) / sampleCount16Khz);
+        var centeredDot = dot - ((leftSum * rightSum) / sampleCount16Khz);
         var denominator = Math.Sqrt(leftEnergy * rightEnergy);
-        return denominator <= double.Epsilon ? 0 : (float)(dot / denominator);
+        return denominator <= double.Epsilon ? 0 : (float)(centeredDot / denominator);
     }
 
     internal readonly record struct CorrelationResult(

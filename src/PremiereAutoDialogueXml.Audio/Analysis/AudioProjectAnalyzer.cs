@@ -7,6 +7,7 @@ namespace PremiereAutoDialogueXml.Audio.Analysis;
 
 public sealed class AudioProjectAnalyzer
 {
+    private const double LongTimelineObservationThreshold = 1_000_000;
     private readonly Func<IVoiceActivityDetector> _detectorFactory;
     private readonly PcmWaveSampleReader _sampleReader;
     private readonly bool _enableVadFrontEndShadow;
@@ -61,6 +62,13 @@ public sealed class AudioProjectAnalyzer
         var observationComparisons = _enableVadFrontEndShadow
             ? new ObservationComparison[tracks.Count]
             : [];
+        var legacyNoiseComparisons = _enableVadFrontEndShadow
+            ? new NoiseBoundaryTrackComparison[tracks.Count]
+            : [];
+        var antiAliasNoiseComparisons = _enableVadFrontEndShadow
+            ? new NoiseBoundaryTrackComparison[tracks.Count]
+            : [];
+        var maximumWorkers = DetermineMaximumWorkers(project, preset);
         var completed = 0;
         progress?.Report(new(0, tracks.Count, null, "Bắt đầu phân tích âm thanh."));
 
@@ -68,7 +76,7 @@ public sealed class AudioProjectAnalyzer
             Enumerable.Range(0, tracks.Count),
             new ParallelOptions
             {
-                MaxDegreeOfParallelism = preset.MaximumWorkers,
+                MaxDegreeOfParallelism = maximumWorkers,
                 CancellationToken = cancellationToken
             },
             (position, token) =>
@@ -92,9 +100,11 @@ public sealed class AudioProjectAnalyzer
                         token);
                     if (_enableVadFrontEndShadow)
                     {
-                        var legacyShadow = analyzer.AnalyzeShadow(track, observations, preset, token);
+                        var legacyShadow = AnalyzeNoiseBoundaryPair(
+                            analyzer, track, observations, preset, token);
                         legacyBaselineResults[position] = legacyShadow.Baseline;
                         legacyNoiseCandidateResults[position] = legacyShadow.Candidate;
+                        legacyNoiseComparisons[position] = legacyShadow.Comparison;
 
                         using var candidateDetector = _detectorFactory();
                         var candidateObservations = scanner.Scan(
@@ -103,10 +113,11 @@ public sealed class AudioProjectAnalyzer
                             preset,
                             VadResamplingMode.AntiAliasFir,
                             token);
-                        var antiAliasShadow = analyzer.AnalyzeShadow(
-                            track, candidateObservations, preset, token);
+                        var antiAliasShadow = AnalyzeNoiseBoundaryPair(
+                            analyzer, track, candidateObservations, preset, token);
                         antiAliasBaselineResults[position] = antiAliasShadow.Baseline;
                         antiAliasNoiseCandidateResults[position] = antiAliasShadow.Candidate;
+                        antiAliasNoiseComparisons[position] = antiAliasShadow.Comparison;
                         observationComparisons[position] = CompareObservations(
                             observations,
                             candidateObservations);
@@ -156,12 +167,11 @@ public sealed class AudioProjectAnalyzer
                 cancellationToken);
             var mergedLegacyNoise = new TrackAudioAnalysis[tracks.Count];
             var mergedAntiAliasNoise = new TrackAudioAnalysis[tracks.Count];
-            var legacyNoiseComparisons = new NoiseBoundaryTrackComparison[tracks.Count];
-            var antiAliasNoiseComparisons = new NoiseBoundaryTrackComparison[tracks.Count];
             for (var position = 0; position < tracks.Count; position++)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                var legacyComparison = NoiseBoundaryShadowComparer.Compare(
+                var legacyComparison = NoiseBoundaryShadowComparer.RefreshDecisions(
+                    legacyNoiseComparisons[position],
                     resolvedLegacyBaseline[position],
                     resolvedLegacyNoiseCandidate[position]);
                 (mergedLegacyNoise[position], legacyNoiseComparisons[position]) =
@@ -170,7 +180,8 @@ public sealed class AudioProjectAnalyzer
                         resolvedLegacyNoiseCandidate[position],
                         legacyComparison);
 
-                var antiAliasComparison = NoiseBoundaryShadowComparer.Compare(
+                var antiAliasComparison = NoiseBoundaryShadowComparer.RefreshDecisions(
+                    antiAliasNoiseComparisons[position],
                     resolvedAntiAliasBaseline[position],
                     resolvedAntiAliasNoiseCandidate[position]);
                 (mergedAntiAliasNoise[position], antiAliasNoiseComparisons[position]) =
@@ -228,6 +239,36 @@ public sealed class AudioProjectAnalyzer
         };
     }
 
+    private static NoiseBoundaryPair AnalyzeNoiseBoundaryPair(
+        TrackDialogueAnalyzer analyzer,
+        PremiereAudioTrack track,
+        IReadOnlyList<AudioFrameObservation> observations,
+        DialogueProcessingPreset preset,
+        CancellationToken cancellationToken)
+    {
+        var shadow = analyzer.AnalyzeShadow(track, observations, preset, cancellationToken);
+        return new(
+            shadow.Baseline with { NoiseBoundaryTrace = null },
+            shadow.Candidate with { NoiseBoundaryTrace = null },
+            shadow.Comparison);
+    }
+
+    internal static int DetermineMaximumWorkers(
+        PremiereProject project,
+        DialogueProcessingPreset preset)
+    {
+        ArgumentNullException.ThrowIfNull(project);
+        ArgumentNullException.ThrowIfNull(preset);
+        var estimatedObservationsPerTrack =
+            project.Sequence.DurationFrames *
+            (double)project.Sequence.AudioSampleRate /
+            project.Sequence.FrameRate /
+            1_536d;
+        return estimatedObservationsPerTrack >= LongTimelineObservationThreshold
+            ? 1
+            : preset.MaximumWorkers;
+    }
+
     private static ObservationComparison CompareObservations(
         IReadOnlyList<AudioFrameObservation> legacy,
         IReadOnlyList<AudioFrameObservation> candidate)
@@ -265,4 +306,9 @@ public sealed class AudioProjectAnalyzer
         int ObservationCount,
         int ChangedObservationCount,
         float MaximumProbabilityDelta);
+
+    private readonly record struct NoiseBoundaryPair(
+        TrackAudioAnalysis Baseline,
+        TrackAudioAnalysis Candidate,
+        NoiseBoundaryTrackComparison Comparison);
 }

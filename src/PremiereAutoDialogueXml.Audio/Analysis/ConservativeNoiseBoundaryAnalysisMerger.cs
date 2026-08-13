@@ -39,6 +39,7 @@ internal static class ConservativeNoiseBoundaryAnalysisMerger
         return (analysis, comparison with
         {
             BaselineEnabledFinalDisabledCount = baselineEnabledFinalDisabledCount,
+            DecisionDifferences = [],
             FinalDifferences = finalDifferences
         });
     }

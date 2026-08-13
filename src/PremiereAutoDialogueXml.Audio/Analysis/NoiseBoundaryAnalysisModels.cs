@@ -51,7 +51,7 @@ public sealed record VadBoundaryPolicyDescriptor(
     int MinimumStartEvidenceMilliseconds,
     int MinimumDirectEvidenceMilliseconds);
 
-public sealed record NoiseBoundaryFrameTrace(
+public readonly record struct NoiseBoundaryFrameTrace(
     long TimelineStartSample,
     long TimelineEndSample,
     float VadProbability,
@@ -77,6 +77,18 @@ public sealed record NoiseBoundaryTrackTrace(
 public sealed record NoiseBoundaryFrameDifference(
     NoiseBoundaryFrameTrace Baseline,
     NoiseBoundaryFrameTrace Candidate);
+
+public sealed record NoiseBoundaryFrameDifferenceSummary(
+    int NoiseFloorBeforeDifferenceCount,
+    int NoiseFloorAfterDifferenceCount,
+    int NoiseFloorReadyBeforeDifferenceCount,
+    int NoiseFloorReadyAfterDifferenceCount,
+    int TrainingDecisionDifferenceCount,
+    int VadSpeechDifferenceCount,
+    int DirectEvidenceDifferenceCount,
+    int DirectEnergyThresholdDifferenceCount,
+    int WarmupUncertainDifferenceCount,
+    int BoundaryStateDifferenceCount);
 
 public sealed record NoiseBoundaryPhraseSnapshot(
     string Id,
@@ -149,7 +161,7 @@ public sealed record NoiseBoundaryTrackComparison(
     int SegmentDifferenceCount,
     int BaselineEnabledCandidateDisabledCount,
     int BaselineDisabledCandidateEnabledCount,
-    IReadOnlyList<NoiseBoundaryFrameDifference> FrameDifferences,
+    IReadOnlyList<NoiseBoundaryFrameDifference> FrameDifferenceSamples,
     IReadOnlyList<NoiseBoundaryDecisionDifference> DecisionDifferences)
 {
     public NoiseFloorPolicyDescriptor? BaselinePolicy { get; init; }
@@ -163,6 +175,14 @@ public sealed record NoiseBoundaryTrackComparison(
     public float MaximumNoiseFloorDeltaDb { get; init; }
 
     public int TrainingEligibilityDifferenceCount { get; init; }
+
+    public string FrameTraceSha256 { get; init; } =
+        "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855";
+
+    public NoiseBoundaryFrameDifferenceSummary FrameDifferenceSummary { get; init; } =
+        new(0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+
+    public int CapturedFrameDifferenceCount => FrameDifferenceSamples.Count;
 
     public int BaselineEnabledFinalDisabledCount { get; init; }
 
@@ -219,7 +239,7 @@ public sealed record NoiseBoundaryShadowAnalysis(
     TrackAudioAnalysis Candidate,
     NoiseBoundaryTrackComparison Comparison);
 
-internal sealed record NoiseFloorFrameSnapshot(
+internal readonly record struct NoiseFloorFrameSnapshot(
     float NoiseFloorBeforeDbfs,
     float NoiseFloorAfterDbfs,
     bool NoiseFloorReadyBefore,

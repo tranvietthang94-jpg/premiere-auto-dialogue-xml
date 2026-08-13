@@ -131,6 +131,59 @@ public sealed class NoiseBoundaryShadowComparerTests
         Assert.HasCount(2, comparison.PhraseDifferences[0].CandidatePhrases);
     }
 
+    [TestMethod]
+    public void CompareBoundsFrameSamplesAndKeepsDeterministicFullTraceDigest()
+    {
+        const int frameCount = 200;
+        var baseline = Analysis(
+            NoiseBoundaryAnalysisMode.Phase09Baseline,
+            AudioSegmentStatus.Noise,
+            "same");
+        var candidate = Analysis(
+            NoiseBoundaryAnalysisMode.NoiseBoundaryCandidate,
+            AudioSegmentStatus.Noise,
+            "same");
+        var baselineTemplate = baseline.NoiseBoundaryTrace!.Frames[0];
+        var candidateTemplate = candidate.NoiseBoundaryTrace!.Frames[0];
+        baseline = baseline with
+        {
+            NoiseBoundaryTrace = baseline.NoiseBoundaryTrace with
+            {
+                Frames = Enumerable.Range(0, frameCount).Select(index => baselineTemplate with
+                {
+                    TimelineStartSample = index * 1_536L,
+                    TimelineEndSample = (index + 1) * 1_536L
+                }).ToArray()
+            }
+        };
+        candidate = candidate with
+        {
+            NoiseBoundaryTrace = candidate.NoiseBoundaryTrace with
+            {
+                Frames = Enumerable.Range(0, frameCount).Select(index => candidateTemplate with
+                {
+                    TimelineStartSample = index * 1_536L,
+                    TimelineEndSample = (index + 1) * 1_536L,
+                    NoiseFloorAfterDbfs = -80f + (index % 10)
+                }).ToArray()
+            }
+        };
+
+        var first = NoiseBoundaryShadowComparer.Compare(baseline, candidate);
+        var second = NoiseBoundaryShadowComparer.Compare(baseline, candidate);
+
+        Assert.AreEqual(frameCount, first.ChangedFrameCount);
+        Assert.IsGreaterThan(0, first.CapturedFrameDifferenceCount);
+        Assert.IsLessThanOrEqualTo(64, first.CapturedFrameDifferenceCount);
+        Assert.IsLessThan(first.ChangedFrameCount, first.CapturedFrameDifferenceCount);
+        Assert.AreEqual(frameCount, first.FrameDifferenceSummary.NoiseFloorAfterDifferenceCount);
+        Assert.AreEqual(64, first.FrameTraceSha256.Length);
+        Assert.AreEqual(first.FrameTraceSha256, second.FrameTraceSha256);
+        CollectionAssert.AreEqual(
+            first.FrameDifferenceSamples.ToArray(),
+            second.FrameDifferenceSamples.ToArray());
+    }
+
     private static DialoguePhrase Phrase(string id, long start, long end) =>
         new(id, 1, start, end, start, end, -12, 9.01f, 9.01f, false);
 
