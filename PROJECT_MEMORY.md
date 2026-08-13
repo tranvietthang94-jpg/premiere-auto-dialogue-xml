@@ -1,15 +1,15 @@
-# Memory handoff — Premiere Auto Dialogue XML, Phase 00–09
+# Memory handoff — Premiere Auto Dialogue XML, Phase 00–10
 
-Ngày chốt: 2026-08-09 (Asia/Saigon). Đây là memory source-of-truth để một phiên Codex mới tiếp tục nâng cấp dự án mà không làm lại các phase đã hoàn tất.
+Ngày chốt: 2026-08-13 (Asia/Saigon). Đây là memory source-of-truth để một phiên Codex mới tiếp tục nâng cấp dự án mà không làm lại các phase đã hoàn tất.
 
 ## Định hướng và vị trí dự án
 
 - Workspace thật: `F:\RIN APP\App-Auto-Edit_codex_2`.
 - Private GitHub repo: `tranvietthang94-jpg/premiere-auto-dialogue-xml`.
 - Phase 00–09 đã merge vào `main`. Phase 09 qua PR `#12`, merge commit `50ee4f9fb14d58e1dffbd1d23b807f2d58802976`; CI hậu merge `31461869682` đạt.
-- Chủ dự án không muốn preview/review UI; app chỉ tập trung xử lý âm thanh và xuất XML. Phase 09 đã hoàn tất; nâng cấp tiếp theo dự kiến là Phase 10 về noise floor và ranh giới câu, trên branch riêng.
+- Chủ dự án không muốn preview/review UI; app chỉ tập trung xử lý âm thanh và xuất XML. Phase 10 trên `codex/phase10-noise-boundary-stability` đã đạt mọi gate logic, HGE, Premiere round-trip và CI/installer; không tạo release mới.
 - Private draft prerelease: tag `v0.1.0-rc.1`, tên `Premiere Auto Dialogue XML 0.1.0 RC1`, target `8bdf47d`; URL draft hiện tại `https://github.com/tranvietthang94-jpg/premiere-auto-dialogue-xml/releases/tag/untagged-1c4ff86dc76dc88c43e3`.
-- Tài liệu phase đầy đủ nằm trong `docs/`; đọc trước `README.md`, `docs/IMPLEMENTATION_PLAN.md`, `docs/PHASE00_RESULT.md`, `docs/PHASE06_PILOT_RESULT.md`, `docs/PHASE07_INSTALLER_RELEASE.md`, `docs/PHASE08_REVIEW_QUEUE.md`, `docs/PHASE09_AUDIO_XML_HARDENING.md`, `docs/INTERNAL_CODE_SIGNING.md`.
+- Tài liệu phase đầy đủ nằm trong `docs/`; đọc trước `README.md`, `docs/IMPLEMENTATION_PLAN.md`, `docs/PHASE00_RESULT.md`, `docs/PHASE06_PILOT_RESULT.md`, `docs/PHASE07_INSTALLER_RELEASE.md`, `docs/PHASE08_REVIEW_QUEUE.md`, `docs/PHASE09_AUDIO_XML_HARDENING.md`, `docs/PHASE10_NOISE_BOUNDARY_STABILITY.md`, `docs/INTERNAL_CODE_SIGNING.md`.
 
 ## Sản phẩm đã khóa
 
@@ -83,6 +83,32 @@ Ngày chốt: 2026-08-09 (Asia/Saigon). Đây là memory source-of-truth để m
 - Premiere XML re-export SHA-256 `51E69A2B255E451EDA6D267F05AB3CABFA4301801528B2247CEC46491F9BE3E0` đạt report `phase09-roundtrip-compatible` SHA-256 `1D60F50FF06D98D34607AD4480BEA136BDFF7A072BA927C2693C9E0CFC7E7A3B`: 10.831/10.831 clip, 7.025 Enabled, 3.806 Disabled, timing/source/media khớp, max gain delta `0,000055244 dB`, 5.219 marker giữ nguyên semantic. Premiere đổi thứ tự marker và normalize 3.783 Gain filter thành Audio Levels đúng hành vi Phase 00.
 - `scripts/phase09/Test-Phase09RoundTrip.ps1` là validator lặp lại được cho input/result XML. Phase 09 đã `passed` và merge vào `main` tại `50ee4f9`; CI hậu merge `31461869682` đạt trong 2 phút 53 giây.
 
+## Phase 10 — noise floor và ranh giới câu
+
+- Slice 10A đã triển khai trên `codex/phase10-noise-boundary-stability`: mode `Phase09Baseline`/`NoiseBoundaryCandidate`, per-frame noise/boundary trace, comparator theo frame/phrase/interval và corpus tổng hợp không chứa dữ liệu riêng tư.
+- Candidate 10A cố ý giống hệt baseline. Chỉ `AnalyzeShadow` chạy hai pipeline/capture trace; đường `Analyze` mà app dùng vẫn chạy một lần theo Phase 09 và không gắn trace vào output. Vì vậy 10A không đổi status, Enabled, gain, marker, audit hoặc XML.
+- Corpus bao phủ room tone, floor step-up/down, silence, loud-first, VAD-negative high-energy conflict, speech sát ngưỡng, jitter, media gap và clip boundary. Comparator có test phát hiện `baseline Enabled → candidate Disabled` giả lập.
+- Baseline trace khóa hai khoản nợ cần sửa ở 10B: loud-first-frame hiện tự đặt floor theo chính nó; high-energy VAD-negative conflict hiện vẫn training-eligible. Không sửa hoặc diễn giải lại chúng trong 10A.
+- Release đạt `130/130`; build sạch warning/error; format verify sạch. Chưa chạy HGE2/full HGE/Premiere vì chưa có XML candidate.
+- Slice 10B thêm policy `phase10-background-eligible-p20-v1`: P20/window 512, warm-up 8 frame, rise `0,05`, fall `0,20`; stable step-up chỉ promote sau 16 frame liên tục/spread tối đa 3 dB.
+- Candidate đánh giá frame bằng floor trước update; VAD speech/no-media/non-finite/high-energy conflict không được học. Warm-up high-energy thành `ambiguous-noise-floor-warmup` Enabled; floor luôn finite trong `[-144,0]`.
+- Trace ghi policy/readiness/eligibility/floor trước-sau; comparator từ chối policy provenance sai. Step-response rise/fall đơn điệu và bounded; Release đạt `137/137`; format sạch.
+- Slice 10C khóa `phase10-vad-start050-continue040-v1`: start `0,50`, continue `0,40`, break `350 ms`, start/direct evidence vẫn `120 ms`. No-media đóng context; gap đúng 350 ms không bridge.
+- Continue không được cộng vào start/direct evidence. Context thiếu direct giữ `ambiguous-vad-continue-context-near-speech`, Enabled và cùng phrase/gain; không có start thì không tạo phrase.
+- Trace/comparator có boundary policy provenance và state start/continue riêng. Synthetic khóa `.40` accept/`.39` reject, jitter, evidence minimum, gap/media; Release đạt `146/146`; format sạch.
+- Candidate 10C vẫn chỉ chạy trong `AnalyzeShadow`; app/output vẫn dùng Phase 09, không có audit/XML candidate hoặc Premiere pilot mới. Bước tiếp theo là Slice 10D project shadow + audit `1.6` + conservative merge/validator.
+- Slice 10D đã nối project production theo hai lớp fail-safe: Phase 09 baseline và Phase 10 candidate được merge bảo thủ riêng trên từng `LegacyStride3`/`AntiAliasFir`, sau đó kết quả tiếp tục qua merge front-end Phase 09. Mọi baseline Enabled được giữ; disagreement thành Ambiguous/Enabled và whole-phrase fallback giữ nguyên coverage/gain.
+- Audit schema `1.6` ghi policy provenance, floor/eligibility/frame differences, phrase boundary/split/merge với gain/cap, decision baseline/candidate/final. Validator tự tính lại comparison và dừng trước khi tạo run directory nếu shadow thiếu, sai policy/cùng-observation/count/gain hoặc làm mất baseline Enabled.
+- Slice 10D đạt `150/150` test; build/format sạch. Chưa có HGE2/full HGE/Premiere/publish candidate mới. Bước tiếp theo là 10E pilot trên artifact directory mới; nếu XML đổi phải dùng đúng hash đó cho PCM A1–A7, M19 và Premiere XML re-export.
+- Slice 10E giới hạn audit frame evidence bằng full-stream SHA-256 + summary + mẫu chẩn đoán bounded; long timeline dùng một worker; phrase interval index và one-pass correlation giảm CPU/RAM. Audit compact JSON được hash trong lúc ghi và hash lại từ đĩa, không deserialize thêm cây audit lớn.
+- XML frame run được gộp theo semantic audio thực: Disabled liền nhau; Enabled cùng phrase/gain. Aggregate ưu tiên Ambiguous để giữ review bảo thủ. Release đạt `153/153`; build sạch.
+- HGE2 cuối `phase10-hge2-pilot-20260813-1`: `78,356 giây`, peak `260,9 MB`, 2.136 phrase/8.291 fragment/5.207 marker; XML `6F855699ED6D39712F3118A661DCF18943750F805D3EDB662546D033A808910E`, audit `21A18FB7799D171AB9BCD744B65D1ECEBF3E9EA8DE9321B0C707476AAAD6E534`. So Phase 09: coverage mismatch 0, lost Enabled 0, newly Enabled 2.205 interval/7.388 frame, temp 0; M19/A3 11214–11218 Ambiguous/Enabled.
+- Full HGE cuối `phase10-full-hge-pilot-20260811-8`: `74 phút 56,5 giây`, peak `1.320,4 MB`, XML 204,34 MB `627BA7EEEF777F4C8A2DF50FB551FD4B5AA9BEC71BE0D866A97D81066B6420FB`, audit `A77E44B8C52547A0DC748C6E6BB8C328B988014D120672DB83BE847FC8FEBE51`; source hash khớp, coverage mismatch 0, lost Enabled 0, newly Enabled 47.305 interval/157.237 frame, temp 0.
+- Người vận hành import đúng HGE2 XML `6F855...` và xác nhận M19/A3 vẫn Enabled. PCM A1–A7 đều mono 48 kHz/24-bit, đủ 103.219.200 sample; validator đạt 2.136/2.136 phrase, 921/921 uncapped ở target và 1.215/1.215 capped khớp dự đoán. Max audit delta `0,000026641 dB`, source-linked delta `0,000026615 dB`.
+- M19 PCM frame 11214–11218 có 7.680/7.680 sample khác 0, correlation nguồn `0,999999999960662`, gain `-3,010296076 dB` đúng routing; report `C591B87D...` đạt `m19-rendered-audio-preserved`.
+- Premiere re-export `Untitled test.xml` SHA `C7F83F25...` bọc đúng một sequence trong project. Validator round-trip `1.1` được harden để nhận direct sequence hoặc đúng một top-level project sequence; report `E3E38CA9...` đạt 8.291/8.291 clip, 4.488 Enabled, 3.803 Disabled, 5.207 marker và max gain delta `0,000055244 dB`.
+- CI `31689521606` trên app candidate `a4ac4a7` đạt build/test, self-contained publish và installer smoke trong 3 phút 1 giây. Phase 10 đạt; RC1 hiện hành không đổi.
+
 ## Lỗi đã gặp và cách tránh
 
 1. Gain XML: không stack hai Audio Levels cùng loại và không ghi literal dB vào Gain filter. Dùng encoding Phase 00.
@@ -114,4 +140,4 @@ Ngày chốt: 2026-08-09 (Asia/Saigon). Đây là memory source-of-truth để m
 
 ## Trạng thái bàn giao
 
-Phase 00–09 hoàn tất trên `main`. Phase 09 PR `#12`: candidate đầu bị loại; fix phrase-component đạt `122/122` test, HGE2 replacement `A11D046...`, Premiere PCM A1–A7, M19, XML re-export, full HGE và CI/packaging mà không làm mất frame legacy Enabled. Merge commit `50ee4f9`; CI hậu merge `31461869682` đạt. Việc tiếp theo là xác định mục tiêu và mở tài liệu Phase 10 trên branch mới; tiếp tục giữ app tập trung xử lý âm thanh và xuất XML, không mở preview/review UI.
+Phase 00–10 hoàn tất về logic và bằng chứng bắt buộc. Phase 10 dùng merge bảo thủ hai tầng, audit `1.6` và output bounded; HGE2/full HGE, M19, PCM A1–A7, Premiere XML re-export và CI/installer đều đạt. Việc tiếp theo là merge PR Phase 10 sau CI HEAD cuối; Phase 11 phải mở riêng và dùng hợp đồng Enabled/gain/XML/M19 hiện tại làm baseline.

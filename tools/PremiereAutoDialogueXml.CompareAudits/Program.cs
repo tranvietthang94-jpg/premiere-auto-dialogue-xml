@@ -77,6 +77,16 @@ static AuditComparison Compare(Audit baseline, Audit candidate, string baselineP
         failures.Add("candidate-temporary-files-remain");
     }
 
+    var candidateNoiseBoundary = SummarizeNoiseBoundary(candidate.NoiseBoundaryComparison);
+    if (candidate.SchemaVersion == "1.6" && candidateNoiseBoundary is null)
+    {
+        failures.Add("candidate-noise-boundary-comparison-missing");
+    }
+    else if (candidateNoiseBoundary?.BaselineEnabledFinalDisabledCount > 0)
+    {
+        failures.Add("candidate-noise-boundary-baseline-enabled-lost");
+    }
+
     var baselineTracks = baseline.Fragments
         .GroupBy(fragment => fragment.TrackIndex)
         .ToDictionary(group => group.Key, group => group.OrderBy(fragment => fragment.TimelineStartFrame).ToArray());
@@ -179,7 +189,8 @@ static AuditComparison Compare(Audit baseline, Audit candidate, string baselineP
         NewlyEnabledIntervals: newlyEnabledIntervals,
         NewlyEnabledFrames: newlyEnabledFrames,
         Transitions: transitions.OrderBy(item => item.Key).ToDictionary(item => item.Key, item => item.Value),
-        CandidateVadFrontEnd: SummarizeVad(candidate.VadFrontEndComparison));
+        CandidateVadFrontEnd: SummarizeVad(candidate.VadFrontEndComparison),
+        CandidateNoiseBoundary: candidateNoiseBoundary);
 }
 
 static Fragment? FindCovering(Fragment[] fragments, ref int index, long start, long end)
@@ -278,6 +289,42 @@ static VadSummary? SummarizeVad(VadFrontEndComparison? comparison)
         comparison.Tracks.Count == 0 ? 0 : comparison.Tracks.Max(track => track.MaximumProbabilityDelta));
 }
 
+static NoiseBoundarySummary? SummarizeNoiseBoundary(NoiseBoundaryProjectComparison? comparison)
+{
+    if (comparison is null)
+    {
+        return null;
+    }
+
+    var tracks = comparison.FrontEnds.SelectMany(frontEnd => frontEnd.Tracks).ToArray();
+    return new(
+        comparison.FrontEnds.Select(frontEnd => new NoiseBoundaryFrontEndSummary(
+            frontEnd.Resampling,
+            frontEnd.Tracks.Sum(track => track.ObservationCount),
+            frontEnd.Tracks.Sum(track => track.ChangedFrameCount),
+            frontEnd.Tracks.Sum(track => track.PhraseDifferenceCount),
+            frontEnd.Tracks.Sum(track => track.SegmentDifferenceCount),
+            frontEnd.Tracks.Sum(track => track.BaselineEnabledCandidateDisabledCount),
+            frontEnd.Tracks.Sum(track => track.BaselineDisabledCandidateEnabledCount),
+            frontEnd.Tracks.Sum(track => track.BaselineEnabledFinalDisabledCount),
+            frontEnd.Tracks.Sum(track => track.TrainingEligibilityDifferenceCount),
+            frontEnd.Tracks.Sum(track => track.FrameDifferenceSamples.Count),
+            frontEnd.Tracks.Sum(track => track.FinalDifferences.Count),
+            frontEnd.Tracks.Select(track => track.MaximumNoiseFloorDeltaDb).DefaultIfEmpty().Max())).ToArray(),
+        tracks.Sum(track => track.ObservationCount),
+        tracks.Sum(track => track.ChangedFrameCount),
+        tracks.Sum(track => track.PhraseDifferenceCount),
+        tracks.Sum(track => track.SegmentDifferenceCount),
+        tracks.Sum(track => track.BaselineEnabledCandidateDisabledCount),
+        tracks.Sum(track => track.BaselineDisabledCandidateEnabledCount),
+        tracks.Sum(track => track.BaselineEnabledFinalDisabledCount),
+        tracks.Sum(track => track.TrainingEligibilityDifferenceCount),
+        tracks.Sum(track => track.FrameDifferenceSamples.Count),
+        tracks.Sum(track => track.FinalDifferences.Count),
+        tracks.Select(track => track.MaximumNoiseFloorDeltaDb).DefaultIfEmpty().Max(),
+        tracks.Select(track => track.FrameTraceSha256).ToArray());
+}
+
 sealed class Audit
 {
     public string SchemaVersion { get; init; } = "";
@@ -286,6 +333,7 @@ sealed class Audit
     public string OutputXmlSha256 { get; init; } = "";
     public List<Fragment> Fragments { get; init; } = [];
     public VadFrontEndComparison? VadFrontEndComparison { get; init; }
+    public NoiseBoundaryProjectComparison? NoiseBoundaryComparison { get; init; }
 }
 
 sealed class Fragment
@@ -312,6 +360,33 @@ sealed class VadTrackComparison
     public long LegacyEnabledCandidateDisabledCount { get; init; }
     public long LegacyDisabledCandidateEnabledCount { get; init; }
     public double MaximumProbabilityDelta { get; init; }
+}
+
+sealed class NoiseBoundaryProjectComparison
+{
+    public List<NoiseBoundaryFrontEndComparison> FrontEnds { get; init; } = [];
+}
+
+sealed class NoiseBoundaryFrontEndComparison
+{
+    public string Resampling { get; init; } = "";
+    public List<NoiseBoundaryTrackComparison> Tracks { get; init; } = [];
+}
+
+sealed class NoiseBoundaryTrackComparison
+{
+    public long ObservationCount { get; init; }
+    public long ChangedFrameCount { get; init; }
+    public long PhraseDifferenceCount { get; init; }
+    public long SegmentDifferenceCount { get; init; }
+    public long BaselineEnabledCandidateDisabledCount { get; init; }
+    public long BaselineDisabledCandidateEnabledCount { get; init; }
+    public long BaselineEnabledFinalDisabledCount { get; init; }
+    public long TrainingEligibilityDifferenceCount { get; init; }
+    public double MaximumNoiseFloorDeltaDb { get; init; }
+    public string FrameTraceSha256 { get; init; } = "";
+    public List<JsonElement> FrameDifferenceSamples { get; init; } = [];
+    public List<JsonElement> FinalDifferences { get; init; } = [];
 }
 
 sealed record AuditDescription(
@@ -341,6 +416,35 @@ sealed record VadSummary(
     long LegacyDisabledCandidateEnabledCount,
     double MaximumProbabilityDelta);
 
+sealed record NoiseBoundaryFrontEndSummary(
+    string Resampling,
+    long ObservationCount,
+    long ChangedFrameCount,
+    long PhraseDifferenceCount,
+    long SegmentDifferenceCount,
+    long BaselineEnabledCandidateDisabledCount,
+    long BaselineDisabledCandidateEnabledCount,
+    long BaselineEnabledFinalDisabledCount,
+    long TrainingEligibilityDifferenceCount,
+    long FrameDifferenceSampleCount,
+    long FinalDifferenceCount,
+    double MaximumNoiseFloorDeltaDb);
+
+sealed record NoiseBoundarySummary(
+    IReadOnlyList<NoiseBoundaryFrontEndSummary> FrontEnds,
+    long ObservationCount,
+    long ChangedFrameCount,
+    long PhraseDifferenceCount,
+    long SegmentDifferenceCount,
+    long BaselineEnabledCandidateDisabledCount,
+    long BaselineDisabledCandidateEnabledCount,
+    long BaselineEnabledFinalDisabledCount,
+    long TrainingEligibilityDifferenceCount,
+    long FrameDifferenceSampleCount,
+    long FinalDifferenceCount,
+    double MaximumNoiseFloorDeltaDb,
+    IReadOnlyList<string> FrameTraceSha256);
+
 sealed record AuditComparison(
     bool Passed,
     IReadOnlyList<string> Failures,
@@ -354,4 +458,5 @@ sealed record AuditComparison(
     long NewlyEnabledIntervals,
     long NewlyEnabledFrames,
     IReadOnlyDictionary<string, TransitionCount> Transitions,
-    VadSummary? CandidateVadFrontEnd);
+    VadSummary? CandidateVadFrontEnd,
+    NoiseBoundarySummary? CandidateNoiseBoundary);

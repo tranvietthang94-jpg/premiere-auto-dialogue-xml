@@ -20,6 +20,9 @@ public sealed class BleedResolver(TimelinePcmAccessor pcmAccessor)
 
         var tracksByIndex = sequence.AudioTracks.ToDictionary(track => track.Index);
         var analysesByIndex = analyses.ToDictionary(analysis => analysis.TrackIndex);
+        var phraseIndexes = analysesByIndex.ToDictionary(
+            pair => pair.Key,
+            pair => new PhraseIntervalIndex(pair.Value.Phrases));
         var resolved = new List<TrackAudioAnalysis>(analyses.Count);
         var comparisonBufferLength = checked((int)AudioMath.MillisecondsToSamples(MaximumComparisonMilliseconds));
         var targetBuffer = new float[comparisonBufferLength];
@@ -47,6 +50,7 @@ public sealed class BleedResolver(TimelinePcmAccessor pcmAccessor)
                     targetAnalysis,
                     tracksByIndex,
                     analysesByIndex,
+                    phraseIndexes,
                     preset,
                     targetBuffer,
                     otherBuffer,
@@ -90,6 +94,7 @@ public sealed class BleedResolver(TimelinePcmAccessor pcmAccessor)
         TrackAudioAnalysis targetAnalysis,
         IReadOnlyDictionary<int, PremiereAudioTrack> tracks,
         IReadOnlyDictionary<int, TrackAudioAnalysis> analyses,
+        IReadOnlyDictionary<int, PhraseIntervalIndex> phraseIndexes,
         DialogueProcessingPreset preset,
         float[] targetBuffer,
         float[] otherBuffer,
@@ -103,7 +108,9 @@ public sealed class BleedResolver(TimelinePcmAccessor pcmAccessor)
                 continue;
             }
 
-            foreach (var otherPhrase in otherAnalysis.Phrases)
+            foreach (var otherPhrase in phraseIndexes[otherAnalysis.TrackIndex].Overlapping(
+                         targetSegment.TimelineStartSample,
+                         targetSegment.TimelineEndSample))
             {
                 var overlapStart = Math.Max(targetSegment.TimelineStartSample, otherPhrase.CoreStartSample);
                 var overlapEnd = Math.Min(targetSegment.TimelineEndSample, otherPhrase.CoreEndSample);

@@ -11,6 +11,8 @@ internal sealed class AdaptiveNoiseFloor
 
     public float CurrentDbfs { get; private set; } = InitialFloorDbfs;
 
+    public bool IsReady => _count > 0;
+
     public void Observe(float rmsDbfs)
     {
         if (!float.IsFinite(rmsDbfs))

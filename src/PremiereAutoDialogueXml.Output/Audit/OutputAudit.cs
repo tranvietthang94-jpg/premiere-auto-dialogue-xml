@@ -24,6 +24,8 @@ public sealed record OutputAudit(
     public ReviewListAudit? Review { get; init; }
 
     public VadFrontEndComparison? VadFrontEndComparison { get; init; }
+
+    public NoiseBoundaryProjectComparison? NoiseBoundaryComparison { get; init; }
 }
 
 public sealed record ModelAudit(string Version, string Sha256);

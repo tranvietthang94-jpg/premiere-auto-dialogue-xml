@@ -11,22 +11,69 @@ public sealed class TrackDialogueAnalyzer(TimelinePcmAccessor pcmAccessor)
         PremiereAudioTrack track,
         IReadOnlyList<AudioFrameObservation> observations,
         DialogueProcessingPreset preset,
+        CancellationToken cancellationToken = default) =>
+        AnalyzeCore(
+            track,
+            observations,
+            preset,
+            NoiseBoundaryAnalysisMode.Phase09Baseline,
+            captureNoiseBoundaryTrace: false,
+            cancellationToken);
+
+    public NoiseBoundaryShadowAnalysis AnalyzeShadow(
+        PremiereAudioTrack track,
+        IReadOnlyList<AudioFrameObservation> observations,
+        DialogueProcessingPreset preset,
         CancellationToken cancellationToken = default)
+    {
+        var baseline = AnalyzeCore(
+            track,
+            observations,
+            preset,
+            NoiseBoundaryAnalysisMode.Phase09Baseline,
+            captureNoiseBoundaryTrace: true,
+            cancellationToken);
+        var candidate = AnalyzeCore(
+            track,
+            observations,
+            preset,
+            NoiseBoundaryAnalysisMode.NoiseBoundaryCandidate,
+            captureNoiseBoundaryTrace: true,
+            cancellationToken);
+        return new(baseline, candidate, NoiseBoundaryShadowComparer.Compare(baseline, candidate));
+    }
+
+    private TrackAudioAnalysis AnalyzeCore(
+        PremiereAudioTrack track,
+        IReadOnlyList<AudioFrameObservation> observations,
+        DialogueProcessingPreset preset,
+        NoiseBoundaryAnalysisMode mode,
+        bool captureNoiseBoundaryTrace,
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(track);
         ArgumentNullException.ThrowIfNull(observations);
         ArgumentNullException.ThrowIfNull(preset);
 
-        var evidence = new AudioFrameEvidenceBuilder().Build(observations, preset);
+        var evidenceBuilder = new AudioFrameEvidenceBuilder();
+        AudioFrameEvidenceBuildResult? evidenceWithTrace = null;
+        var evidence = captureNoiseBoundaryTrace
+            ? (evidenceWithTrace = evidenceBuilder.BuildWithTrace(observations, preset, mode)).Evidence
+            : evidenceBuilder.Build(observations, preset);
+        var boundaryPolicy = VadBoundaryPolicyCatalog.For(mode, preset);
         var minimumSpeechSamples = AudioMath.MillisecondsToSamples(preset.MinimumSpeechMilliseconds);
         var phraseBreakSamples = AudioMath.MillisecondsToSamples(preset.PhraseBreakMilliseconds);
-        var candidateGroups = BuildVadGroups(evidence, phraseBreakSamples);
+        var candidateGroups = BuildVadGroups(
+            evidence,
+            phraseBreakSamples,
+            mode,
+            boundaryPolicy.ContinueThreshold);
         var confirmedGroups = new List<CandidateGroup>();
         var ambiguous = new List<TimelineInterval>();
 
         foreach (var group in candidateGroups)
         {
-            if (group.VadEvidenceSamples >= minimumSpeechSamples &&
+            if (group.StartEvidenceSamples >= minimumSpeechSamples &&
                 group.DirectEvidenceSamples >= minimumSpeechSamples)
             {
                 confirmedGroups.Add(group);
@@ -49,6 +96,23 @@ public sealed class TrackDialogueAnalyzer(TimelinePcmAccessor pcmAccessor)
         }
 
         ambiguous = MergeIntervals(ambiguous, maximumGapSamples: 0);
+        var continueAmbiguous = MergeIntervals(
+            confirmedGroups
+                .SelectMany(group => group.Frames)
+                .Where(frame =>
+                    !frame.IsVadSpeech &&
+                    !frame.IsAboveDirectEnergyThreshold)
+                .Select(frame => new TimelineInterval(
+                    frame.Observation.TimelineStartSample,
+                    frame.Observation.TimelineEndSample)),
+            maximumGapSamples: 0);
+        var warmupUncertain = MergeIntervals(
+            evidence
+                .Where(frame => frame.IsWarmupUncertain)
+                .Select(frame => new TimelineInterval(
+                    frame.Observation.TimelineStartSample,
+                    frame.Observation.TimelineEndSample)),
+            maximumGapSamples: 0);
         var energyVadConflicts = preset.PreserveVadNegativeHighEnergyConflicts
             ? BuildEnergyVadConflictIntervals(evidence, minimumSpeechSamples)
             : [];
@@ -65,14 +129,136 @@ public sealed class TrackDialogueAnalyzer(TimelinePcmAccessor pcmAccessor)
             ? AudioMath.SilenceDbfs
             : confirmedFrameRms[confirmedFrameRms.Length / 2];
 
-        var segments = BuildClipSegments(track, phrases, ambiguous, energyVadConflicts);
+        var segments = BuildClipSegments(
+            track,
+            phrases,
+            ambiguous,
+            energyVadConflicts,
+            warmupUncertain,
+            continueAmbiguous);
         (phrases, segments) = ReconcileGainWithFrameAlignedOutput(
             track,
             phrases,
             segments,
             preset,
             cancellationToken);
-        return new(track.Index, observations.Count, phrases, segments, learnedVoiceRms);
+        var result = new TrackAudioAnalysis(
+            track.Index,
+            observations.Count,
+            phrases,
+            segments,
+            learnedVoiceRms);
+        return evidenceWithTrace is null
+            ? result
+            : result with
+            {
+                NoiseBoundaryTrace = BuildNoiseBoundaryTrace(
+                    track.Index,
+                    mode,
+                    evidenceWithTrace.Policy,
+                    boundaryPolicy,
+                    evidence,
+                    evidenceWithTrace.NoiseFloorTrace,
+                    candidateGroups,
+                    confirmedGroups,
+                    energyVadConflicts,
+                    warmupUncertain,
+                    continueAmbiguous)
+            };
+    }
+
+    private static NoiseBoundaryTrackTrace BuildNoiseBoundaryTrace(
+        int trackIndex,
+        NoiseBoundaryAnalysisMode mode,
+        NoiseFloorPolicyDescriptor policy,
+        VadBoundaryPolicyDescriptor boundaryPolicy,
+        IReadOnlyList<AudioFrameEvidence> evidence,
+        IReadOnlyList<NoiseFloorFrameSnapshot> noiseFloorTrace,
+        IReadOnlyList<CandidateGroup> candidateGroups,
+        IReadOnlyList<CandidateGroup> confirmedGroups,
+        IReadOnlyList<TimelineInterval> energyVadConflicts,
+        IReadOnlyList<TimelineInterval> warmupUncertain,
+        IReadOnlyList<TimelineInterval> continueAmbiguous)
+    {
+        if (evidence.Count != noiseFloorTrace.Count)
+        {
+            throw new InvalidDataException("Noise-boundary evidence/trace không cùng số frame.");
+        }
+
+        var confirmedStartFrames = confirmedGroups
+            .SelectMany(group => group.Frames)
+            .Where(frame => frame.IsVadSpeech)
+            .Select(frame => (
+                frame.Observation.TimelineStartSample,
+                frame.Observation.TimelineEndSample))
+            .ToHashSet();
+        var confirmedContinueFrames = confirmedGroups
+            .SelectMany(group => group.Frames)
+            .Where(frame => !frame.IsVadSpeech)
+            .Select(frame => (
+                frame.Observation.TimelineStartSample,
+                frame.Observation.TimelineEndSample))
+            .ToHashSet();
+        var allContinueFrames = candidateGroups
+            .SelectMany(group => group.Frames)
+            .Where(frame => !frame.IsVadSpeech)
+            .Select(frame => (
+                frame.Observation.TimelineStartSample,
+                frame.Observation.TimelineEndSample))
+            .ToHashSet();
+        var frames = new NoiseBoundaryFrameTrace[evidence.Count];
+        for (var index = 0; index < evidence.Count; index++)
+        {
+            var frame = evidence[index];
+            var floor = noiseFloorTrace[index];
+            var observation = frame.Observation;
+            var midpoint = observation.TimelineStartSample +
+                           ((observation.TimelineEndSample - observation.TimelineStartSample) / 2);
+            var state = !observation.ContainsMedia
+                ? NoiseBoundaryFrameState.NoMedia
+                : warmupUncertain.Any(interval => interval.Contains(midpoint))
+                    ? NoiseBoundaryFrameState.WarmupAmbiguous
+                    : energyVadConflicts.Any(interval => interval.Contains(midpoint))
+                    ? NoiseBoundaryFrameState.EnergyConflictAmbiguous
+                    : frame.IsVadSpeech
+                        ? confirmedStartFrames.Contains((
+                            observation.TimelineStartSample,
+                            observation.TimelineEndSample))
+                            ? NoiseBoundaryFrameState.ConfirmedStartEvidence
+                            : NoiseBoundaryFrameState.UnconfirmedStartEvidence
+                        : allContinueFrames.Contains((
+                            observation.TimelineStartSample,
+                            observation.TimelineEndSample))
+                            ? confirmedContinueFrames.Contains((
+                                observation.TimelineStartSample,
+                                observation.TimelineEndSample))
+                                ? continueAmbiguous.Any(interval => interval.Contains(midpoint))
+                                    ? NoiseBoundaryFrameState.ContinueAmbiguous
+                                    : NoiseBoundaryFrameState.ConfirmedContinueEvidence
+                                : NoiseBoundaryFrameState.UnconfirmedContinueEvidence
+                        : observation.VadProbability >=
+                          boundaryPolicy.StartThreshold - VadAmbiguityMargin &&
+                          frame.IsAboveDirectEnergyThreshold
+                            ? NoiseBoundaryFrameState.BorderlineAmbiguous
+                            : NoiseBoundaryFrameState.VadNegative;
+            frames[index] = new(
+                observation.TimelineStartSample,
+                observation.TimelineEndSample,
+                observation.VadProbability,
+                observation.RmsDbfs,
+                floor.NoiseFloorBeforeDbfs,
+                floor.NoiseFloorAfterDbfs,
+                floor.NoiseFloorReadyBefore,
+                floor.NoiseFloorReadyAfter,
+                floor.TrainingDecision,
+                frame.IsVadSpeech,
+                frame.IsDirectEvidence,
+                frame.IsAboveDirectEnergyThreshold,
+                frame.IsWarmupUncertain,
+                state);
+        }
+
+        return new(trackIndex, mode, policy, boundaryPolicy, frames);
     }
 
     private (IReadOnlyList<DialoguePhrase> Phrases, IReadOnlyList<AnalyzedAudioSegment> Segments)
@@ -227,6 +413,17 @@ public sealed class TrackDialogueAnalyzer(TimelinePcmAccessor pcmAccessor)
 
     private static IReadOnlyList<CandidateGroup> BuildVadGroups(
         IReadOnlyList<AudioFrameEvidence> evidence,
+        long phraseBreakSamples,
+        NoiseBoundaryAnalysisMode mode,
+        double continueThreshold)
+    {
+        return mode == NoiseBoundaryAnalysisMode.Phase09Baseline
+            ? BuildSingleThresholdVadGroups(evidence, phraseBreakSamples)
+            : BuildHysteresisVadGroups(evidence, phraseBreakSamples, continueThreshold);
+    }
+
+    private static IReadOnlyList<CandidateGroup> BuildSingleThresholdVadGroups(
+        IReadOnlyList<AudioFrameEvidence> evidence,
         long phraseBreakSamples)
     {
         var groups = new List<CandidateGroup>();
@@ -257,6 +454,58 @@ public sealed class TrackDialogueAnalyzer(TimelinePcmAccessor pcmAccessor)
         return groups;
     }
 
+    private static IReadOnlyList<CandidateGroup> BuildHysteresisVadGroups(
+        IReadOnlyList<AudioFrameEvidence> evidence,
+        long phraseBreakSamples,
+        double continueThreshold)
+    {
+        var groups = new List<CandidateGroup>();
+        CandidateGroupBuilder? current = null;
+
+        foreach (var frame in evidence)
+        {
+            if (!frame.Observation.ContainsMedia)
+            {
+                if (current is not null)
+                {
+                    groups.Add(current.Build());
+                    current = null;
+                }
+
+                continue;
+            }
+
+            if (current is not null &&
+                frame.Observation.TimelineStartSample - current.EndSample >= phraseBreakSamples)
+            {
+                groups.Add(current.Build());
+                current = null;
+            }
+
+            if (current is null)
+            {
+                if (frame.IsVadSpeech)
+                {
+                    current = new(frame);
+                }
+
+                continue;
+            }
+
+            if (frame.IsVadSpeech || frame.Observation.VadProbability >= continueThreshold)
+            {
+                current.Add(frame);
+            }
+        }
+
+        if (current is not null)
+        {
+            groups.Add(current.Build());
+        }
+
+        return groups;
+    }
+
     private static IReadOnlyList<TimelineInterval> BuildEnergyVadConflictIntervals(
         IReadOnlyList<AudioFrameEvidence> evidence,
         long minimumSpeechSamples) =>
@@ -265,6 +514,7 @@ public sealed class TrackDialogueAnalyzer(TimelinePcmAccessor pcmAccessor)
                     .Where(frame =>
                         frame.Observation.ContainsMedia &&
                         !frame.IsVadSpeech &&
+                        !frame.IsStableFloorStep &&
                         frame.IsAboveDirectEnergyThreshold)
                     .Select(frame => new TimelineInterval(
                         frame.Observation.TimelineStartSample,
@@ -367,7 +617,9 @@ public sealed class TrackDialogueAnalyzer(TimelinePcmAccessor pcmAccessor)
         PremiereAudioTrack track,
         IReadOnlyList<DialoguePhrase> phrases,
         IReadOnlyList<TimelineInterval> ambiguous,
-        IReadOnlyList<TimelineInterval> energyVadConflicts)
+        IReadOnlyList<TimelineInterval> energyVadConflicts,
+        IReadOnlyList<TimelineInterval> warmupUncertain,
+        IReadOnlyList<TimelineInterval> continueAmbiguous)
     {
         var segments = new List<AnalyzedAudioSegment>();
 
@@ -397,6 +649,18 @@ public sealed class TrackDialogueAnalyzer(TimelinePcmAccessor pcmAccessor)
                 AddBoundaryIfInside(boundaries, interval.EndSample, clipStart, clipEnd);
             }
 
+            foreach (var interval in warmupUncertain)
+            {
+                AddBoundaryIfInside(boundaries, interval.StartSample, clipStart, clipEnd);
+                AddBoundaryIfInside(boundaries, interval.EndSample, clipStart, clipEnd);
+            }
+
+            foreach (var interval in continueAmbiguous)
+            {
+                AddBoundaryIfInside(boundaries, interval.StartSample, clipStart, clipEnd);
+                AddBoundaryIfInside(boundaries, interval.EndSample, clipStart, clipEnd);
+            }
+
             var ordered = boundaries.ToArray();
             for (var index = 0; index + 1 < ordered.Length; index++)
             {
@@ -405,8 +669,13 @@ public sealed class TrackDialogueAnalyzer(TimelinePcmAccessor pcmAccessor)
                 var midpoint = start + ((end - start) / 2);
                 var phrase = phrases.FirstOrDefault(
                     candidate => midpoint >= candidate.PaddedStartSample && midpoint < candidate.PaddedEndSample);
+                var isWarmupUncertain = warmupUncertain.Any(interval => interval.Contains(midpoint));
                 var isEnergyVadConflict = energyVadConflicts.Any(interval => interval.Contains(midpoint));
-                var isAmbiguous = isEnergyVadConflict || ambiguous.Any(interval => interval.Contains(midpoint));
+                var isContinueAmbiguous = continueAmbiguous.Any(interval => interval.Contains(midpoint));
+                var isAmbiguous = isWarmupUncertain ||
+                                  isEnergyVadConflict ||
+                                  isContinueAmbiguous ||
+                                  ambiguous.Any(interval => interval.Contains(midpoint));
                 var status = isAmbiguous
                     ? AudioSegmentStatus.Ambiguous
                     : phrase is null ? AudioSegmentStatus.Noise : AudioSegmentStatus.Speech;
@@ -416,6 +685,14 @@ public sealed class TrackDialogueAnalyzer(TimelinePcmAccessor pcmAccessor)
                 {
                     (AudioSegmentStatus.Speech, _, true) => "confirmed-direct-speech",
                     (AudioSegmentStatus.Speech, _, false) => "speech-padding",
+                    (AudioSegmentStatus.Ambiguous, true, _) when isWarmupUncertain =>
+                        "ambiguous-noise-floor-warmup-near-speech",
+                    (AudioSegmentStatus.Ambiguous, false, _) when isWarmupUncertain =>
+                        "ambiguous-noise-floor-warmup",
+                    (AudioSegmentStatus.Ambiguous, true, _) when isContinueAmbiguous =>
+                        "ambiguous-vad-continue-context-near-speech",
+                    (AudioSegmentStatus.Ambiguous, false, _) when isContinueAmbiguous =>
+                        "ambiguous-vad-continue-context",
                     (AudioSegmentStatus.Ambiguous, true, _) when isEnergyVadConflict =>
                         "ambiguous-energy-vad-conflict-near-speech",
                     (AudioSegmentStatus.Ambiguous, false, _) when isEnergyVadConflict =>
@@ -511,7 +788,7 @@ public sealed class TrackDialogueAnalyzer(TimelinePcmAccessor pcmAccessor)
     private sealed record CandidateGroup(
         long StartSample,
         long EndSample,
-        long VadEvidenceSamples,
+        long StartEvidenceSamples,
         long DirectEvidenceSamples,
         IReadOnlyList<AudioFrameEvidence> Frames);
 
@@ -530,7 +807,8 @@ public sealed class TrackDialogueAnalyzer(TimelinePcmAccessor pcmAccessor)
         public CandidateGroup Build() => new(
             _frames[0].Observation.TimelineStartSample,
             EndSample,
-            _frames.Sum(frame => frame.Observation.TimelineEndSample - frame.Observation.TimelineStartSample),
+            _frames.Where(frame => frame.IsVadSpeech)
+                .Sum(frame => frame.Observation.TimelineEndSample - frame.Observation.TimelineStartSample),
             _frames.Where(frame => frame.IsDirectEvidence)
                 .Sum(frame => frame.Observation.TimelineEndSample - frame.Observation.TimelineStartSample),
             _frames);

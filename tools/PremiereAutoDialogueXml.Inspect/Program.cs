@@ -81,6 +81,42 @@ foreach (var xmlPath in xmlPaths)
                         .Select(track => track.MaximumProbabilityDelta)
                         .DefaultIfEmpty()
                         .Max()
+                },
+            NoiseBoundary = analysis.NoiseBoundaryComparison is null
+                ? null
+                : new
+                {
+                    FrontEnds = analysis.NoiseBoundaryComparison.FrontEnds.Select(frontEnd => new
+                    {
+                        frontEnd.Resampling,
+                        frontEnd.ObservationCount,
+                        frontEnd.ChangedFrameCount,
+                        frontEnd.PhraseDifferenceCount,
+                        frontEnd.SegmentDifferenceCount,
+                        frontEnd.BaselineEnabledCandidateDisabledCount,
+                        frontEnd.BaselineDisabledCandidateEnabledCount,
+                        frontEnd.BaselineEnabledFinalDisabledCount,
+                        TrainingEligibilityDifferenceCount = frontEnd.Tracks.Sum(track =>
+                            track.TrainingEligibilityDifferenceCount),
+                        FinalDifferenceCount = frontEnd.Tracks.Sum(track => track.FinalDifferences.Count),
+                        MaximumNoiseFloorDeltaDb = frontEnd.Tracks
+                            .Select(track => track.MaximumNoiseFloorDeltaDb)
+                            .DefaultIfEmpty()
+                            .Max()
+                    }).ToArray(),
+                    analysis.NoiseBoundaryComparison.ObservationCount,
+                    analysis.NoiseBoundaryComparison.ChangedFrameCount,
+                    analysis.NoiseBoundaryComparison.PhraseDifferenceCount,
+                    analysis.NoiseBoundaryComparison.SegmentDifferenceCount,
+                    analysis.NoiseBoundaryComparison.BaselineEnabledCandidateDisabledCount,
+                    analysis.NoiseBoundaryComparison.BaselineDisabledCandidateEnabledCount,
+                    analysis.NoiseBoundaryComparison.BaselineEnabledFinalDisabledCount,
+                    FrameDifferenceRecordCount = analysis.NoiseBoundaryComparison.FrontEnds.Sum(frontEnd =>
+                        frontEnd.Tracks.Sum(track => track.FrameDifferenceSamples.Count)),
+                    PhraseDifferenceRecordCount = analysis.NoiseBoundaryComparison.FrontEnds.Sum(frontEnd =>
+                        frontEnd.Tracks.Sum(track => track.PhraseDifferences.Count)),
+                    FinalDifferenceRecordCount = analysis.NoiseBoundaryComparison.FrontEnds.Sum(frontEnd =>
+                        frontEnd.Tracks.Sum(track => track.FinalDifferences.Count))
                 }
         };
 

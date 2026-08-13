@@ -2,8 +2,8 @@ namespace PremiereAutoDialogueXml.Audio.Analysis;
 
 internal static class ConservativeVadAnalysisMerger
 {
-    private const string SafetyReason = "ambiguous-vad-front-end-disagreement";
-    private const string CandidateOnlyFallbackReason =
+    internal const string DefaultSafetyReason = "ambiguous-vad-front-end-disagreement";
+    internal const string DefaultCandidateOnlyFallbackReason =
         "ambiguous-vad-front-end-candidate-only-in-legacy-fallback";
 
     public static (TrackAudioAnalysis Analysis, VadFrontEndTrackComparison Comparison) Merge(
@@ -11,7 +11,9 @@ internal static class ConservativeVadAnalysisMerger
         TrackAudioAnalysis candidate,
         int observationCount,
         int changedObservationCount,
-        float maximumProbabilityDelta)
+        float maximumProbabilityDelta,
+        string safetyReason = DefaultSafetyReason,
+        string candidateOnlyFallbackReason = DefaultCandidateOnlyFallbackReason)
     {
         if (legacy.TrackIndex != candidate.TrackIndex)
         {
@@ -119,7 +121,7 @@ internal static class ConservativeVadAnalysisMerger
                         selected = selected with
                         {
                             Status = AudioSegmentStatus.Ambiguous,
-                            Reason = SafetyReason,
+                            Reason = safetyReason,
                             BleedEvidence = null
                         };
                     }
@@ -130,7 +132,7 @@ internal static class ConservativeVadAnalysisMerger
                     selected = Slice(candidateSegment, start, end) with
                     {
                         Status = AudioSegmentStatus.Ambiguous,
-                        Reason = CandidateOnlyFallbackReason,
+                        Reason = candidateOnlyFallbackReason,
                         PhraseId = null,
                         GainDb = 0,
                         BleedEvidence = null
@@ -142,7 +144,7 @@ internal static class ConservativeVadAnalysisMerger
                     selected = Slice(legacySegment, start, end) with
                     {
                         Status = AudioSegmentStatus.Ambiguous,
-                        Reason = SafetyReason,
+                        Reason = safetyReason,
                         PhraseId = null,
                         GainDb = 0,
                         BleedEvidence = null

@@ -55,7 +55,10 @@ public sealed record TrackAudioAnalysis(
     long AnalyzedFrameCount,
     IReadOnlyList<DialoguePhrase> Phrases,
     IReadOnlyList<AnalyzedAudioSegment> Segments,
-    float LearnedDirectVoiceRmsDbfs);
+    float LearnedDirectVoiceRmsDbfs)
+{
+    public NoiseBoundaryTrackTrace? NoiseBoundaryTrace { get; init; }
+}
 
 public enum CrossTrackShadowOutcome
 {
@@ -84,6 +87,8 @@ public sealed record ProjectAudioAnalysis(
     public IReadOnlyList<CrossTrackShadowEvidence> ShadowEvidence { get; init; } = [];
 
     public VadFrontEndComparison? VadFrontEndComparison { get; init; }
+
+    public NoiseBoundaryProjectComparison? NoiseBoundaryComparison { get; init; }
 }
 
 public sealed record VadDecisionDifference(

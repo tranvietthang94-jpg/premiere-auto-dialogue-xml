@@ -30,14 +30,14 @@ public sealed class PremiereXmlGeneratorTests
         Assert.IsNotNull(generated.Document.DocumentType);
         Assert.AreEqual("xmeml", generated.Document.DocumentType.Name);
 
-        Assert.HasCount(4, clipItems);
-        Assert.AreEqual(4, clipItems.Select(item => (string)item.Attribute("id")!).Distinct().Count());
+        Assert.HasCount(3, clipItems);
+        Assert.AreEqual(3, clipItems.Select(item => (string)item.Attribute("id")!).Distinct().Count());
         Assert.IsFalse(clipItems.Any(item => (string?)item.Attribute("id") == "clip-source"));
-        CollectionAssert.AreEqual(new[] { "FALSE", "TRUE", "TRUE", "FALSE" },
+        CollectionAssert.AreEqual(new[] { "FALSE", "TRUE", "FALSE" },
             clipItems.Select(item => item.Element("enabled")!.Value).ToArray());
-        CollectionAssert.AreEqual(new[] { "0", "2", "6", "8" },
+        CollectionAssert.AreEqual(new[] { "0", "2", "8" },
             clipItems.Select(item => item.Element("start")!.Value).ToArray());
-        CollectionAssert.AreEqual(new[] { "2", "6", "8", "10" },
+        CollectionAssert.AreEqual(new[] { "2", "8", "10" },
             clipItems.Select(item => item.Element("end")!.Value).ToArray());
 
         Assert.IsNotNull(clipItems[0].Element("file")!.Element("pathurl"));
@@ -45,15 +45,16 @@ public sealed class PremiereXmlGeneratorTests
         Assert.IsTrue(clipItems.All(item => (string?)item.Element("file")!.Attribute("id") == "file-source"));
         Assert.HasCount(0, clipItems[0].Elements("filter"));
         Assert.HasCount(1, clipItems[1].Elements("filter"));
-        Assert.HasCount(1, clipItems[2].Elements("filter"));
-        Assert.HasCount(0, clipItems[3].Elements("filter"));
+        Assert.HasCount(0, clipItems[2].Elements("filter"));
         Assert.AreEqual(
             "2.821726937",
             clipItems[1].Elements("filter").Single().Descendants("value").Single().Value);
 
         Assert.AreEqual(fixture.VideoFingerprint, WriterFixture.Fingerprint(sequence.Element("media")!.Element("video")!));
         Assert.HasCount(1, generated.Markers.Where(marker => marker.Name == "Cần kiểm tra"));
-        Assert.HasCount(4, generated.AudioFragments);
+        Assert.HasCount(3, generated.AudioFragments);
+        Assert.AreEqual(AudioSegmentStatus.Ambiguous, generated.AudioFragments[1].Status);
+        Assert.AreEqual("speech | ambiguous-near-speech", generated.AudioFragments[1].Reason);
         Assert.AreEqual(AudioSegmentStatus.Bleed, generated.AudioFragments[^1].Status);
         Assert.IsFalse(generated.AudioFragments[^1].Enabled);
     }
@@ -84,6 +85,37 @@ public sealed class PremiereXmlGeneratorTests
         Assert.AreEqual(2L, fragments[0].TimelineEndFrame);
         Assert.IsTrue(fragments[0].Enabled);
         Assert.AreEqual(AudioSegmentStatus.Speech, fragments[0].Status);
+    }
+
+    [TestMethod]
+    public void GenerateMergesAdjacentFrameRunsWithSameOutputDecisionAndCombinesReasons()
+    {
+        using var fixture = WriterFixture.Create();
+        var phrase = fixture.Analysis.Tracks[0].Phrases[0];
+        var segments = new[]
+        {
+            fixture.Segment(0, 3_840, AudioSegmentStatus.Noise, null, null, "noise"),
+            fixture.Segment(3_840, 7_680, AudioSegmentStatus.Ambiguous, phrase.Id, phrase.AppliedGainDb, "ambiguous-first"),
+            fixture.Segment(7_680, 11_520, AudioSegmentStatus.Ambiguous, phrase.Id, phrase.AppliedGainDb, "ambiguous-second"),
+            fixture.Segment(11_520, 19_200, AudioSegmentStatus.Noise, null, null, "noise")
+        };
+        var analysis = fixture.Analysis with
+        {
+            Tracks =
+            [
+                fixture.Analysis.Tracks[0] with { Segments = segments }
+            ]
+        };
+
+        var generated = new PremiereXmlGenerator().Generate(fixture.Project, analysis);
+
+        Assert.HasCount(3, generated.AudioFragments);
+        var ambiguous = generated.AudioFragments.Single(fragment => fragment.Status == AudioSegmentStatus.Ambiguous);
+        Assert.AreEqual(2L, ambiguous.TimelineStartFrame);
+        Assert.AreEqual(6L, ambiguous.TimelineEndFrame);
+        Assert.AreEqual("ambiguous-first | ambiguous-second", ambiguous.Reason);
+        var marker = generated.Markers.Single(item => item.Name == "Cần kiểm tra");
+        Assert.AreEqual(ambiguous.Reason, marker.Reason);
     }
 
     [TestMethod]
