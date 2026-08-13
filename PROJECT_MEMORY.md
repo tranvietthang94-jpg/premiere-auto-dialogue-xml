@@ -133,6 +133,7 @@ Ngày chốt: 2026-08-13 (Asia/Saigon). Đây là memory source-of-truth để m
 - Full HGE `phase11-full-hge-pilot-20260813-1` đạt `72 phút 31,005 giây`, peak analysis `1.319,2 MB`, total peak `1.435,1 MB`, 0 error; 42/42 pair InsufficientSupport, 380.304 NoCalibration, 0 window và ProductionChanged 0. XML `8E47AF...`, audit `14A82B...`, review `898C6C...`; comparator Phase 10 đạt coverage/lost/new Enabled đều 0, 162.922 status giữ nguyên, temp 0.
 - Review CSV của cả hai pilot giữ đúng SHA Phase 10. XML byte hash khác vì run UUID mới; semantic timeline/status/Enabled giống hoàn toàn. Không cần Premiere PCM/XML round-trip mới vì candidate shadow không đổi production audio.
 - Hai corpus thật đều có baseline Bleed 0 nên calibrator không có anchor để học. Kết luận đúng là insufficient calibration evidence; Phase 11 đóng shadow-ready sau CI, không mở adoption, không hạ threshold và không thay RC1.
+- Candidate Phase 11 `d150f5a` qua CI Windows `31720635957` trong 3 phút 23 giây: build, 171/171 test, self-contained publish, Inno verify, installer build/cài/mở/gỡ và artifact upload đều đạt. Draft PR #16 vẫn chưa merge; Phase đóng shadow-ready, adoption not opened.
 
 ## Lỗi đã gặp và cách tránh
 
@@ -165,4 +166,4 @@ Ngày chốt: 2026-08-13 (Asia/Saigon). Đây là memory source-of-truth để m
 
 ## Trạng thái bàn giao
 
-Phase 00–10 hoàn tất trên `main`. Phase 10 dùng merge bảo thủ hai tầng, audit `1.6` và output bounded; HGE2/full HGE, M19, PCM A1–A7, Premiere XML re-export và CI/installer đều đạt. Phase 11 đã hoàn tất local Slice 11A–11C và pilot shadow-only 11E với scorer/project shadow/audit `1.7`; HGE2/full HGE đều insufficient calibration, production changed/lost Enabled bằng 0 và đạt runtime/RAM. Chờ CI HEAD cuối để đóng shadow-ready. Toàn bộ hợp đồng Enabled/gain/XML/M19 hiện tại vẫn là baseline bắt buộc và chưa có adoption tăng mute.
+Phase 00–10 hoàn tất trên `main`. Phase 10 dùng merge bảo thủ hai tầng, audit `1.6` và output bounded; HGE2/full HGE, M19, PCM A1–A7, Premiere XML re-export và CI/installer đều đạt. Phase 11 đã hoàn tất Slice 11A–11C và pilot shadow-only 11E với scorer/project shadow/audit `1.7`; HGE2/full HGE đều insufficient calibration, production changed/lost Enabled bằng 0, đạt runtime/RAM và CI. Phase đóng shadow-ready trên draft PR #16, chưa merge/adopt. Toàn bộ hợp đồng Enabled/gain/XML/M19 hiện tại vẫn là baseline bắt buộc và chưa có adoption tăng mute.

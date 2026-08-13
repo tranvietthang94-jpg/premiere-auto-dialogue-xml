@@ -1,6 +1,6 @@
 # Phase 11 — Bleed đa mic có calibration
 
-Trạng thái: `shadow-ready; Slice 11A–11C và pilot shadow-only 11E passed locally; CI pending` ngày 2026-08-13. Phase được mở từ `main` commit `3f41d7cd2d8b4d90241b4bd2f50f798e23d65796`, sau khi Phase 10 đã merge và toàn bộ CI hậu merge đạt. Branch làm việc: `codex/phase11-calibrated-multimic-bleed`. Slice 11A khóa corpus/baseline; Slice 11B thêm calibrator có hướng; Slice 11C nối scorer nhiều cửa sổ vào project shadow và audit `1.7`; Slice 11E đã qua HGE2/full HGE shadow-only. Cả hai pilot thật đều không có đủ anchor để tạo stable fingerprint, nên production status, gain, marker và XML semantic giữ nguyên Phase 10. Slice 11D adoption không được mở vì không có nhãn Target hợp lệ.
+Trạng thái: `passed; shadow-ready; adoption not opened` ngày 2026-08-13. Phase được mở từ `main` commit `3f41d7cd2d8b4d90241b4bd2f50f798e23d65796`, sau khi Phase 10 đã merge và toàn bộ CI hậu merge đạt. Branch làm việc: `codex/phase11-calibrated-multimic-bleed`; candidate cuối `d150f5a`, CI Windows `31720635957` đạt trong `3 phút 23 giây`. Slice 11A khóa corpus/baseline; Slice 11B thêm calibrator có hướng; Slice 11C nối scorer nhiều cửa sổ vào project shadow và audit `1.7`; Slice 11E qua HGE2/full HGE shadow-only. Cả hai pilot thật đều không có đủ anchor để tạo stable fingerprint, nên production status, gain, marker và XML semantic giữ nguyên Phase 10. Slice 11D adoption không được mở vì không có nhãn Target hợp lệ; Phase không thay RC1.
 
 ## Quyết định sản phẩm
 
@@ -189,6 +189,7 @@ Kết quả pilot shadow-only 11E:
 - Full HGE cũng có 42/42 pair `InsufficientSupport`, 0 Stable/Unstable; 380.304/380.304 candidate `NoCalibration`, 0 cửa sổ available/evaluated/pass/conflict và `ProductionChangedSegmentCount = 0`. Comparator Phase 10 đạt source hash, output hash nội bộ, coverage mismatch `0`, lost Enabled `0`, newly Enabled `0`, 162.922/162.922 fragment giữ nguyên status và temp `0`. Review CSV có đúng SHA-256 Phase 10.
 - XML SHA-256 giữa các run khác nhau vì sequence UUID/run identity mới; đây không phải semantic audio drift. Deterministic writer regression đã khóa byte hash khi cùng identity, còn comparator pilot khóa coverage/status/Enabled theo toàn timeline. Vì production audio semantic không đổi, không tái dùng hoặc yêu cầu Premiere PCM/XML round-trip cũ cho một XML hash mới.
 - Hai corpus thật Phase 10 đều có `Bleed = 0`, nên calibrator bảo thủ không có baseline Bleed anchor để học. Kết luận pilot là `insufficient calibration evidence`, không phải evidence để hạ threshold hoặc tăng tự động mute. Phase 11 dừng đúng thiết kế ở trạng thái shadow-ready.
+- Candidate `d150f5a` qua CI Windows `31720635957`: build, `171/171` test, self-contained `win-x64` publish, Inno Setup verification, installer build/cài/mở/gỡ và artifact upload đều đạt trong `3 phút 23 giây`.
 
 ## Cổng nghiệm thu
 
@@ -223,4 +224,4 @@ Kết quả pilot shadow-only 11E:
 
 ## Bước tiếp theo
 
-Hoàn tất CI Windows trên HEAD cuối rồi đóng Phase 11 ở trạng thái shadow-ready; không merge logic adoption và không thay RC1. Sau khi PR Phase 11 được review/merge, roadmap kế tiếp có thể mở Phase 12 cho compatibility input/routing nếu chủ dự án muốn. Nếu sau này có tập Target cô lập hợp lệ, mở một phase adoption mới với policy/version và Premiere evidence riêng; không hồi tố dùng HGE2/full HGE Context-only để bật mute.
+Phase 11 đã đóng ở trạng thái shadow-ready trên draft PR `#16`; không merge logic adoption và không thay RC1. Bước tiếp theo là review quyết định merge PR shadow-only hoặc giữ kết quả như nghiên cứu; chỉ sau quyết định đó mới mở Phase 12 cho compatibility input/routing nếu chủ dự án muốn. Nếu sau này có tập Target cô lập hợp lệ, mở một phase adoption mới với policy/version và Premiere evidence riêng; không hồi tố dùng HGE2/full HGE Context-only để bật mute.
