@@ -20,7 +20,7 @@ Mỗi phase dùng branch và draft pull request riêng. Các thay đổi có ý 
 
 Phase 00–09 đã hoàn tất và merge vào `main`. Theo quyết định sản phẩm ngày 2026-08-09, app không mở nhánh preview/review UI; Phase 09 tập trung làm chắc đầu vào VAD, safety validator và XML output. Phase 09 đạt mọi gate HGE2/full HGE, Premiere PCM A1–A7, Final Cut Pro XML re-export và CI/packaging; merge qua PR `#12` tại `50ee4f9`, CI hậu merge `31461869682` đạt. Xem [PHASE09_AUDIO_XML_HARDENING.md](PHASE09_AUDIO_XML_HARDENING.md).
 
-Phase 10 đang ở Slice 10E trên branch riêng. Estimator background-eligible, start/continue hysteresis, shadow/fail-safe, audit `1.6` và output compaction đã qua synthetic, HGE2/full HGE với coverage mismatch `0` và mất Enabled `0`; không đổi model, gain/routing hoặc UI sản phẩm. XML candidate đã đổi nên Phase 10 còn phải qua Premiere PCM A1–A7, M19, Final Cut Pro XML re-export và packaging/CI cuối trước khi merge. Xem [PHASE10_NOISE_BOUNDARY_STABILITY.md](PHASE10_NOISE_BOUNDARY_STABILITY.md).
+Phase 10 đã đạt toàn bộ gate: estimator background-eligible, start/continue hysteresis, shadow/fail-safe, audit `1.6` và output compaction qua synthetic, HGE2/full HGE với coverage mismatch `0` và mất Enabled `0`; Premiere PCM A1–A7/M19/XML re-export cùng CI/installer đều đạt. Phase không đổi model, gain/routing hoặc UI sản phẩm và không tạo release mới. Xem [PHASE10_NOISE_BOUNDARY_STABILITY.md](PHASE10_NOISE_BOUNDARY_STABILITY.md).
 
 ## Kiến trúc
 

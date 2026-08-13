@@ -1,6 +1,6 @@
 # Phase 10 — Ổn định noise floor và ranh giới câu
 
-Trạng thái: `Slice 10E automated gates passed; Premiere round-trip pending` ngày 2026-08-13 trên branch `codex/phase10-noise-boundary-stability`. Phase này bắt đầu từ `main` commit `06ad4d6`; baseline logic audio/XML là Phase 09 merge commit `50ee4f9`. Candidate đã vào đường production qua merge bảo thủ, audit `1.6`, validator và writer có giới hạn bộ nhớ; synthetic, HGE2 và full HGE đều đạt. Phase 10 chưa hoàn tất vì XML đã đổi và còn phải import đúng candidate vào Premiere, kiểm M19, export PCM A1–A7 và Final Cut Pro XML trước khi đóng gói/merge.
+Trạng thái: `passed` ngày 2026-08-13 trên branch `codex/phase10-noise-boundary-stability`. Phase này bắt đầu từ `main` commit `06ad4d6`; baseline logic audio/XML là Phase 09 merge commit `50ee4f9`. Candidate đã vào đường production qua merge bảo thủ, audit `1.6`, validator và writer có giới hạn bộ nhớ. Synthetic, HGE2, full HGE, M19, Premiere PCM A1–A7, Final Cut Pro XML re-export, self-contained publish, installer smoke test và CI đều đạt; Phase 10 không tạo release mới và không thay RC1 hiện hành.
 
 ## Quyết định sản phẩm
 
@@ -171,7 +171,17 @@ Full HGE candidate cuối:
 - XML dài `214.270.887 byte` (`204,34 MB`), dưới safety envelope `512 MB`; SHA-256 `627BA7EEEF777F4C8A2DF50FB551FD4B5AA9BEC71BE0D866A97D81066B6420FB`. Audit SHA-256 `A77E44B8C52547A0DC748C6E6BB8C328B988014D120672DB83BE847FC8FEBE51`; review SHA-256 `898C6C86246B2E6E71498D49A011AD3FE6E634AC32EEC7A62531C26CCF9FB7F3`; tệp tạm `0`.
 - Comparator với Phase 09 audit `0BC66E5...` đạt: source hash và embedded/actual output hash khớp, coverage mismatch `0 interval / 0 frame`, mất Enabled `0 interval / 0 frame`, giữ thêm `47.305 interval / 157.237 frame`.
 
-Các số phrase/fragment/marker khác Phase 09 là bằng chứng cấu trúc của estimator, hysteresis và XML compaction, không phải tuyên bố accuracy. XML audio đã đổi, nên PCM và XML re-export Phase 09 không được tái sử dụng. Premiere round-trip và packaging vẫn pending.
+Các số phrase/fragment/marker khác Phase 09 là bằng chứng cấu trúc của estimator, hysteresis và XML compaction, không phải tuyên bố accuracy. XML audio đã đổi, nên PCM và XML re-export Phase 09 không được tái sử dụng.
+
+Premiere round-trip cuối:
+
+- Người vận hành import đúng XML SHA-256 `6F855699ED6D39712F3118A661DCF18943750F805D3EDB662546D033A808910E` và xác nhận M19/A3 vẫn Enabled.
+- A1–A7 đều là mono PCM 48 kHz/24-bit, đủ `103.219.200` sample. Validator đạt `2.136/2.136` phrase timing/gain; `921/921` phrase không cap nằm trong `-6,000019084..-5,999973633 dBFS`; `1.215/1.215` phrase cap khớp dự đoán và phrase cap nóng nhất là `-6,004387657 dBFS`.
+- Sai lệch lớn nhất so với audit là `0,000026641 dB`; sai lệch source-linked lớn nhất là `0,000026615 dB`. Cả bảy report gắn đúng audit SHA-256 `21A18FB7799D171AB9BCD744B65D1ECEBF3E9EA8DE9321B0C707476AAAD6E534` và source XML SHA-256 `09FD290C5CB8401DEF7EA9701433F7BD1799B0300ABA9244A8BF88C022A8C897`.
+- Vùng M19 frame `11214–11218` trong PCM A3 có đủ `7.680/7.680` sample khác 0, correlation với WAV nguồn `0,999999999960662`, gain `-3,010296076 dB` đúng center-pan/downmix và residual RMS `-143,309 dBFS`. Report SHA-256 `C591B87DB0EC4B1A8A7360281F9184E3FD41C37BDC37C02FBEADFF7F77C96A50` có status `m19-rendered-audio-preserved`.
+- Premiere re-export `Untitled test.xml` SHA-256 `C7F83F25D5FE5E554D62D8E87985711F09A38EA027EAFBE7B953AA7ED782BBE0` dùng project wrapper chứa đúng một sequence. Validator `1.1` chấp nhận direct sequence hoặc đúng một top-level project sequence, không nới lỏng so sánh semantic.
+- Round-trip XML đạt `8.291/8.291` clip: `4.488` Enabled và `3.803` Disabled khớp; timing/source/media khớp; max gain delta `0,000055244 dB`; `5.207/5.207` marker giữ nguyên semantic. Premiere đổi thứ tự marker và normalize 1.801 Gain filter thành Audio Levels. Report SHA-256 `E3E38CA9002D685336D63E5E36C33E0B665E77747128BFB7F0E65A161ADDB4D1` không có mismatch.
+- Artifact round-trip không có tệp tạm. CI `31689521606` trên app candidate `a4ac4a7` đạt trong 3 phút 1 giây: build/test, self-contained `win-x64`, Inno Setup installer smoke test và upload artifact đều xanh.
 
 ## Cổng nghiệm thu
 
@@ -214,4 +224,4 @@ Các số phrase/fragment/marker khác Phase 09 là bằng chứng cấu trúc c
 
 ## Bước tiếp theo
 
-Import đúng HGE2 XML SHA-256 `6F855699ED6D39712F3118A661DCF18943750F805D3EDB662546D033A808910E` vào Premiere. Xác nhận M19/A3 tại `00:07:28:15` vẫn nghe được/không Disable; export mới PCM A1–A7 từ đầu đến hết sequence và Final Cut Pro XML vào artifact directory Phase 10 mới. Sau khi validator PCM và round-trip XML đạt, mới chạy publish/installer/CI cuối và cân nhắc merge Phase 10.
+Merge PR Phase 10 sau CI của HEAD cuối. RC1 hiện hành không đổi; Phase 11 về bleed đa mic chỉ được mở ở tài liệu/branch riêng, tiếp tục giữ toàn bộ hợp đồng Enabled/gain/XML/M19 của Phase 10 làm baseline.

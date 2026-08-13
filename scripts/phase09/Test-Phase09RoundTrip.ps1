@@ -47,6 +47,35 @@ function Open-XmlDocument {
     return $document
 }
 
+function Get-ComparableSequence {
+    param(
+        [Xml.XmlDocument]$Document,
+        [string]$Label
+    )
+
+    $directSequences = @($Document.SelectNodes('/xmeml/sequence'))
+    if ($directSequences.Count -eq 1) {
+        return [pscustomobject]@{
+            Node = $directSequences[0]
+            XPath = '/xmeml/sequence'
+        }
+    }
+    if ($directSequences.Count -gt 1) {
+        throw "$Label XML contains more than one direct sequence under xmeml."
+    }
+
+    $projectSequences = @($Document.SelectNodes(
+            '/xmeml/project/children//sequence[not(ancestor::sequence)]'))
+    if ($projectSequences.Count -ne 1) {
+        throw "$Label XML must contain exactly one comparable top-level sequence."
+    }
+
+    return [pscustomobject]@{
+        Node = $projectSequences[0]
+        XPath = '/xmeml/project/children//sequence[not(ancestor::sequence)]'
+    }
+}
+
 function Get-NodeText {
     param([Xml.XmlNode]$Node, [string]$XPath)
 
@@ -157,11 +186,10 @@ if ($GainToleranceDb -le 0.0) {
 
 $inputDocument = Open-XmlDocument $inputPath
 $exportedDocument = Open-XmlDocument $exportedPath
-$inputSequence = $inputDocument.SelectSingleNode('/xmeml/sequence')
-$exportedSequence = $exportedDocument.SelectSingleNode('/xmeml/sequence')
-if ($null -eq $inputSequence -or $null -eq $exportedSequence) {
-    throw 'Both XML files must contain a direct sequence under xmeml.'
-}
+$inputSelection = Get-ComparableSequence $inputDocument 'Input'
+$exportedSelection = Get-ComparableSequence $exportedDocument 'Premiere-exported'
+$inputSequence = $inputSelection.Node
+$exportedSequence = $exportedSelection.Node
 
 foreach ($field in @('name', 'duration', 'rate/timebase', 'rate/ntsc', 'media/audio/format/samplecharacteristics/depth', 'media/audio/format/samplecharacteristics/samplerate', 'media/audio/format/samplecharacteristics/channelcount')) {
     Compare-TextField 'sequence' 'sequence' $inputSequence $exportedSequence $field
@@ -281,18 +309,20 @@ $inputGainFilters = @($inputSequence.SelectNodes("media/audio/track/clipitem/fil
 $exportedGainFilters = @($exportedSequence.SelectNodes("media/audio/track/clipitem/filter/effect[effectid='$gainFilterId']")).Count
 $status = if ($mismatchCounts.Count -eq 0) { 'phase09-roundtrip-compatible' } else { 'phase09-roundtrip-incompatible' }
 $result = [ordered]@{
-    SchemaVersion = '1.0'
+    SchemaVersion = '1.1'
     Status = $status
     GainToleranceDb = $GainToleranceDb
     Input = [ordered]@{
         FileName = [IO.Path]::GetFileName($inputPath)
         Sha256 = (Get-FileHash -LiteralPath $inputPath -Algorithm SHA256).Hash
         Bytes = (Get-Item -LiteralPath $inputPath).Length
+        SequenceXPath = $inputSelection.XPath
     }
     Exported = [ordered]@{
         FileName = [IO.Path]::GetFileName($exportedPath)
         Sha256 = (Get-FileHash -LiteralPath $exportedPath -Algorithm SHA256).Hash
         Bytes = (Get-Item -LiteralPath $exportedPath).Length
+        SequenceXPath = $exportedSelection.XPath
     }
     Sequence = [ordered]@{
         Name = Get-NodeText $exportedSequence 'name'

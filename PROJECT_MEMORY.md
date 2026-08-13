@@ -7,7 +7,7 @@ Ngày chốt: 2026-08-13 (Asia/Saigon). Đây là memory source-of-truth để m
 - Workspace thật: `F:\RIN APP\App-Auto-Edit_codex_2`.
 - Private GitHub repo: `tranvietthang94-jpg/premiere-auto-dialogue-xml`.
 - Phase 00–09 đã merge vào `main`. Phase 09 qua PR `#12`, merge commit `50ee4f9fb14d58e1dffbd1d23b807f2d58802976`; CI hậu merge `31461869682` đạt.
-- Chủ dự án không muốn preview/review UI; app chỉ tập trung xử lý âm thanh và xuất XML. Phase 10 trên `codex/phase10-noise-boundary-stability` đã qua các cổng tự động Slice 10E; Premiere round-trip và packaging/CI cuối còn pending.
+- Chủ dự án không muốn preview/review UI; app chỉ tập trung xử lý âm thanh và xuất XML. Phase 10 trên `codex/phase10-noise-boundary-stability` đã đạt mọi gate logic, HGE, Premiere round-trip và CI/installer; không tạo release mới.
 - Private draft prerelease: tag `v0.1.0-rc.1`, tên `Premiere Auto Dialogue XML 0.1.0 RC1`, target `8bdf47d`; URL draft hiện tại `https://github.com/tranvietthang94-jpg/premiere-auto-dialogue-xml/releases/tag/untagged-1c4ff86dc76dc88c43e3`.
 - Tài liệu phase đầy đủ nằm trong `docs/`; đọc trước `README.md`, `docs/IMPLEMENTATION_PLAN.md`, `docs/PHASE00_RESULT.md`, `docs/PHASE06_PILOT_RESULT.md`, `docs/PHASE07_INSTALLER_RELEASE.md`, `docs/PHASE08_REVIEW_QUEUE.md`, `docs/PHASE09_AUDIO_XML_HARDENING.md`, `docs/PHASE10_NOISE_BOUNDARY_STABILITY.md`, `docs/INTERNAL_CODE_SIGNING.md`.
 
@@ -104,7 +104,10 @@ Ngày chốt: 2026-08-13 (Asia/Saigon). Đây là memory source-of-truth để m
 - XML frame run được gộp theo semantic audio thực: Disabled liền nhau; Enabled cùng phrase/gain. Aggregate ưu tiên Ambiguous để giữ review bảo thủ. Release đạt `153/153`; build sạch.
 - HGE2 cuối `phase10-hge2-pilot-20260813-1`: `78,356 giây`, peak `260,9 MB`, 2.136 phrase/8.291 fragment/5.207 marker; XML `6F855699ED6D39712F3118A661DCF18943750F805D3EDB662546D033A808910E`, audit `21A18FB7799D171AB9BCD744B65D1ECEBF3E9EA8DE9321B0C707476AAAD6E534`. So Phase 09: coverage mismatch 0, lost Enabled 0, newly Enabled 2.205 interval/7.388 frame, temp 0; M19/A3 11214–11218 Ambiguous/Enabled.
 - Full HGE cuối `phase10-full-hge-pilot-20260811-8`: `74 phút 56,5 giây`, peak `1.320,4 MB`, XML 204,34 MB `627BA7EEEF777F4C8A2DF50FB551FD4B5AA9BEC71BE0D866A97D81066B6420FB`, audit `A77E44B8C52547A0DC748C6E6BB8C328B988014D120672DB83BE847FC8FEBE51`; source hash khớp, coverage mismatch 0, lost Enabled 0, newly Enabled 47.305 interval/157.237 frame, temp 0.
-- Phase 10 chưa hoàn tất. Bước tiếp theo là import đúng HGE2 XML `6F855...` vào Premiere, xác nhận M19 nghe được, export mới PCM A1–A7 và Final Cut Pro XML; chỉ sau khi validator đạt mới packaging/CI/merge.
+- Người vận hành import đúng HGE2 XML `6F855...` và xác nhận M19/A3 vẫn Enabled. PCM A1–A7 đều mono 48 kHz/24-bit, đủ 103.219.200 sample; validator đạt 2.136/2.136 phrase, 921/921 uncapped ở target và 1.215/1.215 capped khớp dự đoán. Max audit delta `0,000026641 dB`, source-linked delta `0,000026615 dB`.
+- M19 PCM frame 11214–11218 có 7.680/7.680 sample khác 0, correlation nguồn `0,999999999960662`, gain `-3,010296076 dB` đúng routing; report `C591B87D...` đạt `m19-rendered-audio-preserved`.
+- Premiere re-export `Untitled test.xml` SHA `C7F83F25...` bọc đúng một sequence trong project. Validator round-trip `1.1` được harden để nhận direct sequence hoặc đúng một top-level project sequence; report `E3E38CA9...` đạt 8.291/8.291 clip, 4.488 Enabled, 3.803 Disabled, 5.207 marker và max gain delta `0,000055244 dB`.
+- CI `31689521606` trên app candidate `a4ac4a7` đạt build/test, self-contained publish và installer smoke trong 3 phút 1 giây. Phase 10 đạt; RC1 hiện hành không đổi.
 
 ## Lỗi đã gặp và cách tránh
 
@@ -137,4 +140,4 @@ Ngày chốt: 2026-08-13 (Asia/Saigon). Đây là memory source-of-truth để m
 
 ## Trạng thái bàn giao
 
-Phase 00–09 hoàn tất trên `main`. Phase 10 Slice 10A–10E đã có code/test và HGE2/full HGE automated evidence trên `codex/phase10-noise-boundary-stability`; production analysis dùng merge bảo thủ hai tầng, audit `1.6` và output bounded. Cổng tự động đạt nhưng Phase 10 vẫn pending Premiere round-trip bằng đúng XML `6F855...`, rồi packaging/CI. Hợp đồng Phase 09 về Enabled/gain/XML/M19 là baseline không được làm yếu.
+Phase 00–10 hoàn tất về logic và bằng chứng bắt buộc. Phase 10 dùng merge bảo thủ hai tầng, audit `1.6` và output bounded; HGE2/full HGE, M19, PCM A1–A7, Premiere XML re-export và CI/installer đều đạt. Việc tiếp theo là merge PR Phase 10 sau CI HEAD cuối; Phase 11 phải mở riêng và dùng hợp đồng Enabled/gain/XML/M19 hiện tại làm baseline.
