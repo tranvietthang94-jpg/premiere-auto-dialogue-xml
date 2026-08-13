@@ -7,7 +7,8 @@ Ngày chốt: 2026-08-13 (Asia/Saigon). Đây là memory source-of-truth để m
 - Workspace thật: `F:\RIN APP\App-Auto-Edit_codex_2`.
 - Private GitHub repo: `tranvietthang94-jpg/premiere-auto-dialogue-xml`.
 - Phase 00–09 đã merge vào `main`. Phase 09 qua PR `#12`, merge commit `50ee4f9fb14d58e1dffbd1d23b807f2d58802976`; CI hậu merge `31461869682` đạt.
-- Chủ dự án không muốn preview/review UI; app chỉ tập trung xử lý âm thanh và xuất XML. Phase 10 trên `codex/phase10-noise-boundary-stability` đã đạt mọi gate logic, HGE, Premiere round-trip và CI/installer; không tạo release mới.
+- Phase 10 qua PR `#14`, merge commit `19c6577f38b25a314e058b35c59f3219b4cfa4a8`; CI hậu merge `31691393143` đạt. Phase không tạo release mới.
+- Chủ dự án không muốn preview/review UI; app chỉ tập trung xử lý âm thanh và xuất XML. Phase 10 đã đạt mọi gate logic, HGE, Premiere round-trip và CI/installer.
 - Private draft prerelease: tag `v0.1.0-rc.1`, tên `Premiere Auto Dialogue XML 0.1.0 RC1`, target `8bdf47d`; URL draft hiện tại `https://github.com/tranvietthang94-jpg/premiere-auto-dialogue-xml/releases/tag/untagged-1c4ff86dc76dc88c43e3`.
 - Tài liệu phase đầy đủ nằm trong `docs/`; đọc trước `README.md`, `docs/IMPLEMENTATION_PLAN.md`, `docs/PHASE00_RESULT.md`, `docs/PHASE06_PILOT_RESULT.md`, `docs/PHASE07_INSTALLER_RELEASE.md`, `docs/PHASE08_REVIEW_QUEUE.md`, `docs/PHASE09_AUDIO_XML_HARDENING.md`, `docs/PHASE10_NOISE_BOUNDARY_STABILITY.md`, `docs/INTERNAL_CODE_SIGNING.md`.
 
@@ -140,4 +141,4 @@ Ngày chốt: 2026-08-13 (Asia/Saigon). Đây là memory source-of-truth để m
 
 ## Trạng thái bàn giao
 
-Phase 00–10 hoàn tất về logic và bằng chứng bắt buộc. Phase 10 dùng merge bảo thủ hai tầng, audit `1.6` và output bounded; HGE2/full HGE, M19, PCM A1–A7, Premiere XML re-export và CI/installer đều đạt. Việc tiếp theo là merge PR Phase 10 sau CI HEAD cuối; Phase 11 phải mở riêng và dùng hợp đồng Enabled/gain/XML/M19 hiện tại làm baseline.
+Phase 00–10 hoàn tất trên `main`. Phase 10 dùng merge bảo thủ hai tầng, audit `1.6` và output bounded; HGE2/full HGE, M19, PCM A1–A7, Premiere XML re-export và CI/installer đều đạt. Nếu tiếp tục, Phase 11 phải mở tài liệu/branch riêng và dùng hợp đồng Enabled/gain/XML/M19 hiện tại làm baseline.

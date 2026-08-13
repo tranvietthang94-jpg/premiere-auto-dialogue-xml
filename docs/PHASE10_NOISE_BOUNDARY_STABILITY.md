@@ -1,6 +1,6 @@
 # Phase 10 — Ổn định noise floor và ranh giới câu
 
-Trạng thái: `passed` ngày 2026-08-13 trên branch `codex/phase10-noise-boundary-stability`. Phase này bắt đầu từ `main` commit `06ad4d6`; baseline logic audio/XML là Phase 09 merge commit `50ee4f9`. Candidate đã vào đường production qua merge bảo thủ, audit `1.6`, validator và writer có giới hạn bộ nhớ. Synthetic, HGE2, full HGE, M19, Premiere PCM A1–A7, Final Cut Pro XML re-export, self-contained publish, installer smoke test và CI đều đạt; Phase 10 không tạo release mới và không thay RC1 hiện hành.
+Trạng thái: `passed; merged` ngày 2026-08-13. Phase này bắt đầu từ `main` commit `06ad4d6`, dùng Phase 09 merge commit `50ee4f9` làm baseline và merge qua PR `#14` tại `19c6577f38b25a314e058b35c59f3219b4cfa4a8`. Candidate đã vào production qua merge bảo thủ, audit `1.6`, validator và writer có giới hạn bộ nhớ. Synthetic, HGE2, full HGE, M19, Premiere PCM A1–A7, Final Cut Pro XML re-export, self-contained publish, installer smoke test và CI đều đạt; CI hậu merge `31691393143` xanh. Phase 10 không tạo release mới và không thay RC1 hiện hành.
 
 ## Quyết định sản phẩm
 
@@ -224,4 +224,4 @@ Premiere round-trip cuối:
 
 ## Bước tiếp theo
 
-Merge PR Phase 10 sau CI của HEAD cuối. RC1 hiện hành không đổi; Phase 11 về bleed đa mic chỉ được mở ở tài liệu/branch riêng, tiếp tục giữ toàn bộ hợp đồng Enabled/gain/XML/M19 của Phase 10 làm baseline.
+Phase 10 đã đóng trên `main`. Nếu tiếp tục roadmap, mở tài liệu/branch Phase 11 riêng cho bleed đa mic có calibration; dùng toàn bộ hợp đồng Enabled/gain/XML/M19 và bằng chứng Phase 10 làm baseline. RC1 hiện hành không đổi cho tới khi có quyết định phát hành riêng.
