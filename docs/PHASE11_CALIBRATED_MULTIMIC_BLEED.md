@@ -1,6 +1,6 @@
 # Phase 11 — Bleed đa mic có calibration
 
-Trạng thái: `in progress; Slice 11A passed` ngày 2026-08-13. Phase được mở từ `main` commit `3f41d7cd2d8b4d90241b4bd2f50f798e23d65796`, sau khi Phase 10 đã merge và toàn bộ CI hậu merge đạt. Branch làm việc: `codex/phase11-calibrated-multimic-bleed`. Slice 11A chỉ thêm corpus/test baseline; production audio, status, gain, marker và XML chưa thay đổi.
+Trạng thái: `in progress; Slice 11A–11B passed` ngày 2026-08-13. Phase được mở từ `main` commit `3f41d7cd2d8b4d90241b4bd2f50f798e23d65796`, sau khi Phase 10 đã merge và toàn bộ CI hậu merge đạt. Branch làm việc: `codex/phase11-calibrated-multimic-bleed`. Slice 11A khóa corpus/baseline; Slice 11B thêm calibrator shadow độc lập nhưng chưa nối vào `AudioProjectAnalyzer`. Production status, gain, marker, audit output và XML chưa thay đổi.
 
 ## Quyết định sản phẩm
 
@@ -135,6 +135,18 @@ Kết quả triển khai 11A:
 - Xuất trace/audit bounded có policy version, summary, evidence hash và rejection reason.
 - Không thay `TrackAudioAnalysis` production hoặc XML.
 
+Kết quả triển khai 11B:
+
+- Thêm `DirectionalBleedCalibrator` cùng policy `phase11-directional-calibration-shadow-v1`. Mỗi hướng `track nguồn → track đích` được xử lý riêng và mọi pair được sắp xếp deterministic theo track/timeline/phrase, không phụ thuộc thứ tự `analyses` đầu vào.
+- Một anchor chỉ hợp lệ khi source phrase dài ít nhất `120 ms`, toàn cửa sổ được phủ bởi Speech đúng phrase, target đã là Bleed Phase 10 trỏ về đúng source track, và cả hai track có media liên tục. Mỗi phrase chỉ đóng góp tối đa một cửa sổ giữa `250 ms`.
+- Anchor bị loại tường minh khi thiếu source Speech, thiếu baseline Bleed đúng hướng, quá ngắn, nằm trong vùng leave-one-region-out, thiếu media, clipping từ `-0,05 dBFS`, correlation/advantage dưới ngưỡng, polarity đảo hoặc residual xung đột. Rejection counts khép kín cùng accepted count bằng toàn bộ source phrase count.
+- Measurement vẫn kế thừa cổng bảo thủ hiện hành: advantage `>=12 dB`, correlation `>=0,80`, lag trong `±12 ms`, residual `<=-10 dB`; đồng thời ghi signed transfer scale để không để absolute correlation hợp thức hóa copy đảo cực.
+- Fingerprint dùng median robust. Cần ít nhất `3` anchor consistent, tỷ lệ consistent tối thiểu `75%`, lệch khỏi median tối đa `2 ms` và `3 dB`. Một outlier trong bốn anchor vẫn cho Stable; hai cụm `0/10 ms` cân bằng bị `UnstableFingerprint`.
+- Toàn bộ accepted evidence được đưa vào SHA-256 theo thứ tự chuẩn. Thống kê giữ tối đa `64` anchor bằng stable-priority bounded sampling và chỉ lộ tối đa `16` anchor sample; không giữ waveform hoặc media path trong model shadow.
+- API nhận `DirectionalBleedCalibrationExclusion`; loại một trong ba anchor làm fingerprint lùi từ Stable về `InsufficientSupport`, chứng minh candidate không thể tự làm support duy nhất cho chính nó. Cancellation được kiểm trước khi đọc media.
+- Targeted calibrator đạt `8/8`; toàn bộ Release đạt `163/163`; build không warning/error và `dotnet format --verify-no-changes` sạch.
+- Calibrator chưa được gọi từ `AudioProjectAnalyzer`, chưa gắn vào `ProjectAudioAnalysis`/`OutputAudit` và chưa tạo output. Vì vậy production semantic vẫn đúng Phase 10 và chưa cần HGE2/full HGE/Premiere ở 11B; việc nối shadow/audit thuộc 11C.
+
 ### Slice 11C — scorer nhiều cửa sổ và shadow comparison
 
 - So candidate với cả resolver một cửa sổ hiện tại và final Phase 10 trên cùng PCM/observation.
@@ -190,4 +202,4 @@ Kết quả triển khai 11A:
 
 ## Bước tiếp theo
 
-Bắt đầu Slice 11B: xây calibrator có hướng theo cặp track, minimum support và leave-one-region-out trên corpus đã khóa. Calibrator tiếp tục chỉ tạo shadow evidence; chưa sửa production status, gain, marker hoặc XML.
+Bắt đầu Slice 11C: dùng fingerprint ổn định để chấm candidate theo nhiều cửa sổ, nối calibration/scorer vào project shadow và audit `1.7`, rồi so với resolver Phase 10 trên cùng PCM. Final production status, gain, marker và XML vẫn phải giữ Phase 10 trong slice này.

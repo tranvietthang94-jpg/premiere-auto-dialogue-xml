@@ -88,6 +88,33 @@ internal static class WaveformCorrelation
             : (float)(10 * Math.Log10(residualEnergy / targetEnergy));
     }
 
+    public static float TransferScaleToTarget(
+        ReadOnlySpan<float> target48Khz,
+        ReadOnlySpan<float> other48Khz,
+        int lagSamples16Khz)
+    {
+        var sampleCount = Math.Min(target48Khz.Length, other48Khz.Length) / 3;
+        var targetStart = Math.Max(0, -lagSamples16Khz);
+        var otherStart = Math.Max(0, lagSamples16Khz);
+        var count = sampleCount - Math.Abs(lagSamples16Khz);
+        if (count < 64)
+        {
+            return 0;
+        }
+
+        double dot = 0;
+        double otherEnergy = 0;
+        for (var index = 0; index < count; index++)
+        {
+            var target = target48Khz[(targetStart + index) * 3];
+            var other = other48Khz[(otherStart + index) * 3];
+            dot += target * other;
+            otherEnergy += other * other;
+        }
+
+        return otherEnergy <= double.Epsilon ? 0 : (float)(dot / otherEnergy);
+    }
+
     public static float RmsDbfs(ReadOnlySpan<float> samples)
     {
         if (samples.IsEmpty)
