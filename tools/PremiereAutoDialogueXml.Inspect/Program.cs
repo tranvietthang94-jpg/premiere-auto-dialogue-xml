@@ -117,6 +117,55 @@ foreach (var xmlPath in xmlPaths)
                         frontEnd.Tracks.Sum(track => track.PhraseDifferences.Count)),
                     FinalDifferenceRecordCount = analysis.NoiseBoundaryComparison.FrontEnds.Sum(frontEnd =>
                         frontEnd.Tracks.Sum(track => track.FinalDifferences.Count))
+                },
+            CalibratedBleed = analysis.CalibratedBleedShadow is null
+                ? null
+                : new
+                {
+                    CalibrationPolicyVersion = analysis.CalibratedBleedShadow.Calibration.Policy.Version,
+                    ScoringPolicyVersion = analysis.CalibratedBleedShadow.ScoringPolicy.Version,
+                    FingerprintCount = analysis.CalibratedBleedShadow.Calibration.Fingerprints.Count,
+                    FingerprintsByStatus = Enum.GetValues<DirectionalBleedCalibrationStatus>().ToDictionary(
+                        status => status.ToString(),
+                        status => analysis.CalibratedBleedShadow.Calibration.Fingerprints.Count(fingerprint =>
+                            fingerprint.Status == status)),
+                    StablePairs = analysis.CalibratedBleedShadow.Calibration.Fingerprints
+                        .Where(fingerprint => fingerprint.Status == DirectionalBleedCalibrationStatus.Stable)
+                        .Select(fingerprint => new
+                        {
+                            fingerprint.SourceTrackIndex,
+                            fingerprint.TargetTrackIndex,
+                            fingerprint.AcceptedAnchorCount,
+                            fingerprint.RetainedAnchorCount,
+                            fingerprint.ConsistentAnchorCount,
+                            fingerprint.OutlierAnchorCount,
+                            fingerprint.MedianLagMilliseconds,
+                            fingerprint.LagSpreadMilliseconds,
+                            fingerprint.MedianAttenuationDb,
+                            fingerprint.AttenuationSpreadDb,
+                            fingerprint.MedianCorrelation,
+                            fingerprint.MaximumResidualToTargetDb,
+                            fingerprint.EvidenceSha256
+                        })
+                        .ToArray(),
+                    CandidateCount = analysis.CalibratedBleedShadow.Candidates.Count,
+                    CandidatesByOutcome = Enum.GetValues<CalibratedBleedShadowOutcome>().ToDictionary(
+                        outcome => outcome.ToString(),
+                        outcome => analysis.CalibratedBleedShadow.Candidates.Count(candidate =>
+                            candidate.Outcome == outcome)),
+                    AvailableWindowCount = analysis.CalibratedBleedShadow.Candidates.Sum(candidate =>
+                        (long)candidate.AvailableWindowCount),
+                    EvaluatedWindowCount = analysis.CalibratedBleedShadow.Candidates.Sum(candidate =>
+                        (long)candidate.EvaluatedWindowCount),
+                    PassingWindowCount = analysis.CalibratedBleedShadow.Candidates.Sum(candidate =>
+                        (long)candidate.PassingWindowCount),
+                    ConflictingWindowCount = analysis.CalibratedBleedShadow.Candidates.Sum(candidate =>
+                        (long)candidate.ConflictingWindowCount),
+                    RetainedWindowsByDisposition = Enum.GetValues<CalibratedBleedWindowDisposition>().ToDictionary(
+                        disposition => disposition.ToString(),
+                        disposition => analysis.CalibratedBleedShadow.Candidates.Sum(candidate =>
+                            candidate.WindowSamples.Count(window => window.Disposition == disposition))),
+                    analysis.CalibratedBleedShadow.ProductionChangedSegmentCount
                 }
         };
 
@@ -134,6 +183,11 @@ foreach (var xmlPath in xmlPaths)
                 Audit = Path.GetFileName(output.AuditPath),
                 Review = Path.GetFileName(output.ReviewCsvPath),
                 output.OutputXmlSha256,
+                XmlBytes = new FileInfo(output.XmlPath).Length,
+                AuditBytes = new FileInfo(output.AuditPath).Length,
+                ReviewBytes = output.ReviewCsvPath is null
+                    ? (long?)null
+                    : new FileInfo(output.ReviewCsvPath).Length,
                 output.FragmentCount,
                 output.MarkerCount,
                 output.ReviewGroupCount,

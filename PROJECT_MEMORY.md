@@ -128,6 +128,11 @@ Ngày chốt: 2026-08-13 (Asia/Saigon). Đây là memory source-of-truth để m
 - Publication validator kiểm pair có hướng, policy, support/rejection counts, bounded sample, stable fingerprint reference, candidate coverage, window aggregate/hash và `ProductionChangedSegmentCount = 0`. Dự án đa track thiếu shadow hoặc shadow bị sửa policy/hash/Enabled bị từ chối trước khi tạo output.
 - Slice 11C full Release `171/171`, build/format/diff sạch. Synthetic khóa stable `2/2`, direct residual conflict, lag drift `1/2` và insufficient anchors; regression writer xác nhận thêm audit shadow không đổi deterministic XML SHA-256.
 - Bước kế tiếp là pilot shadow-only Slice 11E trên HGE2/full HGE để đo runtime/RAM, distribution và chứng minh XML semantic/Enabled không đổi. Không mở 11D adoption khi chưa có Target labels hợp lệ.
+- Slice 11E thêm timeline index cho scorer và chỉ materialize source index khi có stable fingerprint; `Inspect` ghi summary policy/fingerprint/outcome/window/production-changed cùng output sizes. Release vẫn `171/171`, build/format/diff sạch.
+- `phase11-hge2-pilot-20260813-1` bị loại vì dùng stale Release binary/audit `1.6`; `-2` chỉ là pre-final-index evidence. HGE2 HEAD hợp lệ `phase11-hge2-pilot-20260813-3` đạt `73,658 giây`, peak `299,4 MB`, 0 error; 42/42 pair InsufficientSupport, 15.539 NoCalibration, ProductionChanged 0. XML `732BBF...`, audit `C290EE...`, review `8FFDC3...`; comparator Phase 10 đạt coverage/lost/new Enabled đều 0, temp 0; M19 vẫn Ambiguous/Enabled.
+- Full HGE `phase11-full-hge-pilot-20260813-1` đạt `72 phút 31,005 giây`, peak analysis `1.319,2 MB`, total peak `1.435,1 MB`, 0 error; 42/42 pair InsufficientSupport, 380.304 NoCalibration, 0 window và ProductionChanged 0. XML `8E47AF...`, audit `14A82B...`, review `898C6C...`; comparator Phase 10 đạt coverage/lost/new Enabled đều 0, 162.922 status giữ nguyên, temp 0.
+- Review CSV của cả hai pilot giữ đúng SHA Phase 10. XML byte hash khác vì run UUID mới; semantic timeline/status/Enabled giống hoàn toàn. Không cần Premiere PCM/XML round-trip mới vì candidate shadow không đổi production audio.
+- Hai corpus thật đều có baseline Bleed 0 nên calibrator không có anchor để học. Kết luận đúng là insufficient calibration evidence; Phase 11 đóng shadow-ready sau CI, không mở adoption, không hạ threshold và không thay RC1.
 
 ## Lỗi đã gặp và cách tránh
 
@@ -160,4 +165,4 @@ Ngày chốt: 2026-08-13 (Asia/Saigon). Đây là memory source-of-truth để m
 
 ## Trạng thái bàn giao
 
-Phase 00–10 hoàn tất trên `main`. Phase 10 dùng merge bảo thủ hai tầng, audit `1.6` và output bounded; HGE2/full HGE, M19, PCM A1–A7, Premiere XML re-export và CI/installer đều đạt. Phase 11 đã hoàn tất local Slice 11A–11C với scorer/project shadow/audit `1.7`; bước tiếp theo là pilot shadow-only HGE2/full HGE. Toàn bộ hợp đồng Enabled/gain/XML/M19 hiện tại vẫn là baseline bắt buộc và chưa có adoption tăng mute.
+Phase 00–10 hoàn tất trên `main`. Phase 10 dùng merge bảo thủ hai tầng, audit `1.6` và output bounded; HGE2/full HGE, M19, PCM A1–A7, Premiere XML re-export và CI/installer đều đạt. Phase 11 đã hoàn tất local Slice 11A–11C và pilot shadow-only 11E với scorer/project shadow/audit `1.7`; HGE2/full HGE đều insufficient calibration, production changed/lost Enabled bằng 0 và đạt runtime/RAM. Chờ CI HEAD cuối để đóng shadow-ready. Toàn bộ hợp đồng Enabled/gain/XML/M19 hiện tại vẫn là baseline bắt buộc và chưa có adoption tăng mute.

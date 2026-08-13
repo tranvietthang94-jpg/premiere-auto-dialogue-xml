@@ -78,7 +78,7 @@ static AuditComparison Compare(Audit baseline, Audit candidate, string baselineP
     }
 
     var candidateNoiseBoundary = SummarizeNoiseBoundary(candidate.NoiseBoundaryComparison);
-    if (candidate.SchemaVersion == "1.6" && candidateNoiseBoundary is null)
+    if (candidate.SchemaVersion is "1.6" or "1.7" && candidateNoiseBoundary is null)
     {
         failures.Add("candidate-noise-boundary-comparison-missing");
     }

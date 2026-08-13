@@ -48,6 +48,16 @@ public sealed class CalibratedBleedShadowScorer(TimelinePcmAccessor pcmAccessor)
             .ToDictionary(
                 group => group.Key,
                 group => group.OrderBy(fingerprint => fingerprint.SourceTrackIndex).ToArray());
+        var stableSourceTrackIndexes = stableFingerprintsByTarget.Values
+            .SelectMany(fingerprints => fingerprints)
+            .Select(fingerprint => fingerprint.SourceTrackIndex)
+            .Distinct()
+            .ToHashSet();
+        var sourceIndexes = analysesByIndex
+            .Where(item => stableSourceTrackIndexes.Contains(item.Key))
+            .ToDictionary(
+                item => item.Key,
+                item => SourceScoringIndex.Create(item.Value));
         var maximumWindowSamples = checked((int)AudioMath.MillisecondsToSamples(
             scoringPolicy.MaximumWindowMilliseconds));
         var targetBuffer = new float[maximumWindowSamples];
@@ -70,7 +80,7 @@ public sealed class CalibratedBleedShadowScorer(TimelinePcmAccessor pcmAccessor)
                     targetTrack,
                     fingerprints ?? [],
                     tracksByIndex,
-                    analysesByIndex,
+                    sourceIndexes,
                     scoringPolicy,
                     sourceBuffer,
                     targetBuffer,
@@ -86,7 +96,7 @@ public sealed class CalibratedBleedShadowScorer(TimelinePcmAccessor pcmAccessor)
         PremiereAudioTrack targetTrack,
         IReadOnlyList<DirectionalBleedFingerprint> fingerprints,
         IReadOnlyDictionary<int, PremiereAudioTrack> tracks,
-        IReadOnlyDictionary<int, TrackAudioAnalysis> analyses,
+        IReadOnlyDictionary<int, SourceScoringIndex> sourceIndexes,
         CalibratedBleedScoringPolicy policy,
         float[] sourceBuffer,
         float[] targetBuffer,
@@ -100,7 +110,7 @@ public sealed class CalibratedBleedShadowScorer(TimelinePcmAccessor pcmAccessor)
                 segment,
                 targetTrack,
                 tracks[fingerprint.SourceTrackIndex],
-                analyses[fingerprint.SourceTrackIndex],
+                sourceIndexes[fingerprint.SourceTrackIndex],
                 fingerprint,
                 policy,
                 sourceBuffer,
@@ -152,7 +162,7 @@ public sealed class CalibratedBleedShadowScorer(TimelinePcmAccessor pcmAccessor)
         AnalyzedAudioSegment segment,
         PremiereAudioTrack targetTrack,
         PremiereAudioTrack sourceTrack,
-        TrackAudioAnalysis sourceAnalysis,
+        SourceScoringIndex sourceIndex,
         DirectionalBleedFingerprint fingerprint,
         CalibratedBleedScoringPolicy policy,
         float[] sourceBuffer,
@@ -161,21 +171,10 @@ public sealed class CalibratedBleedShadowScorer(TimelinePcmAccessor pcmAccessor)
     {
         var selectedWindows = new List<RankedWindow>(policy.MaximumRetainedWindowCount);
         var availableWindowCount = 0;
-        foreach (var phrase in sourceAnalysis.Phrases
-                     .OrderBy(phrase => phrase.CoreStartSample)
-                     .ThenBy(phrase => phrase.CoreEndSample)
-                     .ThenBy(phrase => phrase.Id, StringComparer.Ordinal))
+        foreach (var phrase in sourceIndex.FindOverlapping(
+                     segment.TimelineStartSample,
+                     segment.TimelineEndSample))
         {
-            if (phrase.CoreEndSample <= segment.TimelineStartSample)
-            {
-                continue;
-            }
-
-            if (phrase.CoreStartSample >= segment.TimelineEndSample)
-            {
-                break;
-            }
-
             var overlapStart = Math.Max(phrase.CoreStartSample, segment.TimelineStartSample);
             var overlapEnd = Math.Min(phrase.CoreEndSample, segment.TimelineEndSample);
             var length = overlapEnd - overlapStart;
@@ -192,7 +191,7 @@ public sealed class CalibratedBleedShadowScorer(TimelinePcmAccessor pcmAccessor)
                 var start = overlapStart + ((length * position) / windowCount);
                 var end = overlapStart + ((length * (position + 1)) / windowCount);
                 if (end - start < minimumSamples ||
-                    !HasConfirmedSourceSpeechCoverage(sourceAnalysis, phrase.Id, start, end))
+                    !sourceIndex.HasConfirmedSpeechCoverage(phrase.Id, start, end))
                 {
                     continue;
                 }
@@ -492,40 +491,6 @@ public sealed class CalibratedBleedShadowScorer(TimelinePcmAccessor pcmAccessor)
         _ => 0
     };
 
-    private static bool HasConfirmedSourceSpeechCoverage(
-        TrackAudioAnalysis analysis,
-        string phraseId,
-        long startSample,
-        long endSample)
-    {
-        var cursor = startSample;
-        foreach (var segment in analysis.Segments
-                     .Where(segment =>
-                         segment.Status == AudioSegmentStatus.Speech &&
-                         string.Equals(segment.PhraseId, phraseId, StringComparison.Ordinal))
-                     .OrderBy(segment => segment.TimelineStartSample)
-                     .ThenBy(segment => segment.TimelineEndSample))
-        {
-            if (segment.TimelineEndSample <= cursor)
-            {
-                continue;
-            }
-
-            if (segment.TimelineStartSample > cursor)
-            {
-                return false;
-            }
-
-            cursor = Math.Max(cursor, segment.TimelineEndSample);
-            if (cursor >= endSample)
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
     private static bool HasContinuousMedia(
         PremiereAudioTrack track,
         long startSample,
@@ -659,4 +624,105 @@ public sealed class CalibratedBleedShadowScorer(TimelinePcmAccessor pcmAccessor)
         string OutcomeReason,
         string WindowEvidenceSha256,
         IReadOnlyList<CalibratedBleedWindowEvidence> WindowSamples);
+
+    private sealed class SourceScoringIndex(
+        DialoguePhrase[] phrases,
+        long[] prefixMaximumEnds,
+        IReadOnlyDictionary<string, AnalyzedAudioSegment[]> speechSegmentsByPhrase)
+    {
+        public static SourceScoringIndex Create(TrackAudioAnalysis analysis)
+        {
+            var phrases = analysis.Phrases
+                .OrderBy(phrase => phrase.CoreStartSample)
+                .ThenBy(phrase => phrase.CoreEndSample)
+                .ThenBy(phrase => phrase.Id, StringComparer.Ordinal)
+                .ToArray();
+            var prefixMaximumEnds = new long[phrases.Length];
+            var maximumEnd = long.MinValue;
+            for (var index = 0; index < phrases.Length; index++)
+            {
+                maximumEnd = Math.Max(maximumEnd, phrases[index].CoreEndSample);
+                prefixMaximumEnds[index] = maximumEnd;
+            }
+
+            var speechSegmentsByPhrase = analysis.Segments
+                .Where(segment =>
+                    segment.Status == AudioSegmentStatus.Speech &&
+                    segment.PhraseId is not null)
+                .GroupBy(segment => segment.PhraseId!, StringComparer.Ordinal)
+                .ToDictionary(
+                    group => group.Key,
+                    group => group
+                        .OrderBy(segment => segment.TimelineStartSample)
+                        .ThenBy(segment => segment.TimelineEndSample)
+                        .ToArray(),
+                    StringComparer.Ordinal);
+            return new(phrases, prefixMaximumEnds, speechSegmentsByPhrase);
+        }
+
+        public IEnumerable<DialoguePhrase> FindOverlapping(long startSample, long endSample)
+        {
+            var lower = 0;
+            var upper = prefixMaximumEnds.Length;
+            while (lower < upper)
+            {
+                var middle = lower + ((upper - lower) / 2);
+                if (prefixMaximumEnds[middle] <= startSample)
+                {
+                    lower = middle + 1;
+                }
+                else
+                {
+                    upper = middle;
+                }
+            }
+
+            for (var index = lower; index < phrases.Length; index++)
+            {
+                var phrase = phrases[index];
+                if (phrase.CoreStartSample >= endSample)
+                {
+                    yield break;
+                }
+
+                if (phrase.CoreEndSample > startSample)
+                {
+                    yield return phrase;
+                }
+            }
+        }
+
+        public bool HasConfirmedSpeechCoverage(
+            string phraseId,
+            long startSample,
+            long endSample)
+        {
+            if (!speechSegmentsByPhrase.TryGetValue(phraseId, out var segments))
+            {
+                return false;
+            }
+
+            var cursor = startSample;
+            foreach (var segment in segments)
+            {
+                if (segment.TimelineEndSample <= cursor)
+                {
+                    continue;
+                }
+
+                if (segment.TimelineStartSample > cursor)
+                {
+                    return false;
+                }
+
+                cursor = Math.Max(cursor, segment.TimelineEndSample);
+                if (cursor >= endSample)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+    }
 }

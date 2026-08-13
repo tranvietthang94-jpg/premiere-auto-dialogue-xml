@@ -1,6 +1,6 @@
 # Phase 11 — Bleed đa mic có calibration
 
-Trạng thái: `in progress; Slice 11A–11C passed locally` ngày 2026-08-13. Phase được mở từ `main` commit `3f41d7cd2d8b4d90241b4bd2f50f798e23d65796`, sau khi Phase 10 đã merge và toàn bộ CI hậu merge đạt. Branch làm việc: `codex/phase11-calibrated-multimic-bleed`. Slice 11A khóa corpus/baseline; Slice 11B thêm calibrator có hướng; Slice 11C đã nối scorer nhiều cửa sổ vào project shadow và audit `1.7`. Production status, gain, marker và XML vẫn giữ nguyên Phase 10.
+Trạng thái: `shadow-ready; Slice 11A–11C và pilot shadow-only 11E passed locally; CI pending` ngày 2026-08-13. Phase được mở từ `main` commit `3f41d7cd2d8b4d90241b4bd2f50f798e23d65796`, sau khi Phase 10 đã merge và toàn bộ CI hậu merge đạt. Branch làm việc: `codex/phase11-calibrated-multimic-bleed`. Slice 11A khóa corpus/baseline; Slice 11B thêm calibrator có hướng; Slice 11C nối scorer nhiều cửa sổ vào project shadow và audit `1.7`; Slice 11E đã qua HGE2/full HGE shadow-only. Cả hai pilot thật đều không có đủ anchor để tạo stable fingerprint, nên production status, gain, marker và XML semantic giữ nguyên Phase 10. Slice 11D adoption không được mở vì không có nhãn Target hợp lệ.
 
 ## Quyết định sản phẩm
 
@@ -179,6 +179,17 @@ Kết quả triển khai 11C:
 - Nếu adoption làm XML đổi, bắt buộc dùng đúng hash candidate cho Premiere import → PCM A1–A7 → M19 → Final Cut Pro XML re-export; không tái gắn evidence Phase 10.
 - Chạy self-contained publish, installer smoke test và CI trên HEAD cuối. Phase không tự động thay RC1.
 
+Kết quả pilot shadow-only 11E:
+
+- Công cụ pilot được bổ sung summary calibrated bounded và chỉ mục timeline cho scorer. Phrase/speech index chỉ được tạo cho source track có stable fingerprint; pair thiếu support không giữ index không dùng. Toàn bộ Release vẫn đạt `171/171`, build/format/diff sạch trước pilot.
+- Lượt `phase11-hge2-pilot-20260813-1` bị loại khỏi evidence: công cụ `Inspect` Release chưa được rebuild nên tạo audit `1.6` bằng binary Phase 10 cũ. Lượt `-2` xác nhận audit `1.7` trước tối ưu index cuối nhưng không còn là evidence HEAD. Cả hai artifact được giữ nguyên để truy vết; lượt HEAD hợp lệ là `phase11-hge2-pilot-20260813-3`.
+- HGE2 HEAD hợp lệ chạy trên `F:\demo\test HGE2.xml`: `73,658 giây`, peak toàn tiến trình `299,4 MB`, 7 warning metadata dự kiến, 0 error; 2.136 phrase, 8.291 fragment, 5.207 marker và 2.126 review group. XML SHA-256 `732BBF3D87FB56E462EF7B437DA289C177AA34F2230D9833A7DE70D9C2BC8E70`; audit `C290EE4602BF53A894FBE4E51B89004DBFFEBE7B52987D24A90A5F5D99B18679`; review `8FFDC3FFCEB96356C4053A639DCB3795AF9687B1ED1B14765D4B4FF7ABF288C7`.
+- HGE2 có 42/42 directional pair `InsufficientSupport`, 0 Stable/Unstable; 15.539/15.539 candidate là `NoCalibration`, không đọc cửa sổ scorer và `ProductionChangedSegmentCount = 0`. Comparator với đúng Phase 10 audit đạt source hash, output hash nội bộ, coverage mismatch `0`, lost Enabled `0`, newly Enabled `0`, 8.291/8.291 fragment giữ nguyên status và temp `0`. Review CSV có đúng SHA-256 Phase 10. M19/A3 frame `11214–11218` vẫn Ambiguous/Enabled.
+- Full HGE hợp lệ chạy trên `F:\demo\test HGE.xml`: `72 phút 31,005 giây`, peak analysis `1.319,2 MB`, peak toàn lượt sau writer `1.435,1 MB`, dưới cổng `90 phút / 1,5 GB`; 27 warning metadata dự kiến, 0 error; 40.686 phrase, 162.922 fragment, 107.831 marker và 39.096 review group. XML SHA-256 `8E47AF246AB7989EA434ABB40C6838FF2A0C449ECDD5B210A8B2F509FFFB56B6`; audit `14A82B6A4248831DC5C3C5A9B3913EFE92F47A27AA0BD3AFC42FE3293339DF57`; review `898C6C86246B2E6E71498D49A011AD3FE6E634AC32EEC7A62531C26CCF9FB7F3`.
+- Full HGE cũng có 42/42 pair `InsufficientSupport`, 0 Stable/Unstable; 380.304/380.304 candidate `NoCalibration`, 0 cửa sổ available/evaluated/pass/conflict và `ProductionChangedSegmentCount = 0`. Comparator Phase 10 đạt source hash, output hash nội bộ, coverage mismatch `0`, lost Enabled `0`, newly Enabled `0`, 162.922/162.922 fragment giữ nguyên status và temp `0`. Review CSV có đúng SHA-256 Phase 10.
+- XML SHA-256 giữa các run khác nhau vì sequence UUID/run identity mới; đây không phải semantic audio drift. Deterministic writer regression đã khóa byte hash khi cùng identity, còn comparator pilot khóa coverage/status/Enabled theo toàn timeline. Vì production audio semantic không đổi, không tái dùng hoặc yêu cầu Premiere PCM/XML round-trip cũ cho một XML hash mới.
+- Hai corpus thật Phase 10 đều có `Bleed = 0`, nên calibrator bảo thủ không có baseline Bleed anchor để học. Kết luận pilot là `insufficient calibration evidence`, không phải evidence để hạ threshold hoặc tăng tự động mute. Phase 11 dừng đúng thiết kế ở trạng thái shadow-ready.
+
 ## Cổng nghiệm thu
 
 ### Calibration tổng hợp
@@ -212,4 +223,4 @@ Kết quả triển khai 11C:
 
 ## Bước tiếp theo
 
-Không mở Slice 11D adoption khi chưa có nhãn Target hợp lệ. Bước tiếp theo an toàn là chạy phần shadow-only của Slice 11E trên HGE2/full HGE trong artifact directory mới để đo runtime/RAM, phân bố calibration/outcome, xác nhận `ProductionChangedSegmentCount = 0` và XML semantic vẫn đúng Phase 10. Nếu các gate đó đạt, Phase 11 có thể đóng ở trạng thái shadow-ready mà không tăng tự động mute và không thay RC1.
+Hoàn tất CI Windows trên HEAD cuối rồi đóng Phase 11 ở trạng thái shadow-ready; không merge logic adoption và không thay RC1. Sau khi PR Phase 11 được review/merge, roadmap kế tiếp có thể mở Phase 12 cho compatibility input/routing nếu chủ dự án muốn. Nếu sau này có tập Target cô lập hợp lệ, mở một phase adoption mới với policy/version và Premiere evidence riêng; không hồi tố dùng HGE2/full HGE Context-only để bật mute.
