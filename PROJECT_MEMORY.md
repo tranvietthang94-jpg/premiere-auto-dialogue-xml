@@ -1,4 +1,4 @@
-# Memory handoff — Premiere Auto Dialogue XML, Phase 00–10
+# Memory handoff — Premiere Auto Dialogue XML, Phase 00–10 + kế hoạch Phase 11
 
 Ngày chốt: 2026-08-13 (Asia/Saigon). Đây là memory source-of-truth để một phiên Codex mới tiếp tục nâng cấp dự án mà không làm lại các phase đã hoàn tất.
 
@@ -8,9 +8,9 @@ Ngày chốt: 2026-08-13 (Asia/Saigon). Đây là memory source-of-truth để m
 - Private GitHub repo: `tranvietthang94-jpg/premiere-auto-dialogue-xml`.
 - Phase 00–09 đã merge vào `main`. Phase 09 qua PR `#12`, merge commit `50ee4f9fb14d58e1dffbd1d23b807f2d58802976`; CI hậu merge `31461869682` đạt.
 - Phase 10 qua PR `#14`, merge commit `19c6577f38b25a314e058b35c59f3219b4cfa4a8`; CI hậu merge `31691393143` đạt. Phase không tạo release mới.
-- Chủ dự án không muốn preview/review UI; app chỉ tập trung xử lý âm thanh và xuất XML. Phase 10 đã đạt mọi gate logic, HGE, Premiere round-trip và CI/installer.
+- Chủ dự án không muốn preview/review UI; app chỉ tập trung xử lý âm thanh và xuất XML. Phase 10 đã đạt mọi gate logic, HGE, Premiere round-trip và CI/installer. Phase 11 đã mở tài liệu/branch riêng nhưng chưa triển khai logic.
 - Private draft prerelease: tag `v0.1.0-rc.1`, tên `Premiere Auto Dialogue XML 0.1.0 RC1`, target `8bdf47d`; URL draft hiện tại `https://github.com/tranvietthang94-jpg/premiere-auto-dialogue-xml/releases/tag/untagged-1c4ff86dc76dc88c43e3`.
-- Tài liệu phase đầy đủ nằm trong `docs/`; đọc trước `README.md`, `docs/IMPLEMENTATION_PLAN.md`, `docs/PHASE00_RESULT.md`, `docs/PHASE06_PILOT_RESULT.md`, `docs/PHASE07_INSTALLER_RELEASE.md`, `docs/PHASE08_REVIEW_QUEUE.md`, `docs/PHASE09_AUDIO_XML_HARDENING.md`, `docs/PHASE10_NOISE_BOUNDARY_STABILITY.md`, `docs/INTERNAL_CODE_SIGNING.md`.
+- Tài liệu phase đầy đủ nằm trong `docs/`; đọc trước `README.md`, `docs/IMPLEMENTATION_PLAN.md`, `docs/PHASE00_RESULT.md`, `docs/PHASE06_PILOT_RESULT.md`, `docs/PHASE07_INSTALLER_RELEASE.md`, `docs/PHASE08_REVIEW_QUEUE.md`, `docs/PHASE09_AUDIO_XML_HARDENING.md`, `docs/PHASE10_NOISE_BOUNDARY_STABILITY.md`, `docs/PHASE11_CALIBRATED_MULTIMIC_BLEED.md`, `docs/INTERNAL_CODE_SIGNING.md`.
 
 ## Sản phẩm đã khóa
 
@@ -110,6 +110,15 @@ Ngày chốt: 2026-08-13 (Asia/Saigon). Đây là memory source-of-truth để m
 - Premiere re-export `Untitled test.xml` SHA `C7F83F25...` bọc đúng một sequence trong project. Validator round-trip `1.1` được harden để nhận direct sequence hoặc đúng một top-level project sequence; report `E3E38CA9...` đạt 8.291/8.291 clip, 4.488 Enabled, 3.803 Disabled, 5.207 marker và max gain delta `0,000055244 dB`.
 - CI `31689521606` trên app candidate `a4ac4a7` đạt build/test, self-contained publish và installer smoke trong 3 phút 1 giây. Phase 10 đạt; RC1 hiện hành không đổi.
 
+## Phase 11 — bleed đa mic có calibration (planned)
+
+- Mở ngày 2026-08-13 từ clean `main` commit `3f41d7cd2d8b4d90241b4bd2f50f798e23d65796` trên branch `codex/phase11-calibrated-multimic-bleed`; chưa triển khai logic audio/XML.
+- Khoản nợ hiện tại: `BleedResolver` quyết định từ một overlap window tối đa 1 giây với ngưỡng chung advantage `12 dB`, correlation `0,80`, lag `12 ms` và residual conflict `-10 dB`; chưa chứng minh quan hệ delay/gain lặp lại giữa từng cặp mic.
+- Mục tiêu là fingerprint có hướng `track nguồn → track đích` từ nhiều direct-speech anchor độc lập và scorer nhiều cửa sổ. Thiếu support, drift, residual xung đột hoặc bất đồng đều phải giữ Ambiguous/Enabled.
+- Candidate phải chống self-confirmation, deterministic qua block/worker, bounded memory và ghi policy/provenance/evidence hash trong audit dự kiến `1.7`.
+- Không thêm preview/review UI, không đổi VAD/noise/gain/routing/XML contract. Khi chưa có Target listening labels hợp lệ, chỉ được shadow; Phase 10 Enabled → Phase 11 production Disabled phải bằng 0.
+- Bước kế tiếp là Slice 11A: khóa synthetic corpus và snapshot hành vi resolver Phase 10; chưa sửa production status/gain/marker/XML.
+
 ## Lỗi đã gặp và cách tránh
 
 1. Gain XML: không stack hai Audio Levels cùng loại và không ghi literal dB vào Gain filter. Dùng encoding Phase 00.
@@ -141,4 +150,4 @@ Ngày chốt: 2026-08-13 (Asia/Saigon). Đây là memory source-of-truth để m
 
 ## Trạng thái bàn giao
 
-Phase 00–10 hoàn tất trên `main`. Phase 10 dùng merge bảo thủ hai tầng, audit `1.6` và output bounded; HGE2/full HGE, M19, PCM A1–A7, Premiere XML re-export và CI/installer đều đạt. Nếu tiếp tục, Phase 11 phải mở tài liệu/branch riêng và dùng hợp đồng Enabled/gain/XML/M19 hiện tại làm baseline.
+Phase 00–10 hoàn tất trên `main`. Phase 10 dùng merge bảo thủ hai tầng, audit `1.6` và output bounded; HGE2/full HGE, M19, PCM A1–A7, Premiere XML re-export và CI/installer đều đạt. Phase 11 đã mở tài liệu/branch riêng ở trạng thái `planned; not implemented`; bước tiếp theo là Slice 11A và toàn bộ hợp đồng Enabled/gain/XML/M19 hiện tại vẫn là baseline bắt buộc.
