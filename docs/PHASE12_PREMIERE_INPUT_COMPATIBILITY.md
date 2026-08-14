@@ -106,6 +106,15 @@ Kết quả 12C:
 - Re-export Final Cut Pro XML và so semantic timing/source/Enabled/gain/marker với đúng candidate.
 - Chỉ rate vượt toàn bộ cổng mới được thêm vào phạm vi sản phẩm. Một rate thất bại không kéo rate còn lại vào adoption.
 
+Chuẩn bị 12E đã hoàn tất, chưa phải adoption:
+
+- `scripts/phase12/New-IntegerNdfPremiereFixture.ps1` tạo fixture local/offline, không ghi đè, với speech mức vừa, speech rất nhỏ, source trim, phrase qua biên hai clip, gap một giây và trailing silence. Cùng WAV nguồn được dùng cho 24/30 để cô lập biến frame-grid.
+- Inspector nhận cả hai fixture với `0 warning / 0 error`. App tạo mỗi candidate trong dưới `1,1 giây`: cùng `2 phrase` gồm `1 uncapped` qua hai source clip và `1 capped +18 dB`, `6 fragment`, `4 marker`, `2 review group`; Disabled xuất hiện ở silence.
+- Candidate 24 fps có XML SHA-256 `69322FF3D8CD335C99A9505AEA84002F0C19D499CB95941179D61EB4851316D2`, audit `FBFBD945F3390D0F09CDE3EF1EE6CE7164E38814F1C34705EF9BB555370941CD`, grid `2.000 sample/frame`.
+- Candidate 30 fps có XML SHA-256 `F5929453819147F8D201EC0F5B942CCA42E02867D4CA90E9712EB31A0045FEC0`, audit `D65F3045A7C740DE91D2010B049FEAF3DD16C1B692AA50053313F528274454F5`, grid `1.600 sample/frame`.
+- `scripts/phase12/Test-IntegerNdfPremiereAdoption.ps1` chỉ nhận audit `1.8`, khóa đúng source/candidate hash và timing, rồi mới chạy PCM validator `1.2` cùng round-trip validator. Smoke âm tính bằng WAV nguồn chưa render bị từ chối đúng tại PCM gate.
+- Đường dẫn import/export bất biến và checklist vận hành ở [PHASE12_PREMIERE_OPERATOR_CHECKLIST.md](PHASE12_PREMIERE_OPERATOR_CHECKLIST.md). Cả hai rate vẫn chờ import, PCM và XML re-export thật từ Premiere.
+
 ### Cổng sau — stereo source, sample rate và routing
 
 Chỉ mở sau khi 12E đóng. Mỗi profile mới phải có channel mapping do operator xác nhận, phép đo peak đúng routing, fixture và Premiere round-trip riêng. Không gộp stereo source hoặc resampling vào thay đổi frame rate.
