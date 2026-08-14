@@ -1,6 +1,6 @@
-# Memory handoff — Premiere Auto Dialogue XML, Phase 00–10 + Phase 11 đang thực hiện
+# Memory handoff — Premiere Auto Dialogue XML, Phase 00–10 + nghiên cứu Phase 11
 
-Ngày chốt: 2026-08-13 (Asia/Saigon). Đây là memory source-of-truth để một phiên Codex mới tiếp tục nâng cấp dự án mà không làm lại các phase đã hoàn tất.
+Ngày chốt: 2026-08-14 (Asia/Saigon). Đây là memory source-of-truth để một phiên Codex mới tiếp tục nâng cấp dự án mà không làm lại các phase đã hoàn tất.
 
 ## Định hướng và vị trí dự án
 
@@ -8,7 +8,7 @@ Ngày chốt: 2026-08-13 (Asia/Saigon). Đây là memory source-of-truth để m
 - Private GitHub repo: `tranvietthang94-jpg/premiere-auto-dialogue-xml`.
 - Phase 00–09 đã merge vào `main`. Phase 09 qua PR `#12`, merge commit `50ee4f9fb14d58e1dffbd1d23b807f2d58802976`; CI hậu merge `31461869682` đạt.
 - Phase 10 qua PR `#14`, merge commit `19c6577f38b25a314e058b35c59f3219b4cfa4a8`; CI hậu merge `31691393143` đạt. Phase không tạo release mới.
-- Chủ dự án không muốn preview/review UI; app chỉ tập trung xử lý âm thanh và xuất XML. Phase 10 đã đạt mọi gate logic, HGE, Premiere round-trip và CI/installer. Phase 11 đã hoàn tất local Slice 11A–11C: corpus, directional calibrator, scorer nhiều cửa sổ, project shadow và audit `1.7`; production/XML vẫn giữ Phase 10.
+- Chủ dự án không muốn preview/review UI; app chỉ tập trung xử lý âm thanh và xuất XML. Phase 10 đã đạt mọi gate logic, HGE, Premiere round-trip và CI/installer. Phase 11 đã hoàn tất nghiên cứu shadow nhưng không được adopt/merge; production/XML trên `main` vẫn giữ Phase 10.
 - Private draft prerelease: tag `v0.1.0-rc.1`, tên `Premiere Auto Dialogue XML 0.1.0 RC1`, target `8bdf47d`; URL draft hiện tại `https://github.com/tranvietthang94-jpg/premiere-auto-dialogue-xml/releases/tag/untagged-1c4ff86dc76dc88c43e3`.
 - Tài liệu phase đầy đủ nằm trong `docs/`; đọc trước `README.md`, `docs/IMPLEMENTATION_PLAN.md`, `docs/PHASE00_RESULT.md`, `docs/PHASE06_PILOT_RESULT.md`, `docs/PHASE07_INSTALLER_RELEASE.md`, `docs/PHASE08_REVIEW_QUEUE.md`, `docs/PHASE09_AUDIO_XML_HARDENING.md`, `docs/PHASE10_NOISE_BOUNDARY_STABILITY.md`, `docs/PHASE11_CALIBRATED_MULTIMIC_BLEED.md`, `docs/INTERNAL_CODE_SIGNING.md`.
 
@@ -110,7 +110,7 @@ Ngày chốt: 2026-08-13 (Asia/Saigon). Đây là memory source-of-truth để m
 - Premiere re-export `Untitled test.xml` SHA `C7F83F25...` bọc đúng một sequence trong project. Validator round-trip `1.1` được harden để nhận direct sequence hoặc đúng một top-level project sequence; report `E3E38CA9...` đạt 8.291/8.291 clip, 4.488 Enabled, 3.803 Disabled, 5.207 marker và max gain delta `0,000055244 dB`.
 - CI `31689521606` trên app candidate `a4ac4a7` đạt build/test, self-contained publish và installer smoke trong 3 phút 1 giây. Phase 10 đạt; RC1 hiện hành không đổi.
 
-## Phase 11 — bleed đa mic có calibration (in progress)
+## Phase 11 — bleed đa mic có calibration (research complete, not adopted)
 
 - Mở ngày 2026-08-13 từ clean `main` commit `3f41d7cd2d8b4d90241b4bd2f50f798e23d65796` trên branch `codex/phase11-calibrated-multimic-bleed`.
 - Khoản nợ hiện tại: `BleedResolver` quyết định từ một overlap window tối đa 1 giây với ngưỡng chung advantage `12 dB`, correlation `0,80`, lag `12 ms` và residual conflict `-10 dB`; chưa chứng minh quan hệ delay/gain lặp lại giữa từng cặp mic.
@@ -127,13 +127,14 @@ Ngày chốt: 2026-08-13 (Asia/Saigon). Đây là memory source-of-truth để m
 - `AudioProjectAnalyzer` tạo calibration/scorer sau final Phase 10 rồi gắn `CalibratedBleedProjectShadow`; final status/reason/Enabled trong shadow luôn sao chép baseline. Audit tăng `1.6` → `1.7`; XML generator, gain, marker và production `TrackAudioAnalysis` không đổi.
 - Publication validator kiểm pair có hướng, policy, support/rejection counts, bounded sample, stable fingerprint reference, candidate coverage, window aggregate/hash và `ProductionChangedSegmentCount = 0`. Dự án đa track thiếu shadow hoặc shadow bị sửa policy/hash/Enabled bị từ chối trước khi tạo output.
 - Slice 11C full Release `171/171`, build/format/diff sạch. Synthetic khóa stable `2/2`, direct residual conflict, lag drift `1/2` và insufficient anchors; regression writer xác nhận thêm audit shadow không đổi deterministic XML SHA-256.
-- Bước kế tiếp là pilot shadow-only Slice 11E trên HGE2/full HGE để đo runtime/RAM, distribution và chứng minh XML semantic/Enabled không đổi. Không mở 11D adoption khi chưa có Target labels hợp lệ.
+- Pilot shadow-only Slice 11E trên HGE2/full HGE đã đo runtime/RAM, distribution và chứng minh XML semantic/Enabled không đổi. Không mở 11D adoption khi chưa có Target labels hợp lệ.
 - Slice 11E thêm timeline index cho scorer và chỉ materialize source index khi có stable fingerprint; `Inspect` ghi summary policy/fingerprint/outcome/window/production-changed cùng output sizes. Release vẫn `171/171`, build/format/diff sạch.
 - `phase11-hge2-pilot-20260813-1` bị loại vì dùng stale Release binary/audit `1.6`; `-2` chỉ là pre-final-index evidence. HGE2 HEAD hợp lệ `phase11-hge2-pilot-20260813-3` đạt `73,658 giây`, peak `299,4 MB`, 0 error; 42/42 pair InsufficientSupport, 15.539 NoCalibration, ProductionChanged 0. XML `732BBF...`, audit `C290EE...`, review `8FFDC3...`; comparator Phase 10 đạt coverage/lost/new Enabled đều 0, temp 0; M19 vẫn Ambiguous/Enabled.
 - Full HGE `phase11-full-hge-pilot-20260813-1` đạt `72 phút 31,005 giây`, peak analysis `1.319,2 MB`, total peak `1.435,1 MB`, 0 error; 42/42 pair InsufficientSupport, 380.304 NoCalibration, 0 window và ProductionChanged 0. XML `8E47AF...`, audit `14A82B...`, review `898C6C...`; comparator Phase 10 đạt coverage/lost/new Enabled đều 0, 162.922 status giữ nguyên, temp 0.
 - Review CSV của cả hai pilot giữ đúng SHA Phase 10. XML byte hash khác vì run UUID mới; semantic timeline/status/Enabled giống hoàn toàn. Không cần Premiere PCM/XML round-trip mới vì candidate shadow không đổi production audio.
 - Hai corpus thật đều có baseline Bleed 0 nên calibrator không có anchor để học. Kết luận đúng là insufficient calibration evidence; Phase 11 đóng shadow-ready sau CI, không mở adoption, không hạ threshold và không thay RC1.
 - Candidate Phase 11 `d150f5a` qua CI Windows `31720635957` trong 3 phút 23 giây: build, 171/171 test, self-contained publish, Inno verify, installer build/cài/mở/gỡ và artifact upload đều đạt. Draft PR #16 vẫn chưa merge; Phase đóng shadow-ready, adoption not opened.
+- Review/adoption ngày 2026-08-14 quyết định không merge PR #16 và không đưa shadow Phase 11 vào sản phẩm. Trên HGE2, audit tăng 9.678.430 byte (`34,0%`); trên full HGE, audit tăng 238.366.179 byte (`33,6%`) và peak RAM tăng `114,7 MB` (`8,7%`) so với Phase 10, trong khi stable pair và quality improvement quan sát được đều bằng 0. Giữ branch/commit/private evidence để nghiên cứu, không xóa; `main` và RC1 không đổi.
 
 ## Lỗi đã gặp và cách tránh
 
@@ -166,4 +167,4 @@ Ngày chốt: 2026-08-13 (Asia/Saigon). Đây là memory source-of-truth để m
 
 ## Trạng thái bàn giao
 
-Phase 00–10 hoàn tất trên `main`. Phase 10 dùng merge bảo thủ hai tầng, audit `1.6` và output bounded; HGE2/full HGE, M19, PCM A1–A7, Premiere XML re-export và CI/installer đều đạt. Phase 11 đã hoàn tất Slice 11A–11C và pilot shadow-only 11E với scorer/project shadow/audit `1.7`; HGE2/full HGE đều insufficient calibration, production changed/lost Enabled bằng 0, đạt runtime/RAM và CI. Phase đóng shadow-ready trên draft PR #16, chưa merge/adopt. Toàn bộ hợp đồng Enabled/gain/XML/M19 hiện tại vẫn là baseline bắt buộc và chưa có adoption tăng mute.
+Phase 00–10 hoàn tất trên `main`. Phase 10 dùng merge bảo thủ hai tầng, audit `1.6` và output bounded; HGE2/full HGE, M19, PCM A1–A7, Premiere XML re-export và CI/installer đều đạt. Phase 11 đã hoàn tất nghiên cứu shadow và pilot 11E, nhưng review chi phí/lợi ích ngày 2026-08-14 quyết định không adopt/merge PR #16. Branch và evidence được giữ làm nghiên cứu; `main`, RC1 và toàn bộ hợp đồng Enabled/gain/XML/M19 Phase 10 không đổi. Chưa có adoption tăng mute.

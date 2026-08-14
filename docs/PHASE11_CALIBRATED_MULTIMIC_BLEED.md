@@ -1,6 +1,6 @@
 # Phase 11 — Bleed đa mic có calibration
 
-Trạng thái: `passed; shadow-ready; adoption not opened` ngày 2026-08-13. Phase được mở từ `main` commit `3f41d7cd2d8b4d90241b4bd2f50f798e23d65796`, sau khi Phase 10 đã merge và toàn bộ CI hậu merge đạt. Branch làm việc: `codex/phase11-calibrated-multimic-bleed`; candidate cuối `d150f5a`, CI Windows `31720635957` đạt trong `3 phút 23 giây`. Slice 11A khóa corpus/baseline; Slice 11B thêm calibrator có hướng; Slice 11C nối scorer nhiều cửa sổ vào project shadow và audit `1.7`; Slice 11E qua HGE2/full HGE shadow-only. Cả hai pilot thật đều không có đủ anchor để tạo stable fingerprint, nên production status, gain, marker và XML semantic giữ nguyên Phase 10. Slice 11D adoption không được mở vì không có nhãn Target hợp lệ; Phase không thay RC1.
+Trạng thái: `research complete; shadow-only not adopted` ngày 2026-08-14. Phase được mở từ `main` commit `3f41d7cd2d8b4d90241b4bd2f50f798e23d65796`, sau khi Phase 10 đã merge và toàn bộ CI hậu merge đạt. Branch làm việc: `codex/phase11-calibrated-multimic-bleed`; candidate cuối `d150f5a`, CI Windows `31720635957` đạt trong `3 phút 23 giây`. Slice 11A khóa corpus/baseline; Slice 11B thêm calibrator có hướng; Slice 11C nối scorer nhiều cửa sổ vào project shadow và audit `1.7`; Slice 11E qua HGE2/full HGE shadow-only. Cả hai pilot thật đều không có đủ anchor để tạo stable fingerprint, nên production status, gain, marker và XML semantic giữ nguyên Phase 10. Review chi phí/lợi ích quyết định không merge/adopt PR #16; nhánh và evidence được giữ làm nghiên cứu. Slice 11D adoption không được mở vì không có nhãn Target hợp lệ; `main` và RC1 không đổi.
 
 ## Quyết định sản phẩm
 
@@ -191,6 +191,14 @@ Kết quả pilot shadow-only 11E:
 - Hai corpus thật Phase 10 đều có `Bleed = 0`, nên calibrator bảo thủ không có baseline Bleed anchor để học. Kết luận pilot là `insufficient calibration evidence`, không phải evidence để hạ threshold hoặc tăng tự động mute. Phase 11 dừng đúng thiết kế ở trạng thái shadow-ready.
 - Candidate `d150f5a` qua CI Windows `31720635957`: build, `171/171` test, self-contained `win-x64` publish, Inno Setup verification, installer build/cài/mở/gỡ và artifact upload đều đạt trong `3 phút 23 giây`.
 
+### Review adoption
+
+- So với Phase 10, audit HGE2 tăng từ `28.461.426` lên `38.139.856` byte: thêm `9.678.430` byte, tương đương `34,0%`.
+- Audit full HGE tăng từ `710.273.434` lên `948.639.613` byte: thêm `238.366.179` byte, tương đương `33,6%`. Peak RAM toàn lượt tăng từ `1.320,4` lên `1.435,1 MB`: thêm `114,7 MB`, tương đương `8,7%`.
+- Không dùng chênh lệch runtime để tuyên bố Phase 11 nhanh hơn vì hai lượt pilot không phải benchmark kiểm soát. Cả hai chỉ xác nhận runtime vẫn dưới cổng.
+- Lợi ích chất lượng quan sát được bằng 0: `0/42` stable pair trên mỗi corpus, toàn bộ candidate `NoCalibration`, không có quyết định production nào thay đổi. Vì vậy chi phí audit/RAM và độ phức tạp chưa được bù bằng lợi ích cho người dùng.
+- Quyết định sản phẩm ngày 2026-08-14: không merge PR #16, không đưa audit `1.7`/calibrated shadow vào `main`, không hạ threshold và không tăng mute. Giữ nguyên branch, commit và private evidence để có thể nghiên cứu lại khi có Target labels hoặc thiết kế anchor khả thi hơn.
+
 ## Cổng nghiệm thu
 
 ### Calibration tổng hợp
@@ -224,4 +232,4 @@ Kết quả pilot shadow-only 11E:
 
 ## Bước tiếp theo
 
-Phase 11 đã đóng ở trạng thái shadow-ready trên draft PR `#16`; không merge logic adoption và không thay RC1. Bước tiếp theo là review quyết định merge PR shadow-only hoặc giữ kết quả như nghiên cứu; chỉ sau quyết định đó mới mở Phase 12 cho compatibility input/routing nếu chủ dự án muốn. Nếu sau này có tập Target cô lập hợp lệ, mở một phase adoption mới với policy/version và Premiere evidence riêng; không hồi tố dùng HGE2/full HGE Context-only để bật mute.
+Phase 11 đã đóng như một nghiên cứu shadow-only không được adopt; PR `#16` không merge, logic production trên `main` và RC1 giữ Phase 10. Bước sản phẩm tiếp theo, nếu chủ dự án muốn tiếp tục roadmap, là mở Phase 12 từ clean `main` cho compatibility input/routing; không mang code Phase 11 sang mặc định. Nếu sau này có tập Target cô lập hợp lệ, mở một phase adoption mới với policy/version và Premiere evidence riêng; không hồi tố dùng HGE2/full HGE Context-only để bật mute.
