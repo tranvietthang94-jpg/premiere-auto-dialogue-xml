@@ -1,6 +1,6 @@
 # Phase 12 — Tương thích input Premiere theo từng cổng
 
-Trạng thái: `Slice 12A passed; 24/30 production gate still closed` ngày 2026-08-14. Phase được mở từ clean `main` commit `3f41d7cd2d8b4d90241b4bd2f50f798e23d65796` trên branch `codex/phase12-premiere-input-compatibility`. Phase 11 calibrated multi-mic bleed đã được giữ ở nhánh nghiên cứu và không merge; Phase 12 không mang code, audit `1.7` hoặc quyết định shadow của Phase 11 sang.
+Trạng thái: `Slice 12B passed; writer/adoption gate still closed` ngày 2026-08-14. Phase được mở từ clean `main` commit `3f41d7cd2d8b4d90241b4bd2f50f798e23d65796` trên branch `codex/phase12-premiere-input-compatibility`. Phase 11 calibrated multi-mic bleed đã được giữ ở nhánh nghiên cứu và không merge; Phase 12 không mang code, audit `1.7` hoặc quyết định shadow của Phase 11 sang.
 
 ## Quyết định sản phẩm
 
@@ -68,6 +68,14 @@ Kết quả 12A:
 - Kiểm frame evidence, phrase qua ranh giới WAV, padding, overlap comparison và frame-safe peak ở cả ba rate.
 - Cùng PCM/timeline tương đương phải cho quyết định sample-level tương đương; khác biệt chỉ được phát sinh từ biên video-frame đã khai báo và phải có report.
 
+Kết quả 12B:
+
+- `AudioProjectAnalyzer` tạo một `PremiereNdfFrameGrid` từ rate/sample rate đã kiểm tra rồi truyền cùng instance contract vào scanner, timeline PCM accessor, phrase analyzer, bleed resolver và cross-track shadow.
+- `TrackAudioScanner`, `TimelinePcmAccessor` và `TrackDialogueAnalyzer` không còn dùng hằng `25 fps/1.920 sample` trong đường production. Clip/gap coverage, padding media, segment boundary, frame-aligned phrase interval và peak measurement đều dùng grid của project.
+- Công cụ chẩn đoán VAD cũng lấy frame/sample/timecode từ project thay vì hằng `25 fps`.
+- Test chạy `AudioProjectAnalyzer` trực tiếp ở `24/25/30`, khóa timeline coverage và phrase đi qua hai WAV liền nhau trên cả ba grid. Default/invalid grid bị từ chối.
+- Toàn bộ Release đạt `188/188`; solution build 0 warning/error, format và diff check sạch. Inspector và writer production vẫn khóa `24/30`, nên Slice 12B chưa tạo output đa rate.
+
 ### Slice 12C — XML writer, review, audit và validator
 
 - Parameterize split fragment, marker, review timecode và PCM validator bằng rate đã xác nhận.
@@ -124,4 +132,4 @@ Chỉ mở sau khi 12E đóng. Mỗi profile mới phải có channel mapping do
 
 ## Bước tiếp theo
 
-Thực hiện Slice 12B: truyền `PremiereNdfFrameGrid` từ project vào analyzer và thay hằng `25 fps/1.920 sample` trong đường frame-evidence bằng rate đã kiểm tra. App/writer production vẫn chưa mở `24/30` ở cuối 12B.
+Thực hiện Slice 12C: parameterize XML generator/streaming writer plan, review/audit và PCM/output validators bằng cùng frame-grid; thêm end-to-end synthetic package cho `24/25/30`. Chỉ sau khi validator bao phủ đầy đủ mới gỡ khóa inspector `24/30`.

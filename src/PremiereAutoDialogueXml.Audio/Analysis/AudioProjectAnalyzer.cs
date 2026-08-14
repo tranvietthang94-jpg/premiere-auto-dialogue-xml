@@ -2,6 +2,7 @@ using PremiereAutoDialogueXml.Audio.Pcm;
 using PremiereAutoDialogueXml.Audio.Vad;
 using PremiereAutoDialogueXml.Core.Domain;
 using PremiereAutoDialogueXml.Core.ProjectModel;
+using PremiereAutoDialogueXml.Core.Timing;
 
 namespace PremiereAutoDialogueXml.Audio.Analysis;
 
@@ -48,6 +49,9 @@ public sealed class AudioProjectAnalyzer
                 nameof(preset));
         }
 
+        var frameGrid = PremiereNdfFrameGrid.Create(
+            project.Sequence.FrameRate,
+            project.Sequence.AudioSampleRate);
         var tracks = project.Sequence.AudioTracks;
         var legacyBaselineResults = new TrackAudioAnalysis[tracks.Count];
         var legacyNoiseCandidateResults = _enableVadFrontEndShadow
@@ -88,8 +92,9 @@ public sealed class AudioProjectAnalyzer
                     track.Index,
                     $"Đang phân tích track {track.Index}."));
 
-                var scanner = new TrackAudioScanner(_sampleReader);
-                var analyzer = new TrackDialogueAnalyzer(new TimelinePcmAccessor(_sampleReader));
+                var scanner = new TrackAudioScanner(_sampleReader, frameGrid);
+                var analyzer = new TrackDialogueAnalyzer(
+                    new TimelinePcmAccessor(_sampleReader, frameGrid));
                 using (var detector = _detectorFactory())
                 {
                     var observations = scanner.Scan(
@@ -139,7 +144,7 @@ public sealed class AudioProjectAnalyzer
             });
 
         progress?.Report(new(tracks.Count, tracks.Count, null, "Đang đối chiếu bleed giữa các track."));
-        var bleedResolver = new BleedResolver(new TimelinePcmAccessor(_sampleReader));
+        var bleedResolver = new BleedResolver(new TimelinePcmAccessor(_sampleReader, frameGrid));
         var resolvedLegacyBaseline = bleedResolver.Resolve(
             project.Sequence,
             legacyBaselineResults,
@@ -223,7 +228,7 @@ public sealed class AudioProjectAnalyzer
 
         progress?.Report(new(tracks.Count, tracks.Count, null, "Đang tạo bằng chứng review đa mic."));
         var shadowEvidenceBuilder = new CrossTrackShadowEvidenceBuilder(
-            new TimelinePcmAccessor(_sampleReader));
+            new TimelinePcmAccessor(_sampleReader, frameGrid));
         var shadowEvidence = shadowEvidenceBuilder.Build(
             project.Sequence,
             resolved,

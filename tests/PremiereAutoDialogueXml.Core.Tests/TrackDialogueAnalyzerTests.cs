@@ -2,6 +2,7 @@ using PremiereAutoDialogueXml.Audio.Analysis;
 using PremiereAutoDialogueXml.Audio.Pcm;
 using PremiereAutoDialogueXml.Core.Domain;
 using PremiereAutoDialogueXml.Core.ProjectModel;
+using PremiereAutoDialogueXml.Core.Timing;
 
 namespace PremiereAutoDialogueXml.Core.Tests;
 
@@ -254,10 +255,56 @@ public sealed class TrackDialogueAnalyzerTests
         Assert.AreEqual(result.Phrases[0].AppliedGainDb, inherited.GainDb);
     }
 
+    [TestMethod]
+    [DataRow(24, 2_000)]
+    [DataRow(25, 1_920)]
+    [DataRow(30, 1_600)]
+    public void AnalyzeKeepsPhraseAcrossAdjacentFilesOnProjectFrameGrid(
+        int frameRate,
+        int samplesPerFrame)
+    {
+        var samplesPerClip = checked(samplesPerFrame * 3);
+        using var first = TestAudioFixture.CreatePcm16(
+            Enumerable.Repeat(0.25f, samplesPerClip).ToArray());
+        using var second = TestAudioFixture.CreatePcm16(
+            Enumerable.Repeat(0.25f, samplesPerClip).ToArray());
+        var track = new PremiereAudioTrack(
+            2,
+            2,
+            [first.Clip("clip-a", 0, 3), second.Clip("clip-b", 3, 6)]);
+        var speechStart = checked(samplesPerClip - 3_072);
+        var observations = new[]
+        {
+            Observation(0, 1_536, 0.01f, -60f),
+            Observation(speechStart, speechStart + 1_536, 0.90f, -12f),
+            Observation(speechStart + 1_536, speechStart + 3_072, 0.90f, -12f),
+            Observation(speechStart + 3_072, speechStart + 4_608, 0.90f, -12f),
+            Observation(speechStart + 4_608, speechStart + 6_144, 0.90f, -12f)
+        };
+
+        var result = Analyze(track, observations, frameRate);
+
+        Assert.HasCount(1, result.Phrases);
+        var phraseId = result.Phrases[0].Id;
+        Assert.IsTrue(result.Segments.Any(segment =>
+            segment.SourceClipId == "clip-a" &&
+            segment.PhraseId == phraseId));
+        Assert.IsTrue(result.Segments.Any(segment =>
+            segment.SourceClipId == "clip-b" &&
+            segment.PhraseId == phraseId));
+        Assert.AreEqual(0L, result.Segments.Min(segment => segment.TimelineStartSample));
+        Assert.AreEqual(
+            checked((long)samplesPerFrame * 6),
+            result.Segments.Max(segment => segment.TimelineEndSample));
+    }
+
     private static TrackAudioAnalysis Analyze(
         PremiereAudioTrack track,
-        IReadOnlyList<AudioFrameObservation> observations) =>
-        new TrackDialogueAnalyzer(new TimelinePcmAccessor(new PcmWaveSampleReader()))
+        IReadOnlyList<AudioFrameObservation> observations,
+        int frameRate = 25) =>
+        new TrackDialogueAnalyzer(new TimelinePcmAccessor(
+            new PcmWaveSampleReader(),
+            PremiereNdfFrameGrid.Create(frameRate)))
             .Analyze(track, observations, DialogueProcessingPreset.Balanced);
 
     private static AudioFrameObservation Observation(

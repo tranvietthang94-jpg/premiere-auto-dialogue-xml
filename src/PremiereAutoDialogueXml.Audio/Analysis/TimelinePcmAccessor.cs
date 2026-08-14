@@ -1,10 +1,33 @@
 using PremiereAutoDialogueXml.Audio.Pcm;
 using PremiereAutoDialogueXml.Core.ProjectModel;
+using PremiereAutoDialogueXml.Core.Timing;
 
 namespace PremiereAutoDialogueXml.Audio.Analysis;
 
-public sealed class TimelinePcmAccessor(PcmWaveSampleReader sampleReader)
+public sealed class TimelinePcmAccessor
 {
+    private readonly PcmWaveSampleReader _sampleReader;
+
+    public TimelinePcmAccessor(PcmWaveSampleReader sampleReader)
+        : this(sampleReader, PremiereNdfFrameGrid.Create(25))
+    {
+    }
+
+    public TimelinePcmAccessor(
+        PcmWaveSampleReader sampleReader,
+        PremiereNdfFrameGrid frameGrid)
+    {
+        _sampleReader = sampleReader ?? throw new ArgumentNullException(nameof(sampleReader));
+        if (!frameGrid.IsValid)
+        {
+            throw new ArgumentException("Frame-grid Premiere không hợp lệ.", nameof(frameGrid));
+        }
+
+        FrameGrid = frameGrid;
+    }
+
+    public PremiereNdfFrameGrid FrameGrid { get; }
+
     public float MeasureSamplePeakDbfs(
         PremiereAudioTrack track,
         long timelineStartSample,
@@ -72,8 +95,8 @@ public sealed class TimelinePcmAccessor(PcmWaveSampleReader sampleReader)
         foreach (var clip in track.Clips)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var clipStart = AudioMath.FramesToSamples(clip.TimelineStartFrame);
-            var clipEnd = AudioMath.FramesToSamples(clip.TimelineEndFrame);
+            var clipStart = FrameGrid.FrameToSample(clip.TimelineStartFrame);
+            var clipEnd = FrameGrid.FrameToSample(clip.TimelineEndFrame);
             var intersectionStart = Math.Max(timelineStartSample, clipStart);
             var intersectionEnd = Math.Min(timelineEndSample, clipEnd);
             if (intersectionStart >= intersectionEnd)
@@ -90,7 +113,7 @@ public sealed class TimelinePcmAccessor(PcmWaveSampleReader sampleReader)
             }
 
             var emitted = 0L;
-            sampleReader.ReadRange(
+            _sampleReader.ReadRange(
                 clip.SourceMedia.Wave,
                 checked(clip.SourceStartSample + sourceOffset),
                 readable,

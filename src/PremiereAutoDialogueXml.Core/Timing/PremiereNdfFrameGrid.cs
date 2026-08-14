@@ -19,6 +19,13 @@ public readonly record struct PremiereNdfFrameGrid
 
     public int SamplesPerFrame { get; }
 
+    public bool IsValid =>
+        IsSupportedFrameRate(FramesPerSecond) &&
+        AudioSampleRate == RequiredAudioSampleRate &&
+        AudioSampleRate % FramesPerSecond == 0 &&
+        SamplesPerFrame == AudioSampleRate / FramesPerSecond &&
+        PremiereTimeMath.TicksPerSecond % FramesPerSecond == 0;
+
     public static bool IsSupportedFrameRate(int framesPerSecond) =>
         framesPerSecond is 24 or 25 or 30;
 

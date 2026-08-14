@@ -26,7 +26,7 @@ Phase 10 đã đạt toàn bộ gate và merge qua PR `#14` tại `19c6577`; CI 
 
 Phase 11 calibrated multi-mic bleed đã hoàn tất như nghiên cứu shadow-only trên branch riêng nhưng không được adopt/merge vì hai corpus thật không tạo stable calibration hoặc lợi ích chất lượng, trong khi tăng audit/RAM. `main`, RC1 và production semantic vẫn giữ Phase 10.
 
-Phase 12 mở trên branch `codex/phase12-premiere-input-compatibility` từ clean `main`. Cổng đầu chỉ mở rộng sequence nguyên `24/25/30 fps NDF`; `25 fps` là regression baseline. Source vẫn mono PCM `48 kHz`, master stereo và routing `mono-center-equal-power-to-stereo`. Slice 12A đã thêm rate contract/frame-grid và fixture parser, đạt Release `178/178`; `24/30` vẫn bị khóa ở production cho tới khi analysis/writer/validator được parameterize. Stereo source, sample rate/routing mới, fractional-rate và drop-frame là các cổng riêng chưa mở. Xem [PHASE12_PREMIERE_INPUT_COMPATIBILITY.md](PHASE12_PREMIERE_INPUT_COMPATIBILITY.md).
+Phase 12 mở trên branch `codex/phase12-premiere-input-compatibility` từ clean `main`. Cổng đầu chỉ mở rộng sequence nguyên `24/25/30 fps NDF`; `25 fps` là regression baseline. Source vẫn mono PCM `48 kHz`, master stereo và routing `mono-center-equal-power-to-stereo`. Slice 12A đã thêm rate contract/frame-grid và fixture parser; Slice 12B truyền grid qua scanner, analysis, timeline PCM, bleed/shadow và diagnostic. Release đạt `188/188`, build/format sạch; `24/30` vẫn bị khóa ở inspector/writer production cho tới 12C. Stereo source, sample rate/routing mới, fractional-rate và drop-frame là các cổng riêng chưa mở. Xem [PHASE12_PREMIERE_INPUT_COMPATIBILITY.md](PHASE12_PREMIERE_INPUT_COMPATIBILITY.md).
 
 ## Kiến trúc
 

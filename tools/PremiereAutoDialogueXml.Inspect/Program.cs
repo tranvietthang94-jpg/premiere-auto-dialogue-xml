@@ -3,6 +3,7 @@ using PremiereAutoDialogueXml.Audio.Analysis;
 using PremiereAutoDialogueXml.Audio.Pcm;
 using PremiereAutoDialogueXml.Audio.Vad;
 using PremiereAutoDialogueXml.Core.Domain;
+using PremiereAutoDialogueXml.Core.Timing;
 using PremiereAutoDialogueXml.Core.Xml;
 using PremiereAutoDialogueXml.Output;
 
@@ -185,9 +186,6 @@ static async Task<int> WriteVadWindowReportAsync(string[] arguments)
         return 2;
     }
 
-    const int sourceSampleRate = 48_000;
-    const int sequenceFrameRate = 25;
-    const int samplesPerFrame = sourceSampleRate / sequenceFrameRate;
     var xmlPath = Path.GetFullPath(arguments[1]);
     var reportPath = Path.GetFullPath(arguments[5]);
     if (!File.Exists(xmlPath))
@@ -218,6 +216,9 @@ static async Task<int> WriteVadWindowReportAsync(string[] arguments)
         }
 
         var project = inspection.Project;
+        var frameGrid = PremiereNdfFrameGrid.Create(
+            project.Sequence.FrameRate,
+            project.Sequence.AudioSampleRate);
         var track = project.Sequence.AudioTracks.SingleOrDefault(candidate => candidate.Index == trackIndex)
             ?? throw new InvalidDataException($"Không tìm thấy track {trackIndex} trong XML.");
         if (endFrame > project.Sequence.DurationFrames)
@@ -227,11 +228,11 @@ static async Task<int> WriteVadWindowReportAsync(string[] arguments)
 
         var preset = DialogueProcessingPreset.Balanced;
         using var detector = new SileroVoiceActivityDetector();
-        var observations = new TrackAudioScanner(new PcmWaveSampleReader())
+        var observations = new TrackAudioScanner(new PcmWaveSampleReader(), frameGrid)
             .Scan(track, detector, preset);
         var evidence = new AudioFrameEvidenceBuilder().Build(observations, preset);
-        var startSample = checked(startFrame * samplesPerFrame);
-        var endSample = checked(endFrame * samplesPerFrame);
+        var startSample = frameGrid.FrameToSample(startFrame);
+        var endSample = frameGrid.FrameToSample(endFrame);
         var window = evidence
             .Where(frame => frame.Observation.TimelineStartSample < endSample &&
                             frame.Observation.TimelineEndSample > startSample)
@@ -250,8 +251,8 @@ static async Task<int> WriteVadWindowReportAsync(string[] arguments)
             {
                 StartFrame = startFrame,
                 EndFrame = endFrame,
-                StartTimecode = ToTimecode(startFrame, sequenceFrameRate),
-                EndTimecode = ToTimecode(endFrame, sequenceFrameRate),
+                StartTimecode = ToTimecode(startFrame, frameGrid.FramesPerSecond),
+                EndTimecode = ToTimecode(endFrame, frameGrid.FramesPerSecond),
                 StartSample = startSample,
                 EndSample = endSample
             },
@@ -286,8 +287,10 @@ static async Task<int> WriteVadWindowReportAsync(string[] arguments)
             {
                 frame.Observation.TimelineStartSample,
                 frame.Observation.TimelineEndSample,
-                TimelineStartFrame = frame.Observation.TimelineStartSample / (double)samplesPerFrame,
-                TimelineEndFrame = frame.Observation.TimelineEndSample / (double)samplesPerFrame,
+                TimelineStartFrame =
+                    frame.Observation.TimelineStartSample / (double)frameGrid.SamplesPerFrame,
+                TimelineEndFrame =
+                    frame.Observation.TimelineEndSample / (double)frameGrid.SamplesPerFrame,
                 frame.Observation.VadProbability,
                 frame.Observation.RmsDbfs,
                 frame.Observation.SamplePeakDbfs,

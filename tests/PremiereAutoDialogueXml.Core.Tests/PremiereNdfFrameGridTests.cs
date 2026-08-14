@@ -17,6 +17,7 @@ public sealed class PremiereNdfFrameGridTests
         Assert.AreEqual(frameRate, grid.FramesPerSecond);
         Assert.AreEqual(48_000, grid.AudioSampleRate);
         Assert.AreEqual(samplesPerFrame, grid.SamplesPerFrame);
+        Assert.IsTrue(grid.IsValid);
         Assert.AreEqual(samplesPerFrame, grid.FrameToSample(1));
         Assert.AreEqual(PremiereTimeMath.TicksPerSecond / frameRate, grid.FrameToTicks(1));
     }
@@ -98,5 +99,11 @@ public sealed class PremiereNdfFrameGridTests
         Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => grid.SampleToFrameFloor(-1));
         Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => grid.FrameToTicks(-1));
         Assert.ThrowsExactly<OverflowException>(() => grid.FrameToTicks(long.MaxValue));
+    }
+
+    [TestMethod]
+    public void DefaultValueIsNeverAcceptedAsAFrameGrid()
+    {
+        Assert.IsFalse(default(PremiereNdfFrameGrid).IsValid);
     }
 }

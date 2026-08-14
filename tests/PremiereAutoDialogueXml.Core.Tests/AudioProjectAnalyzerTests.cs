@@ -193,12 +193,44 @@ public sealed class AudioProjectAnalyzerTests
             segment.Reason == "ambiguous-vad-front-end-disagreement"));
     }
 
+    [TestMethod]
+    [DataRow(24, 2_000)]
+    [DataRow(25, 1_920)]
+    [DataRow(30, 1_600)]
+    public async Task AnalyzeAsyncUsesFrameGridDeclaredByProject(
+        int frameRate,
+        int samplesPerFrame)
+    {
+        const int durationFrames = 4;
+        using var fixture = TestAudioFixture.CreatePcm16(
+            Enumerable.Repeat(0.01f, samplesPerFrame * durationFrames).ToArray());
+        var project = Project(
+            [new PremiereAudioTrack(
+                1,
+                1,
+                [fixture.Clip("clip", 0, durationFrames)])],
+            durationFrames,
+            frameRate);
+        var analyzer = new AudioProjectAnalyzer(
+            () => new ConstantDetector(),
+            new PcmWaveSampleReader());
+
+        var result = await analyzer.AnalyzeAsync(project, DialogueProcessingPreset.Balanced);
+
+        var track = result.Tracks.Single();
+        Assert.AreEqual(0L, track.Segments.Min(segment => segment.TimelineStartSample));
+        Assert.AreEqual(
+            checked((long)samplesPerFrame * durationFrames),
+            track.Segments.Max(segment => segment.TimelineEndSample));
+    }
+
     private static PremiereProject Project(
         IReadOnlyList<PremiereAudioTrack> tracks,
-        long durationFrames = 1) => new(
+        long durationFrames = 1,
+        int frameRate = 25) => new(
         "fixture.xml",
         "SHA256",
-        new("sequence", "uuid", "fixture", 25, durationFrames, 2, 48_000, tracks));
+        new("sequence", "uuid", "fixture", frameRate, durationFrames, 2, 48_000, tracks));
 
     private sealed class ConcurrencyProbe(int expectedParallelWorkers) : IDisposable
     {
