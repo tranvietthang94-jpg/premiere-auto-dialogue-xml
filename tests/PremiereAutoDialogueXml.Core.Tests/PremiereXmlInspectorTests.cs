@@ -159,6 +159,89 @@ public sealed class PremiereXmlInspectorTests
     }
 
     [TestMethod]
+    [DataRow(24)]
+    [DataRow(30)]
+    public void Inspect_RecognizesNewNdfRateButKeepsProductionClosedInSlice12A(int frameRate)
+    {
+        using var fixture = XmlFixture.Create(
+            createMedia: false,
+            sequenceFrameRate: frameRate,
+            sequenceNtsc: false);
+
+        var result = _inspector.Inspect(fixture.XmlPath);
+
+        Assert.IsFalse(result.CanProceed);
+        Assert.IsTrue(result.Issues.Any(issue => issue.Code == "sequence-rate-not-enabled"));
+        Assert.IsFalse(result.Issues.Any(issue => issue.Code == "media-missing"));
+    }
+
+    [TestMethod]
+    [DataRow(24)]
+    [DataRow(30)]
+    public void Inspect_RequiresExplicitNdfForNewRateBeforeReadingMedia(int frameRate)
+    {
+        using var fixture = XmlFixture.Create(
+            createMedia: false,
+            sequenceFrameRate: frameRate,
+            sequenceNtsc: null);
+
+        var result = _inspector.Inspect(fixture.XmlPath);
+
+        Assert.IsFalse(result.CanProceed);
+        Assert.IsTrue(result.Issues.Any(issue => issue.Code == "ntsc-rate-required"));
+        Assert.IsFalse(result.Issues.Any(issue => issue.Code == "media-missing"));
+    }
+
+    [TestMethod]
+    public void Inspect_RejectsRateOutsidePhase12GateBeforeReadingMedia()
+    {
+        using var fixture = XmlFixture.Create(
+            createMedia: false,
+            sequenceFrameRate: 29,
+            sequenceNtsc: false);
+
+        var result = _inspector.Inspect(fixture.XmlPath);
+
+        Assert.IsFalse(result.CanProceed);
+        Assert.IsTrue(result.Issues.Any(issue => issue.Code == "sequence-rate-unsupported"));
+        Assert.IsFalse(result.Issues.Any(issue => issue.Code == "media-missing"));
+    }
+
+    [TestMethod]
+    public void Inspect_KeepsMissingNtscCompatibleForExisting25FpsInput()
+    {
+        using var fixture = XmlFixture.Create(sequenceNtsc: null, clipNtsc: null);
+
+        var result = _inspector.Inspect(fixture.XmlPath);
+
+        Assert.IsTrue(result.CanProceed, FormatIssues(result.Issues));
+        Assert.AreEqual(25, result.Project!.Sequence.FrameRate);
+    }
+
+    [TestMethod]
+    public void Inspect_RejectsNtscTrueBeforeReadingMedia()
+    {
+        using var fixture = XmlFixture.Create(createMedia: false, sequenceNtsc: true);
+
+        var result = _inspector.Inspect(fixture.XmlPath);
+
+        Assert.IsFalse(result.CanProceed);
+        Assert.AreEqual("ntsc-rate-unsupported", result.Issues.Single().Code);
+        Assert.IsFalse(result.Issues.Any(issue => issue.Code == "media-missing"));
+    }
+
+    [TestMethod]
+    public void Inspect_RejectsClipRateDifferentFromSequence()
+    {
+        using var fixture = XmlFixture.Create(clipFrameRate: 24, clipNtsc: false);
+
+        var result = _inspector.Inspect(fixture.XmlPath);
+
+        Assert.IsFalse(result.CanProceed);
+        Assert.IsTrue(result.Issues.Any(issue => issue.Code == "clip-rate-unsupported"));
+    }
+
+    [TestMethod]
     public void TimeMath_ScalesLargeTickValuesWithoutInt64MultiplicationOverflow()
     {
         var samples = PremiereTimeMath.ScaleFloor(
@@ -196,7 +279,11 @@ public sealed class PremiereXmlInspectorTests
             int waveSampleFrames = 192_000,
             int waveBits = 16,
             int xmlDepth = 16,
-            string documentType = "<!DOCTYPE xmeml>")
+            string documentType = "<!DOCTYPE xmeml>",
+            int sequenceFrameRate = 25,
+            int? clipFrameRate = null,
+            bool? sequenceNtsc = false,
+            bool? clipNtsc = false)
         {
             var root = Path.Combine(Path.GetTempPath(), $"premiere-auto-xml-{Guid.NewGuid():N}");
             var mediaDirectory = Path.Combine(root, "Nghệ sĩ Ánh");
@@ -214,14 +301,21 @@ public sealed class PremiereXmlInspectorTests
             var fileUrl = SecurityElement.Escape($"file://localhost/{encodedLocalPath}")!;
             var secondStart = overlap ? 20 : 50;
             var firstEnd = retime ? 28 : subframeRounding ? 26 : 25;
+            var effectiveClipFrameRate = clipFrameRate ?? sequenceFrameRate;
             var firstTickOffset = subframeRounding
-                ? PremiereTimeMath.TicksPerSecond / 25 * 2 / 5
+                ? PremiereTimeMath.TicksPerSecond / effectiveClipFrameRate * 2 / 5
                 : 0;
-            var firstTicks = includePproTicks ? PproTicks(25, 50, firstTickOffset) : string.Empty;
-            var secondTicks = includePproTicks ? PproTicks(50, 75) : string.Empty;
+            var firstTicks = includePproTicks
+                ? PproTicks(25, 50, effectiveClipFrameRate, firstTickOffset)
+                : string.Empty;
+            var secondTicks = includePproTicks
+                ? PproTicks(50, 75, effectiveClipFrameRate)
+                : string.Empty;
             var filter = includeFilter ? "<filter><effect><effectid>audiolevels</effectid></effect></filter>" : string.Empty;
             var nestedSequence = includeNestedSequence ? "<sequence id=\"nested-1\"><name>Nested</name></sequence>" : string.Empty;
             var secondClipId = duplicateClipId ? "clipitem-1" : "clipitem-2";
+            var sequenceNtscElement = NtscElement(sequenceNtsc);
+            var clipNtscElement = NtscElement(clipNtsc);
             var xml = $$"""
                 <?xml version="1.0" encoding="UTF-8"?>
                 {{documentType}}
@@ -229,7 +323,7 @@ public sealed class PremiereXmlInspectorTests
                   <sequence id="sequence-1">
                     <uuid>0d4640f7-401d-4631-8e39-ad861b953b29</uuid>
                     <duration>100</duration>
-                    <rate><timebase>25</timebase><ntsc>FALSE</ntsc></rate>
+                    <rate><timebase>{{sequenceFrameRate}}</timebase>{{sequenceNtscElement}}</rate>
                     <name>Kiểm thử Unicode</name>
                     <media>
                       <video><track><enabled>TRUE</enabled><locked>FALSE</locked>{{nestedSequence}}</track></video>
@@ -243,7 +337,7 @@ public sealed class PremiereXmlInspectorTests
                         <track premiereTrackType="Stereo">
                           <clipitem id="clipitem-1" premiereChannelType="mono">
                             <name>Giọng một</name><enabled>TRUE</enabled><duration>100</duration>
-                            <rate><timebase>25</timebase><ntsc>FALSE</ntsc></rate>
+                            <rate><timebase>{{effectiveClipFrameRate}}</timebase>{{clipNtscElement}}</rate>
                             <start>0</start><end>{{firstEnd}}</end><in>25</in><out>50</out>
                             {{firstTicks}}
                             <file id="file-1">
@@ -255,7 +349,7 @@ public sealed class PremiereXmlInspectorTests
                           </clipitem>
                           <clipitem id="{{secondClipId}}" premiereChannelType="mono">
                             <name>Giọng hai</name><enabled>TRUE</enabled><duration>100</duration>
-                            <rate><timebase>25</timebase><ntsc>FALSE</ntsc></rate>
+                            <rate><timebase>{{effectiveClipFrameRate}}</timebase>{{clipNtscElement}}</rate>
                             <start>{{secondStart}}</start><end>{{secondStart + 25}}</end><in>50</in><out>75</out>
                             {{secondTicks}}
                             <file id="file-1" />
@@ -280,10 +374,25 @@ public sealed class PremiereXmlInspectorTests
             }
         }
 
-        private static string PproTicks(long sourceInFrame, long sourceOutFrame, long outTickOffset = 0)
+        private static string NtscElement(bool? ntsc) =>
+            ntsc.HasValue ? $"<ntsc>{(ntsc.Value ? "TRUE" : "FALSE")}</ntsc>" : string.Empty;
+
+        private static string PproTicks(
+            long sourceInFrame,
+            long sourceOutFrame,
+            int frameRate,
+            long outTickOffset = 0)
         {
-            var ticksIn = PremiereTimeMath.ScaleFloor(sourceInFrame, PremiereTimeMath.TicksPerSecond, 25);
-            var ticksOut = checked(PremiereTimeMath.ScaleFloor(sourceOutFrame, PremiereTimeMath.TicksPerSecond, 25) + outTickOffset);
+            var ticksIn = PremiereTimeMath.ScaleFloor(
+                sourceInFrame,
+                PremiereTimeMath.TicksPerSecond,
+                frameRate);
+            var ticksOut = checked(
+                PremiereTimeMath.ScaleFloor(
+                    sourceOutFrame,
+                    PremiereTimeMath.TicksPerSecond,
+                    frameRate) +
+                outTickOffset);
             return $"<pproTicksIn>{ticksIn}</pproTicksIn><pproTicksOut>{ticksOut}</pproTicksOut>";
         }
 

@@ -1,6 +1,6 @@
 # Phase 12 — Tương thích input Premiere theo từng cổng
 
-Trạng thái: `opened; objective and gates locked` ngày 2026-08-14. Phase được mở từ clean `main` commit `3f41d7cd2d8b4d90241b4bd2f50f798e23d65796` trên branch `codex/phase12-premiere-input-compatibility`. Phase 11 calibrated multi-mic bleed đã được giữ ở nhánh nghiên cứu và không merge; Phase 12 không mang code, audit `1.7` hoặc quyết định shadow của Phase 11 sang.
+Trạng thái: `Slice 12A passed; 24/30 production gate still closed` ngày 2026-08-14. Phase được mở từ clean `main` commit `3f41d7cd2d8b4d90241b4bd2f50f798e23d65796` trên branch `codex/phase12-premiere-input-compatibility`. Phase 11 calibrated multi-mic bleed đã được giữ ở nhánh nghiên cứu và không merge; Phase 12 không mang code, audit `1.7` hoặc quyết định shadow của Phase 11 sang.
 
 ## Quyết định sản phẩm
 
@@ -53,6 +53,14 @@ Stereo source, sample rate khác `48 kHz`, routing profile mới, `23,976/29,97`
 - Mở rộng fixture inspector cho `24/25/30`, explicit/missing `ntsc`, clip-rate mismatch và rate bị từ chối.
 - Khóa conversion frame ↔ sample ↔ pproTicks bằng test biên, số lớn, source trim, gap và lệch subframe hợp lệ.
 - Chưa mở writer/app production cho rate mới ở cuối 12A.
+
+Kết quả 12A:
+
+- Thêm `PremiereNdfFrameGrid` làm rate contract duy nhất cho `24/25/30 fps NDF` với audio `48 kHz`; contract khóa lần lượt `2.000/1.920/1.600` sample/frame và phép đổi frame ↔ sample ↔ pproTicks không dùng phép nhân `Int64` dễ overflow.
+- Test khóa whole-frame/subframe boundaries, số frame lớn, input âm, overflow, rate ngoài cổng và sample rate khác `48 kHz`.
+- Inspector nhận diện `24/30 NDF` nhưng trả `sequence-rate-not-enabled` trước media read; thiếu `ntsc=FALSE` rõ ràng ở rate mới trả `ntsc-rate-required`; `ntsc=TRUE` và rate ngoài `24/25/30` tiếp tục fail closed. XML `25 fps` thiếu trường `ntsc` vẫn tương thích như baseline.
+- Fixture inspector nay parameterize sequence/clip rate và khóa clip-rate mismatch. App, analyzer và writer production vẫn chỉ nhận `25 fps`.
+- Toàn bộ Release đạt `178/178`; targeted rate/inspector đạt, format và diff check sạch.
 
 ### Slice 12B — analysis frame-grid
 
@@ -116,4 +124,4 @@ Chỉ mở sau khi 12E đóng. Mỗi profile mới phải có channel mapping do
 
 ## Bước tiếp theo
 
-Thực hiện Slice 12A: tạo rate contract dùng chung và synthetic fixture/test cho `24/25/30 fps NDF`, nhưng vẫn giữ app production chỉ nhận `25 fps` cho tới khi analysis/writer/validator được parameterize ở các slice sau.
+Thực hiện Slice 12B: truyền `PremiereNdfFrameGrid` từ project vào analyzer và thay hằng `25 fps/1.920 sample` trong đường frame-evidence bằng rate đã kiểm tra. App/writer production vẫn chưa mở `24/30` ở cuối 12B.
