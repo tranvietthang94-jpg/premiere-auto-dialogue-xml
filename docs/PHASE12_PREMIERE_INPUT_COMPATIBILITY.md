@@ -1,6 +1,6 @@
 # Phase 12 — Tương thích input Premiere theo từng cổng
 
-Trạng thái: `Slice 12B passed; writer/adoption gate still closed` ngày 2026-08-14. Phase được mở từ clean `main` commit `3f41d7cd2d8b4d90241b4bd2f50f798e23d65796` trên branch `codex/phase12-premiere-input-compatibility`. Phase 11 calibrated multi-mic bleed đã được giữ ở nhánh nghiên cứu và không merge; Phase 12 không mang code, audit `1.7` hoặc quyết định shadow của Phase 11 sang.
+Trạng thái: `Slice 12C passed; synthetic 24/25/30 publication gate open` ngày 2026-08-14. Phase được mở từ clean `main` commit `3f41d7cd2d8b4bd2f50f798e23d65796` trên branch `codex/phase12-premiere-input-compatibility`. Phase 11 calibrated multi-mic bleed đã được giữ ở nhánh nghiên cứu và không merge; Phase 12 không mang code, audit `1.7` hoặc quyết định shadow của Phase 11 sang. Adoption thực tế vẫn chờ regression 25 fps và Premiere round-trip riêng cho 24/30.
 
 ## Quyết định sản phẩm
 
@@ -83,6 +83,15 @@ Kết quả 12B:
 - Validator tái tính mọi boundary/gain từ cùng frame-grid và từ chối rate/provenance bị sửa.
 - Nếu schema audit cần đổi, chỉ tăng version một lần cùng migration/test rõ ràng.
 
+Kết quả 12C:
+
+- `PremiereXmlGenerator` cho cả DOM và generation plan, `OutputDecisionContractValidator`, `ReviewGroupBuilder` và `PcmTrackPeakValidator` đều dùng `PremiereNdfFrameGrid`; không còn phép chia/hằng `1.920 sample/frame` trong đường publication đa rate.
+- Audit tăng thẳng từ production `1.6` lên `1.8` để không đụng schema nghiên cứu `1.7`, ghi `sequenceTiming` gồm frame rate, NDF, sample rate, samples/frame và policy `phase12-integer-ndf-exact-frame-grid-v1`. PCM evidence tăng `1.2`; audit cũ thiếu timing chỉ được fallback về grid legacy 25 fps, còn schema `1.8+` thiếu/sai timing bị từ chối.
+- Comparator yêu cầu noise-boundary provenance cho mọi schema từ `1.6` trở lên và timing hợp lệ cho `1.8+`; review/shadow overlap và gain-capped marker đều tái tính từ cùng grid.
+- End-to-end synthetic package ở `24/25/30` chứng minh DOM và streaming XML tương đương, sequence/clip timebase được giữ, fragment/marker đúng, review ghi đúng fps và audit ghi lần lượt `2.000/1.920/1.600` sample/frame.
+- Sau khi các validator đạt, inspector production nhận `24/30` khi sequence và từng clip ghi rõ `ntsc=FALSE`; thiếu metadata dừng trước media read, 25 fps thiếu `ntsc` vẫn tương thích.
+- Toàn bộ Release đạt `198/198`; solution build 0 warning/error, format và diff check sạch. Đây mới là synthetic publication gate, chưa phải bằng chứng Premiere adoption.
+
 ### Slice 12D — regression 25 fps và pilot local
 
 - Toàn bộ test Release, format, diff check, self-contained publish và installer smoke đạt.
@@ -132,4 +141,4 @@ Chỉ mở sau khi 12E đóng. Mỗi profile mới phải có channel mapping do
 
 ## Bước tiếp theo
 
-Thực hiện Slice 12C: parameterize XML generator/streaming writer plan, review/audit và PCM/output validators bằng cùng frame-grid; thêm end-to-end synthetic package cho `24/25/30`. Chỉ sau khi validator bao phủ đầy đủ mới gỡ khóa inspector `24/30`.
+Thực hiện Slice 12D: chạy regression HGE2/full HGE ở baseline `25 fps`, so candidate audit/XML với Phase 10, khóa coverage mismatch và lost Enabled bằng `0`, xác nhận M19 tiếp tục Enabled, sau đó chạy publish và installer smoke trên candidate hiện tại. Chưa dùng PCM hoặc XML re-export cũ để chứng minh candidate mới.

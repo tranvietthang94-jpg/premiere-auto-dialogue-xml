@@ -1,6 +1,7 @@
 using PremiereAutoDialogueXml.Audio.Analysis;
 using PremiereAutoDialogueXml.Audio.Pcm;
 using PremiereAutoDialogueXml.Core.Media;
+using PremiereAutoDialogueXml.Core.Timing;
 using PremiereAutoDialogueXml.Output.Audit;
 
 namespace PremiereAutoDialogueXml.Validation;
@@ -28,7 +29,9 @@ public sealed record PhrasePeakValidation(
 
 public sealed record PcmTrackPeakValidationReport(
     int TrackIndex,
+    int FrameRate,
     int SampleRate,
+    int SamplesPerFrame,
     int ValidBitsPerSample,
     long SampleFrameCount,
     double ToleranceDb,
@@ -51,9 +54,7 @@ public sealed record PcmTrackPeakValidationReport(
 
 public sealed class PcmTrackPeakValidator
 {
-    private const int SupportedFrameRate = 25;
     private const int SupportedSampleRate = 48_000;
-    private const int SamplesPerVideoFrame = SupportedSampleRate / SupportedFrameRate;
 
     private readonly PcmWaveSampleReader _sampleReader;
 
@@ -84,6 +85,7 @@ public sealed class PcmTrackPeakValidator
         }
 
         ValidateWave(renderedWave);
+        var frameGrid = ResolveFrameGrid(audit);
 
         var speechFragments = audit.Fragments
             .Where(fragment =>
@@ -124,8 +126,8 @@ public sealed class PcmTrackPeakValidator
 
             foreach (var fragment in fragments)
             {
-                var startSample = checked(fragment.TimelineStartFrame * SamplesPerVideoFrame);
-                var endSample = checked(fragment.TimelineEndFrame * SamplesPerVideoFrame);
+                var startSample = frameGrid.FrameToSample(fragment.TimelineStartFrame);
+                var endSample = frameGrid.FrameToSample(fragment.TimelineEndFrame);
                 if (startSample < 0 || endSample <= startSample)
                 {
                     throw new InvalidDataException(
@@ -245,7 +247,9 @@ public sealed class PcmTrackPeakValidator
             : sourceDerivedDeltas.Count(delta => Math.Abs(delta - sourceDerivedMedianOffset.Value) <= toleranceDb);
         return new(
             trackIndex,
+            frameGrid.FramesPerSecond,
             renderedWave.SampleRate,
+            frameGrid.SamplesPerFrame,
             renderedWave.ValidBitsPerSample,
             renderedWave.SampleFrameCount,
             toleranceDb,
@@ -265,6 +269,47 @@ public sealed class PcmTrackPeakValidator
             sourceDerivedDeltas.Length - matchingSourceDerivedOffset,
             passedCount == ordered.Length,
             ordered);
+    }
+
+    private static PremiereNdfFrameGrid ResolveFrameGrid(OutputAudit audit)
+    {
+        if (audit.SequenceTiming is null)
+        {
+            if (Version.TryParse(audit.SchemaVersion, out var schemaVersion) &&
+                schemaVersion >= new Version(1, 8))
+            {
+                throw new InvalidDataException("Audit schema 1.8+ thiếu sequenceTiming; từ chối suy đoán frame-grid.");
+            }
+
+            return PremiereNdfFrameGrid.Create(25, SupportedSampleRate);
+        }
+
+        var timing = audit.SequenceTiming;
+        if (timing.Ntsc ||
+            !string.Equals(
+                timing.FrameGridPolicy,
+                SequenceTimingAudit.ExactFrameGridPolicy,
+                StringComparison.Ordinal))
+        {
+            throw new InvalidDataException("Audit dùng timing policy không thuộc hợp đồng NDF nguyên Phase 12.");
+        }
+
+        PremiereNdfFrameGrid frameGrid;
+        try
+        {
+            frameGrid = PremiereNdfFrameGrid.Create(timing.FrameRate, timing.AudioSampleRate);
+        }
+        catch (ArgumentException exception)
+        {
+            throw new InvalidDataException("sequenceTiming trong audit không tạo được frame-grid Phase 12.", exception);
+        }
+
+        if (timing.SamplesPerFrame != frameGrid.SamplesPerFrame)
+        {
+            throw new InvalidDataException("samplesPerFrame trong audit không khớp frame rate/audio sample rate.");
+        }
+
+        return frameGrid;
     }
 
     private float MeasurePeak(

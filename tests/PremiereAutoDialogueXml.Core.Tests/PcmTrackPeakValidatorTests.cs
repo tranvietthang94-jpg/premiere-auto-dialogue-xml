@@ -1,6 +1,7 @@
 using System.Buffers.Binary;
 using PremiereAutoDialogueXml.Audio.Analysis;
 using PremiereAutoDialogueXml.Core.Media;
+using PremiereAutoDialogueXml.Core.Timing;
 using PremiereAutoDialogueXml.Output.Audit;
 using PremiereAutoDialogueXml.Validation;
 
@@ -160,11 +161,79 @@ public sealed class PcmTrackPeakValidatorTests
         Assert.IsFalse(report.AllWithinTolerance);
     }
 
+    [TestMethod]
+    [DataRow(24)]
+    [DataRow(25)]
+    [DataRow(30)]
+    public void ValidateUsesSequenceTimingForIntegerNdfRates(int frameRate)
+    {
+        using var wave = TemporaryWave.CreateAtFrameRate(frameRate, -6);
+        var audit = AuditAtFrameRate(
+            frameRate,
+            Fragment("T01-P000001", startFrame: 0, endFrame: 1, measuredPeakDbfs: -12, appliedGainDb: 6));
+
+        var report = new PcmTrackPeakValidator().Validate(audit, wave.Info, trackIndex: 1);
+
+        Assert.IsTrue(report.AllWithinTolerance);
+        Assert.AreEqual(frameRate, report.FrameRate);
+        Assert.AreEqual(48_000 / frameRate, report.SamplesPerFrame);
+        Assert.AreEqual(48_000 / frameRate, report.SampleFrameCount);
+    }
+
+    [TestMethod]
+    public void ValidateRejectsSchema18WithoutSequenceTiming()
+    {
+        using var wave = TemporaryWave.Create(-6);
+        var audit = Audit(
+            Fragment("T01-P000001", startFrame: 0, endFrame: 1, measuredPeakDbfs: -12, appliedGainDb: 6)) with
+        {
+            SchemaVersion = "1.8"
+        };
+
+        var exception = Assert.ThrowsExactly<InvalidDataException>(() =>
+            new PcmTrackPeakValidator().Validate(audit, wave.Info, trackIndex: 1));
+
+        StringAssert.Contains(exception.Message, "thiếu sequenceTiming");
+    }
+
+    [TestMethod]
+    public void ValidateRejectsSequenceTimingWithInconsistentSamplesPerFrame()
+    {
+        using var wave = TemporaryWave.CreateAtFrameRate(24, -6);
+        var audit = AuditAtFrameRate(
+            24,
+            Fragment("T01-P000001", startFrame: 0, endFrame: 1, measuredPeakDbfs: -12, appliedGainDb: 6));
+        audit = audit with
+        {
+            SequenceTiming = audit.SequenceTiming! with { SamplesPerFrame = 1_920 }
+        };
+
+        var exception = Assert.ThrowsExactly<InvalidDataException>(() =>
+            new PcmTrackPeakValidator().Validate(audit, wave.Info, trackIndex: 1));
+
+        StringAssert.Contains(exception.Message, "samplesPerFrame");
+    }
+
     private static OutputAudit Audit(params FragmentAudit[] fragments) =>
         AuditCore(premiereCenterPanCompensationDb: 0, fragments);
 
     private static OutputAudit AuditWithCompensation(params FragmentAudit[] fragments) =>
         AuditCore(premiereCenterPanCompensationDb: 3.010299956639812, fragments);
+
+    private static OutputAudit AuditAtFrameRate(int frameRate, params FragmentAudit[] fragments)
+    {
+        var frameGrid = PremiereNdfFrameGrid.Create(frameRate);
+        return AuditCore(premiereCenterPanCompensationDb: 0, fragments) with
+        {
+            SchemaVersion = "1.8",
+            SequenceTiming = new(
+                frameGrid.FramesPerSecond,
+                false,
+                frameGrid.AudioSampleRate,
+                frameGrid.SamplesPerFrame,
+                SequenceTimingAudit.ExactFrameGridPolicy)
+        };
+    }
 
     private static OutputAudit AuditCore(
         double premiereCenterPanCompensationDb,
@@ -247,8 +316,13 @@ public sealed class PcmTrackPeakValidatorTests
         public WaveFileInfo Info { get; }
 
         public static TemporaryWave Create(params double[] peakDbfsByVideoFrame)
+            => CreateAtFrameRate(25, peakDbfsByVideoFrame);
+
+        public static TemporaryWave CreateAtFrameRate(
+            int frameRate,
+            params double[] peakDbfsByVideoFrame)
         {
-            const int samplesPerVideoFrame = 1_920;
+            var samplesPerVideoFrame = PremiereNdfFrameGrid.Create(frameRate).SamplesPerFrame;
             var samples = new short[checked(peakDbfsByVideoFrame.Length * samplesPerVideoFrame)];
             for (var frame = 0; frame < peakDbfsByVideoFrame.Length; frame++)
             {

@@ -161,18 +161,17 @@ public sealed class PremiereXmlInspectorTests
     [TestMethod]
     [DataRow(24)]
     [DataRow(30)]
-    public void Inspect_RecognizesNewNdfRateButKeepsProductionClosedInSlice12A(int frameRate)
+    public void Inspect_AcceptsSupportedIntegerNdfRateWithExplicitMetadata(int frameRate)
     {
         using var fixture = XmlFixture.Create(
-            createMedia: false,
             sequenceFrameRate: frameRate,
             sequenceNtsc: false);
 
         var result = _inspector.Inspect(fixture.XmlPath);
 
-        Assert.IsFalse(result.CanProceed);
-        Assert.IsTrue(result.Issues.Any(issue => issue.Code == "sequence-rate-not-enabled"));
-        Assert.IsFalse(result.Issues.Any(issue => issue.Code == "media-missing"));
+        Assert.IsTrue(result.CanProceed, FormatIssues(result.Issues));
+        Assert.AreEqual(frameRate, result.Project!.Sequence.FrameRate);
+        Assert.AreEqual(48_000, result.Project.Sequence.AudioSampleRate);
     }
 
     [TestMethod]
@@ -184,6 +183,24 @@ public sealed class PremiereXmlInspectorTests
             createMedia: false,
             sequenceFrameRate: frameRate,
             sequenceNtsc: null);
+
+        var result = _inspector.Inspect(fixture.XmlPath);
+
+        Assert.IsFalse(result.CanProceed);
+        Assert.IsTrue(result.Issues.Any(issue => issue.Code == "ntsc-rate-required"));
+        Assert.IsFalse(result.Issues.Any(issue => issue.Code == "media-missing"));
+    }
+
+    [TestMethod]
+    [DataRow(24)]
+    [DataRow(30)]
+    public void Inspect_RequiresExplicitNdfOnClipsAtNewRatesBeforeReadingMedia(int frameRate)
+    {
+        using var fixture = XmlFixture.Create(
+            createMedia: false,
+            sequenceFrameRate: frameRate,
+            sequenceNtsc: false,
+            clipNtsc: null);
 
         var result = _inspector.Inspect(fixture.XmlPath);
 

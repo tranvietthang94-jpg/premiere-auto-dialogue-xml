@@ -21,11 +21,23 @@ public sealed record OutputAudit(
     IReadOnlyList<FragmentAudit> Fragments,
     IReadOnlyList<MarkerAudit> Markers)
 {
+    public SequenceTimingAudit? SequenceTiming { get; init; }
+
     public ReviewListAudit? Review { get; init; }
 
     public VadFrontEndComparison? VadFrontEndComparison { get; init; }
 
     public NoiseBoundaryProjectComparison? NoiseBoundaryComparison { get; init; }
+}
+
+public sealed record SequenceTimingAudit(
+    int FrameRate,
+    bool Ntsc,
+    int AudioSampleRate,
+    int SamplesPerFrame,
+    string FrameGridPolicy)
+{
+    public const string ExactFrameGridPolicy = "phase12-integer-ndf-exact-frame-grid-v1";
 }
 
 public sealed record ModelAudit(string Version, string Sha256);

@@ -1,4 +1,5 @@
 using PremiereAutoDialogueXml.Audio.Analysis;
+using PremiereAutoDialogueXml.Core.Timing;
 using PremiereAutoDialogueXml.Output.Audit;
 using PremiereAutoDialogueXml.Output.Xml;
 
@@ -20,17 +21,7 @@ public sealed class ReviewGroupBuilder
         ArgumentNullException.ThrowIfNull(fragments);
         ArgumentNullException.ThrowIfNull(markers);
         ArgumentNullException.ThrowIfNull(shadowEvidence);
-        if (frameRate <= 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(frameRate));
-        }
-
-        if (audioSampleRate <= 0 || audioSampleRate % frameRate != 0)
-        {
-            throw new ArgumentOutOfRangeException(
-                nameof(audioSampleRate),
-                "Sample rate phải chia hết cho frame rate để ánh xạ review chính xác.");
-        }
+        var frameGrid = PremiereNdfFrameGrid.Create(frameRate, audioSampleRate);
 
         if (groupingGapFrames < 0)
         {
@@ -44,7 +35,6 @@ public sealed class ReviewGroupBuilder
             .ThenBy(marker => marker.OutFrame)
             .ThenBy(marker => marker.Reason, StringComparer.Ordinal)
             .ToArray();
-        var samplesPerFrame = audioSampleRate / frameRate;
         var groups = new List<ReviewGroupAudit>();
 
         foreach (var trackGroup in ambiguousMarkers.GroupBy(marker => marker.TrackIndex).OrderBy(group => group.Key))
@@ -62,8 +52,7 @@ public sealed class ReviewGroupBuilder
                         current,
                         fragments,
                         shadowEvidence,
-                        frameRate,
-                        samplesPerFrame));
+                        frameGrid));
                     current.Clear();
                     currentOutFrame = -1;
                 }
@@ -80,8 +69,7 @@ public sealed class ReviewGroupBuilder
                     current,
                     fragments,
                     shadowEvidence,
-                    frameRate,
-                    samplesPerFrame));
+                    frameGrid));
             }
         }
 
@@ -102,8 +90,7 @@ public sealed class ReviewGroupBuilder
         IReadOnlyList<GeneratedSequenceMarker> markers,
         IReadOnlyList<GeneratedAudioFragment> fragments,
         IReadOnlyList<CrossTrackShadowEvidence> shadowEvidence,
-        int frameRate,
-        int samplesPerFrame)
+        PremiereNdfFrameGrid frameGrid)
     {
         var inFrame = markers.Min(marker => marker.InFrame);
         var outFrame = markers.Max(marker => marker.OutFrame);
@@ -129,8 +116,8 @@ public sealed class ReviewGroupBuilder
                 $"Review group A{trackIndex} [{inFrame}, {outFrame}) không khớp fragment ambiguous nào.");
         }
 
-        var inSample = checked(inFrame * samplesPerFrame);
-        var outSample = checked(outFrame * samplesPerFrame);
+        var inSample = frameGrid.FrameToSample(inFrame);
+        var outSample = frameGrid.FrameToSample(outFrame);
         var groupEvidence = shadowEvidence
             .Where(evidence =>
                 evidence.TrackIndex == trackIndex &&
@@ -149,8 +136,8 @@ public sealed class ReviewGroupBuilder
             TrackIndex: trackIndex,
             InFrame: inFrame,
             OutFrame: outFrame,
-            InTimecode: FormatTimecode(inFrame, frameRate),
-            OutTimecode: FormatTimecode(outFrame, frameRate),
+            InTimecode: FormatTimecode(inFrame, frameGrid.FramesPerSecond),
+            OutTimecode: FormatTimecode(outFrame, frameGrid.FramesPerSecond),
             MarkerCount: markers.Count,
             Reasons: reasons,
             SourceFileNames: sourceFileNames,

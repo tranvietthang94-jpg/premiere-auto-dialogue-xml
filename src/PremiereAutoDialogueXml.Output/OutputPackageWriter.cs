@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using PremiereAutoDialogueXml.Audio.Analysis;
+using PremiereAutoDialogueXml.Core.Timing;
 using PremiereAutoDialogueXml.Output.Audit;
 using PremiereAutoDialogueXml.Output.Review;
 using PremiereAutoDialogueXml.Output.Validation;
@@ -108,11 +109,14 @@ public sealed class OutputPackageWriter
                 request.Project.Sequence.AudioSampleRate);
             await ReviewCsvWriter.WriteAsync(reviewGroups, reviewTempPath, cancellationToken);
             var reviewSha256 = await ComputeSha256Async(reviewTempPath, cancellationToken);
+            var frameGrid = PremiereNdfFrameGrid.Create(
+                request.Project.Sequence.FrameRate,
+                request.Project.Sequence.AudioSampleRate);
             var phrases = request.Analysis.Tracks
                 .SelectMany(track => track.Phrases)
                 .ToDictionary(phrase => phrase.Id, StringComparer.Ordinal);
             var audit = new OutputAudit(
-                SchemaVersion: "1.6",
+                SchemaVersion: "1.8",
                 RunId: runId,
                 CreatedAtUtc: generatedAt,
                 SourceXmlFileName: Path.GetFileName(request.Project.SourceXmlPath),
@@ -128,6 +132,12 @@ public sealed class OutputPackageWriter
                 Fragments: generated.AudioFragments.Select(fragment => FragmentAudit.From(fragment, phrases)).ToArray(),
                 Markers: generated.Markers.Select(MarkerAudit.From).ToArray())
             {
+                SequenceTiming = new(
+                    FrameRate: frameGrid.FramesPerSecond,
+                    Ntsc: false,
+                    AudioSampleRate: frameGrid.AudioSampleRate,
+                    SamplesPerFrame: frameGrid.SamplesPerFrame,
+                    FrameGridPolicy: SequenceTimingAudit.ExactFrameGridPolicy),
                 VadFrontEndComparison = request.Analysis.VadFrontEndComparison,
                 NoiseBoundaryComparison = request.Analysis.NoiseBoundaryComparison,
                 Review = new(

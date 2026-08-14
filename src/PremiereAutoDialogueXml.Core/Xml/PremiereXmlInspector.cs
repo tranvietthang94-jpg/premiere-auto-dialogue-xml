@@ -118,12 +118,8 @@ public sealed class PremiereXmlInspector
             {
                 issues.Add(Error(
                     "ntsc-rate-required",
-                    $"Sequence {sequenceRate} fps phải ghi rõ ntsc=FALSE trước khi mở cổng Phase 12."));
+                    $"Sequence {sequenceRate} fps phải ghi rõ ntsc=FALSE để xác nhận lưới NDF nguyên Phase 12."));
             }
-
-            issues.Add(Error(
-                "sequence-rate-not-enabled",
-                $"Sequence {sequenceRate} fps NDF đã được nhận diện nhưng app production vẫn chỉ nhận 25 fps ở Slice 12A."));
         }
 
         var sequenceDuration = RequiredNonNegativeLong(sequenceElement, "duration");
@@ -308,10 +304,17 @@ public sealed class PremiereXmlInspector
 
         var clipRate = ParseRate(
             RequiredElement(clipElement, "rate", "clip-rate-missing"),
-            out _);
+            out var clipNdfIsExplicit);
         if (clipRate != sequenceRate)
         {
             issues.Add(Error("clip-rate-unsupported", $"Clip '{clipName}' có rate khác sequence, có thể là retime."));
+        }
+        else if (clipRate != RequiredFrameRate && !clipNdfIsExplicit)
+        {
+            issues.Add(Error(
+                "ntsc-rate-required",
+                $"Clip '{clipName}' ở {clipRate} fps phải ghi rõ ntsc=FALSE để xác nhận lưới NDF nguyên Phase 12."));
+            return null;
         }
 
         var start = RequiredNonNegativeLong(clipElement, "start");

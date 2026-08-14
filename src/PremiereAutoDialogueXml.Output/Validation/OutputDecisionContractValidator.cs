@@ -1,6 +1,7 @@
 using PremiereAutoDialogueXml.Audio.Analysis;
 using PremiereAutoDialogueXml.Core.Domain;
 using PremiereAutoDialogueXml.Core.ProjectModel;
+using PremiereAutoDialogueXml.Core.Timing;
 using PremiereAutoDialogueXml.Output.Xml;
 
 namespace PremiereAutoDialogueXml.Output.Validation;
@@ -22,14 +23,17 @@ public sealed class OutputDecisionContractValidator
         ArgumentNullException.ThrowIfNull(analysis);
         ArgumentNullException.ThrowIfNull(preset);
         ArgumentNullException.ThrowIfNull(generated);
+        var frameGrid = PremiereNdfFrameGrid.Create(
+            project.Sequence.FrameRate,
+            project.Sequence.AudioSampleRate);
 
         ValidateNoiseBoundarySafety(analysis, preset);
         var phrases = analysis.Tracks
             .SelectMany(track => track.Phrases)
             .ToDictionary(phrase => phrase.Id, StringComparer.Ordinal);
         ValidatePhrases(phrases.Values, preset);
-        ValidateFragments(project, generated.AudioFragments, phrases, preset);
-        ValidateMarkers(generated, phrases.Values, project.Sequence.FrameRate);
+        ValidateFragments(project, generated.AudioFragments, phrases, preset, frameGrid);
+        ValidateMarkers(generated, phrases.Values, frameGrid);
     }
 
     private static void ValidateNoiseBoundarySafety(
@@ -340,7 +344,8 @@ public sealed class OutputDecisionContractValidator
         PremiereProject project,
         IReadOnlyList<GeneratedAudioFragment> fragments,
         IReadOnlyDictionary<string, DialoguePhrase> phrases,
-        DialogueProcessingPreset preset)
+        DialogueProcessingPreset preset,
+        PremiereNdfFrameGrid frameGrid)
     {
         var referencedPhraseIds = new HashSet<string>(StringComparer.Ordinal);
         foreach (var fragment in fragments)
@@ -388,11 +393,10 @@ public sealed class OutputDecisionContractValidator
 
         foreach (var phrase in phrases.Values.Where(phrase => !referencedPhraseIds.Contains(phrase.Id)))
         {
-            var coreStartFrame = phrase.CoreStartSample * project.Sequence.FrameRate / project.Sequence.AudioSampleRate;
+            var coreStartFrame = frameGrid.SampleToFrameFloor(phrase.CoreStartSample);
             var coreEndFrame = Math.Max(
                 coreStartFrame + 1,
-                (phrase.CoreEndSample * project.Sequence.FrameRate + project.Sequence.AudioSampleRate - 1) /
-                project.Sequence.AudioSampleRate);
+                frameGrid.SampleToFrameCeiling(phrase.CoreEndSample));
             var covering = fragments
                 .Where(fragment =>
                     fragment.TrackIndex == phrase.TrackIndex &&
@@ -445,7 +449,7 @@ public sealed class OutputDecisionContractValidator
     private static void ValidateMarkers(
         GeneratedPremiereXmlPlan generated,
         IEnumerable<DialoguePhrase> phrases,
-        int frameRate)
+        PremiereNdfFrameGrid frameGrid)
     {
         var expectedAmbiguous = generated.AudioFragments
             .Where(fragment => fragment.Status == AudioSegmentStatus.Ambiguous)
@@ -471,18 +475,15 @@ public sealed class OutputDecisionContractValidator
             expectedAmbiguous.SequenceEqual(actualAmbiguous, StringComparer.Ordinal),
             "Marker Cần kiểm tra không phủ đúng fragment ambiguous.");
 
-        const int sampleRate = 48_000;
-        Require(sampleRate % frameRate == 0, "Sample rate/frame rate không hỗ trợ marker gain-capped.");
-        var samplesPerFrame = sampleRate / frameRate;
         var expectedGainCapped = phrases
             .Where(phrase => phrase.GainWasCapped)
             .Select(phrase => string.Join(
                 "\u001f",
                 phrase.TrackIndex,
-                phrase.CoreStartSample / samplesPerFrame,
+                frameGrid.SampleToFrameFloor(phrase.CoreStartSample),
                 Math.Max(
-                    phrase.CoreStartSample / samplesPerFrame + 1,
-                    (phrase.CoreEndSample + samplesPerFrame - 1) / samplesPerFrame)))
+                    frameGrid.SampleToFrameFloor(phrase.CoreStartSample) + 1,
+                    frameGrid.SampleToFrameCeiling(phrase.CoreEndSample))))
             .Order(StringComparer.Ordinal)
             .ToArray();
         var actualGainCapped = generated.Markers

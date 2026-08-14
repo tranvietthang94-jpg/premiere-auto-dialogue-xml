@@ -41,7 +41,15 @@ public sealed class OutputPackageWriterTests
 
         using var audit = JsonDocument.Parse(await File.ReadAllTextAsync(result.AuditPath));
         var root = audit.RootElement;
-        Assert.AreEqual("1.6", root.GetProperty("schemaVersion").GetString());
+        Assert.AreEqual("1.8", root.GetProperty("schemaVersion").GetString());
+        var sequenceTiming = root.GetProperty("sequenceTiming");
+        Assert.AreEqual(25, sequenceTiming.GetProperty("frameRate").GetInt32());
+        Assert.IsFalse(sequenceTiming.GetProperty("ntsc").GetBoolean());
+        Assert.AreEqual(48_000, sequenceTiming.GetProperty("audioSampleRate").GetInt32());
+        Assert.AreEqual(1_920, sequenceTiming.GetProperty("samplesPerFrame").GetInt32());
+        Assert.AreEqual(
+            "phase12-integer-ndf-exact-frame-grid-v1",
+            sequenceTiming.GetProperty("frameGridPolicy").GetString());
         Assert.AreEqual(fixture.Project.SourceXmlSha256, root.GetProperty("sourceXmlSha256").GetString());
         Assert.AreEqual(result.OutputXmlSha256, root.GetProperty("outputXmlSha256").GetString());
         Assert.AreEqual("6.2.1", root.GetProperty("model").GetProperty("version").GetString());
@@ -81,6 +89,42 @@ public sealed class OutputPackageWriterTests
         var xmlStart = await File.ReadAllTextAsync(result.XmlPath);
         StringAssert.Contains(xmlStart, "<!DOCTYPE xmeml>");
         StringAssert.Contains(xmlStart, "Show - AUTO AUDIO");
+    }
+
+    [TestMethod]
+    [DataRow(24)]
+    [DataRow(25)]
+    [DataRow(30)]
+    public async Task WriteAsyncPreservesIntegerNdfFrameGridAcrossXmlAuditAndReview(int frameRate)
+    {
+        using var fixture = PremiereXmlGeneratorTests.WriterFixture.Create(frameRate: frameRate);
+        var generator = DeterministicGenerator();
+        var expected = generator.Generate(fixture.Project, fixture.Analysis);
+
+        var result = await new OutputPackageWriter(DeterministicGenerator()).WriteAsync(new(
+            fixture.Project,
+            fixture.Analysis,
+            DialogueProcessingPreset.Balanced,
+            fixture.Directory));
+        var actual = PremiereAutoDialogueXml.Core.Xml.PremiereXmlDocumentLoader.Load(
+            result.XmlPath,
+            result.OutputXmlSha256).Document;
+
+        Assert.IsTrue(XNode.DeepEquals(
+            WithoutInsignificantWhitespace(expected.Document.Root!),
+            WithoutInsignificantWhitespace(actual.Root!)));
+        var sequence = actual.Root!.Element("sequence")!;
+        Assert.AreEqual(frameRate.ToString(), sequence.Element("rate")!.Element("timebase")!.Value);
+        Assert.IsTrue(sequence.Descendants("clipitem").All(clip =>
+            clip.Element("rate")!.Element("timebase")!.Value == frameRate.ToString()));
+
+        using var audit = JsonDocument.Parse(await File.ReadAllTextAsync(result.AuditPath));
+        var timing = audit.RootElement.GetProperty("sequenceTiming");
+        Assert.AreEqual(frameRate, timing.GetProperty("frameRate").GetInt32());
+        Assert.AreEqual(48_000 / frameRate, timing.GetProperty("samplesPerFrame").GetInt32());
+        Assert.AreEqual(frameRate, audit.RootElement.GetProperty("review").GetProperty("frameRate").GetInt32());
+        Assert.AreEqual(3, audit.RootElement.GetProperty("fragments").GetArrayLength());
+        Assert.AreEqual(1, audit.RootElement.GetProperty("markers").GetArrayLength());
     }
 
     [TestMethod]
