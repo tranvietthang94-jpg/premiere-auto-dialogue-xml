@@ -30,4 +30,4 @@ Tài liệu này chỉ dùng cho hai candidate Phase 12 đã khóa hash. Không 
 4. Có bốn marker, gồm một marker `Gain đã giới hạn +18 dB` ở vùng lời rất nhỏ.
 5. Không relink sang WAV khác. Media đúng là `phase12-24fps-ndf-voice.wav` hoặc `phase12-30fps-ndf-voice.wav`, cùng SHA-256 `7F54C0FA61789A5F97791D7DA0B5A564BD8822FEBC57C770E7A0F682AA518F96`.
 
-Sau khi đủ WAV và XML re-export, chạy `scripts/phase12/Test-IntegerNdfPremiereAdoption.ps1`. Validator tự khóa source/candidate/audit hash, timing NDF, peak phrase, target hậu routing, Disabled, gain và marker; mỗi report là file mới và không được ghi đè.
+Sau khi đủ WAV và XML re-export, chạy `scripts/phase12/Test-IntegerNdfPremiereAdoption.ps1`. Validator tự khóa source/candidate/audit hash, timing NDF, peak phrase, target hậu routing, Disabled, gain và marker; mỗi report là file mới và không được ghi đè. Report chỉ kết luận các artifact tương thích; nó không tự chứng minh ứng dụng đã tạo file, nên vẫn phải đi cùng xác nhận import/phát trực quan ở checklist trên.

@@ -131,7 +131,7 @@ if (-not [bool]$pcm.validation.allWithinTolerance -or
 
 $summary = [ordered]@{
     SchemaVersion = '1.0'
-    Status = 'phase12-integer-ndf-premiere-adopted'
+    Status = 'phase12-integer-ndf-premiere-artifacts-compatible'
     FrameRate = $frameRate
     Ntsc = $false
     AudioSampleRate = 48000

@@ -112,7 +112,7 @@ Chuẩn bị 12E đã hoàn tất, chưa phải adoption:
 - Inspector nhận cả hai fixture với `0 warning / 0 error`. App tạo mỗi candidate trong dưới `1,1 giây`: cùng `2 phrase` gồm `1 uncapped` qua hai source clip và `1 capped +18 dB`, `6 fragment`, `4 marker`, `2 review group`; Disabled xuất hiện ở silence.
 - Candidate 24 fps có XML SHA-256 `69322FF3D8CD335C99A9505AEA84002F0C19D499CB95941179D61EB4851316D2`, audit `FBFBD945F3390D0F09CDE3EF1EE6CE7164E38814F1C34705EF9BB555370941CD`, grid `2.000 sample/frame`.
 - Candidate 30 fps có XML SHA-256 `F5929453819147F8D201EC0F5B942CCA42E02867D4CA90E9712EB31A0045FEC0`, audit `D65F3045A7C740DE91D2010B049FEAF3DD16C1B692AA50053313F528274454F5`, grid `1.600 sample/frame`.
-- `scripts/phase12/Test-IntegerNdfPremiereAdoption.ps1` chỉ nhận audit `1.8`, khóa đúng source/candidate hash và timing, rồi mới chạy PCM validator `1.2` cùng round-trip validator. Smoke âm tính bằng WAV nguồn chưa render bị từ chối đúng tại PCM gate.
+- `scripts/phase12/Test-IntegerNdfPremiereAdoption.ps1` chỉ nhận audit `1.8`, khóa đúng source/candidate hash và timing, rồi mới chạy PCM validator `1.2` cùng round-trip validator. Smoke âm tính bằng WAV nguồn chưa render bị từ chối đúng tại PCM gate; smoke dương dựng từ audit đạt để khóa orchestration. Vì artifact byte-compatible không tự chứng minh provenance ứng dụng, status được giới hạn là `phase12-integer-ndf-premiere-artifacts-compatible` và không thay xác nhận import/phát trực quan.
 - Đường dẫn import/export bất biến và checklist vận hành ở [PHASE12_PREMIERE_OPERATOR_CHECKLIST.md](PHASE12_PREMIERE_OPERATOR_CHECKLIST.md). Cả hai rate vẫn chờ import, PCM và XML re-export thật từ Premiere.
 
 ### Cổng sau — stereo source, sample rate và routing
