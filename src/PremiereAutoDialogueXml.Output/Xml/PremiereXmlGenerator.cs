@@ -3,6 +3,7 @@ using System.Numerics;
 using System.Xml.Linq;
 using PremiereAutoDialogueXml.Audio.Analysis;
 using PremiereAutoDialogueXml.Core.ProjectModel;
+using PremiereAutoDialogueXml.Core.Timing;
 using PremiereAutoDialogueXml.Core.Xml;
 using PremiereAutoDialogueXml.Output.Gain;
 
@@ -10,9 +11,6 @@ namespace PremiereAutoDialogueXml.Output.Xml;
 
 public sealed class PremiereXmlGenerator
 {
-    private const int SampleRate = 48_000;
-    private const int FrameRate = 25;
-    private const int SamplesPerFrame = SampleRate / FrameRate;
     private readonly Func<Guid> _guidFactory;
 
     public PremiereXmlGenerator(Func<Guid>? guidFactory = null)
@@ -27,7 +25,7 @@ public sealed class PremiereXmlGenerator
     {
         ArgumentNullException.ThrowIfNull(project);
         ArgumentNullException.ThrowIfNull(analysis);
-        ValidateAnalysisContract(project, analysis);
+        var frameGrid = ValidateAnalysisContract(project, analysis);
 
         var source = PremiereXmlDocumentLoader.Load(project.SourceXmlPath, project.SourceXmlSha256);
         var document = source.Document;
@@ -68,10 +66,11 @@ public sealed class PremiereXmlGenerator
                 usedIds,
                 generatedFragments,
                 generatedMarkers,
+                frameGrid,
                 cancellationToken);
         }
 
-        AddGainCapMarkers(analysis, generatedMarkers);
+        AddGainCapMarkers(analysis, generatedMarkers, frameGrid);
         InsertMarkers(sequence, generatedMarkers);
         EnsureDocumentType(document);
         RemoveInsignificantWhitespace(document);
@@ -92,7 +91,7 @@ public sealed class PremiereXmlGenerator
     {
         ArgumentNullException.ThrowIfNull(project);
         ArgumentNullException.ThrowIfNull(analysis);
-        ValidateAnalysisContract(project, analysis);
+        var frameGrid = ValidateAnalysisContract(project, analysis);
 
         var source = PremiereXmlDocumentLoader.Load(project.SourceXmlPath, project.SourceXmlSha256);
         var document = source.Document;
@@ -141,8 +140,8 @@ public sealed class PremiereXmlGenerator
                     .Where(segment => segment.SourceClipId == clip.Id)
                     .OrderBy(segment => segment.TimelineStartSample)
                     .ToArray();
-                ValidateSegmentCoverage(clip, segments);
-                foreach (var run in AlignToFrames(clip, segments, cancellationToken))
+                ValidateSegmentCoverage(clip, segments, frameGrid);
+                foreach (var run in AlignToFrames(clip, segments, frameGrid, cancellationToken))
                 {
                     cancellationToken.ThrowIfCancellationRequested();
                     var fragment = CreateFragmentAudit(
@@ -164,7 +163,7 @@ public sealed class PremiereXmlGenerator
             }
         }
 
-        AddGainCapMarkers(analysis, generatedMarkers);
+        AddGainCapMarkers(analysis, generatedMarkers, frameGrid);
         return new(
             sequenceId,
             sequenceUuid,
@@ -180,6 +179,7 @@ public sealed class PremiereXmlGenerator
         ISet<string> usedIds,
         ICollection<GeneratedAudioFragment> generatedFragments,
         ICollection<GeneratedSequenceMarker> generatedMarkers,
+        PremiereNdfFrameGrid frameGrid,
         CancellationToken cancellationToken)
     {
         var sourceElements = trackElement.Elements("clipitem")
@@ -203,8 +203,8 @@ public sealed class PremiereXmlGenerator
                 .Where(segment => segment.SourceClipId == clip.Id)
                 .OrderBy(segment => segment.TimelineStartSample)
                 .ToArray();
-            ValidateSegmentCoverage(clip, segments);
-            var runs = AlignToFrames(clip, segments, cancellationToken);
+            ValidateSegmentCoverage(clip, segments, frameGrid);
+            var runs = AlignToFrames(clip, segments, frameGrid, cancellationToken);
             var firstFragment = true;
 
             foreach (var run in runs)
@@ -239,6 +239,7 @@ public sealed class PremiereXmlGenerator
     private static IReadOnlyList<FrameRun> AlignToFrames(
         PremiereAudioClip clip,
         IReadOnlyList<AnalyzedAudioSegment> segments,
+        PremiereNdfFrameGrid frameGrid,
         CancellationToken cancellationToken)
     {
         var frameCountLong = clip.TimelineEndFrame - clip.TimelineStartFrame;
@@ -249,25 +250,25 @@ public sealed class PremiereXmlGenerator
 
         var frameCount = checked((int)frameCountLong);
         var decisions = new WeightedFrameDecision[frameCount];
-        var clipStartSample = checked(clip.TimelineStartFrame * SamplesPerFrame);
+        var clipStartSample = frameGrid.FrameToSample(clip.TimelineStartFrame);
 
         foreach (var segment in segments)
         {
             cancellationToken.ThrowIfCancellationRequested();
             var startOffset = Math.Max(0, segment.TimelineStartSample - clipStartSample);
             var endOffset = Math.Min(
-                checked(frameCountLong * SamplesPerFrame),
+                frameGrid.FrameToSample(frameCountLong),
                 segment.TimelineEndSample - clipStartSample);
-            var firstFrame = checked((int)(startOffset / SamplesPerFrame));
+            var firstFrame = checked((int)(startOffset / frameGrid.SamplesPerFrame));
             var lastFrameExclusive = checked((int)Math.Min(
                 frameCountLong,
-                (endOffset + SamplesPerFrame - 1) / SamplesPerFrame));
+                (endOffset + frameGrid.SamplesPerFrame - 1) / frameGrid.SamplesPerFrame));
             var candidate = FrameDecision.FromSegment(segment);
 
             for (var frame = firstFrame; frame < lastFrameExclusive; frame++)
             {
-                var frameStart = checked((long)frame * SamplesPerFrame);
-                var frameEnd = frameStart + SamplesPerFrame;
+                var frameStart = checked((long)frame * frameGrid.SamplesPerFrame);
+                var frameEnd = frameStart + frameGrid.SamplesPerFrame;
                 var overlap = Math.Max(0, Math.Min(endOffset, frameEnd) - Math.Max(startOffset, frameStart));
                 var existing = decisions[frame];
                 if (!existing.IsAssigned ||
@@ -444,14 +445,17 @@ public sealed class PremiereXmlGenerator
 
     private static void AddGainCapMarkers(
         ProjectAudioAnalysis analysis,
-        ICollection<GeneratedSequenceMarker> markers)
+        ICollection<GeneratedSequenceMarker> markers,
+        PremiereNdfFrameGrid frameGrid)
     {
         foreach (var track in analysis.Tracks)
         {
             foreach (var phrase in track.Phrases.Where(phrase => phrase.GainWasCapped))
             {
-                var start = phrase.CoreStartSample / SamplesPerFrame;
-                var end = Math.Max(start + 1, (phrase.CoreEndSample + SamplesPerFrame - 1) / SamplesPerFrame);
+                var start = frameGrid.SampleToFrameFloor(phrase.CoreStartSample);
+                var end = Math.Max(
+                    start + 1,
+                    frameGrid.SampleToFrameCeiling(phrase.CoreEndSample));
                 markers.Add(new(
                     "Gain đã giới hạn +18 dB",
                     $"Track {track.TrackIndex} · cần {phrase.RequiredGainDb:0.0} dB · đã áp +18.0 dB",
@@ -477,11 +481,22 @@ public sealed class PremiereXmlGenerator
         }
     }
 
-    private static void ValidateAnalysisContract(PremiereProject project, ProjectAudioAnalysis analysis)
+    private static PremiereNdfFrameGrid ValidateAnalysisContract(
+        PremiereProject project,
+        ProjectAudioAnalysis analysis)
     {
-        if (project.Sequence.FrameRate != FrameRate || project.Sequence.AudioSampleRate != SampleRate)
+        PremiereNdfFrameGrid frameGrid;
+        try
         {
-            throw new InvalidDataException("Writer chỉ nhận project 25 fps/48 kHz đã qua Phase 02.");
+            frameGrid = PremiereNdfFrameGrid.Create(
+                project.Sequence.FrameRate,
+                project.Sequence.AudioSampleRate);
+        }
+        catch (ArgumentException exception)
+        {
+            throw new InvalidDataException(
+                "Writer chỉ nhận project 24/25/30 fps NDF với audio 48 kHz đã qua inspector Phase 12.",
+                exception);
         }
 
         if (analysis.Tracks.Count != project.Sequence.AudioTracks.Count ||
@@ -562,19 +577,22 @@ public sealed class PremiereXmlGenerator
                 }
             }
         }
+
+        return frameGrid;
     }
 
     private static void ValidateSegmentCoverage(
         PremiereAudioClip clip,
-        IReadOnlyList<AnalyzedAudioSegment> segments)
+        IReadOnlyList<AnalyzedAudioSegment> segments,
+        PremiereNdfFrameGrid frameGrid)
     {
         if (segments.Count == 0)
         {
             throw new InvalidDataException($"Clip '{clip.Id}' không có quyết định phân tích.");
         }
 
-        var expectedStart = checked(clip.TimelineStartFrame * SamplesPerFrame);
-        var expectedEnd = checked(clip.TimelineEndFrame * SamplesPerFrame);
+        var expectedStart = frameGrid.FrameToSample(clip.TimelineStartFrame);
+        var expectedEnd = frameGrid.FrameToSample(clip.TimelineEndFrame);
         var cursor = expectedStart;
         foreach (var segment in segments)
         {

@@ -4,6 +4,7 @@ using System.Xml.Linq;
 using PremiereAutoDialogueXml.Core.Inspection;
 using PremiereAutoDialogueXml.Core.Media;
 using PremiereAutoDialogueXml.Core.ProjectModel;
+using PremiereAutoDialogueXml.Core.Timing;
 
 namespace PremiereAutoDialogueXml.Core.Xml;
 
@@ -103,10 +104,22 @@ public sealed class PremiereXmlInspector
             return new(null, issues);
         }
 
-        var sequenceRate = ParseRate(RequiredElement(sequenceElement, "rate", "sequence-rate-missing"));
-        if (sequenceRate != RequiredFrameRate)
+        var sequenceRateElement = RequiredElement(sequenceElement, "rate", "sequence-rate-missing");
+        var sequenceRate = ParseRate(sequenceRateElement, out var sequenceNdfIsExplicit);
+        if (!PremiereNdfFrameGrid.IsSupportedFrameRate(sequenceRate))
         {
-            issues.Add(Error("sequence-rate-unsupported", $"Sequence phải là 25 fps; XML báo {sequenceRate} fps."));
+            issues.Add(Error(
+                "sequence-rate-unsupported",
+                $"Cổng Phase 12 chỉ định nghĩa sequence 24, 25 hoặc 30 fps NDF; XML báo {sequenceRate} fps."));
+        }
+        else if (sequenceRate != RequiredFrameRate)
+        {
+            if (!sequenceNdfIsExplicit)
+            {
+                issues.Add(Error(
+                    "ntsc-rate-required",
+                    $"Sequence {sequenceRate} fps phải ghi rõ ntsc=FALSE để xác nhận lưới NDF nguyên Phase 12."));
+            }
         }
 
         var sequenceDuration = RequiredNonNegativeLong(sequenceElement, "duration");
@@ -289,10 +302,19 @@ public sealed class PremiereXmlInspector
             issues.Add(Error("clip-channel-type-unsupported", $"Clip '{clipName}' không phải source mono."));
         }
 
-        var clipRate = ParseRate(RequiredElement(clipElement, "rate", "clip-rate-missing"));
+        var clipRate = ParseRate(
+            RequiredElement(clipElement, "rate", "clip-rate-missing"),
+            out var clipNdfIsExplicit);
         if (clipRate != sequenceRate)
         {
             issues.Add(Error("clip-rate-unsupported", $"Clip '{clipName}' có rate khác sequence, có thể là retime."));
+        }
+        else if (clipRate != RequiredFrameRate && !clipNdfIsExplicit)
+        {
+            issues.Add(Error(
+                "ntsc-rate-required",
+                $"Clip '{clipName}' ở {clipRate} fps phải ghi rõ ntsc=FALSE để xác nhận lưới NDF nguyên Phase 12."));
+            return null;
         }
 
         var start = RequiredNonNegativeLong(clipElement, "start");
@@ -584,10 +606,11 @@ public sealed class PremiereXmlInspector
             "file://localhost phải chứa đường dẫn ổ đĩa Windows tuyệt đối, ví dụ F%3A/path/file.wav.");
     }
 
-    private static int ParseRate(XElement rateElement)
+    private static int ParseRate(XElement rateElement, out bool ndfIsExplicit)
     {
         var timebase = RequiredInt(rateElement, "timebase");
         var ntsc = OptionalText(rateElement, "ntsc");
+        ndfIsExplicit = ntsc is not null;
         if (ntsc is not null && !string.Equals(ntsc, "FALSE", StringComparison.OrdinalIgnoreCase))
         {
             throw new XmlContractException("ntsc-rate-unsupported", "MVP yêu cầu rate NDF với ntsc=FALSE.");

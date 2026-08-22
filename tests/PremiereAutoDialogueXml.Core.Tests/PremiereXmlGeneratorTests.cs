@@ -5,6 +5,7 @@ using PremiereAutoDialogueXml.Audio.Analysis;
 using PremiereAutoDialogueXml.Core.Domain;
 using PremiereAutoDialogueXml.Core.Media;
 using PremiereAutoDialogueXml.Core.ProjectModel;
+using PremiereAutoDialogueXml.Core.Timing;
 using PremiereAutoDialogueXml.Output.Xml;
 
 namespace PremiereAutoDialogueXml.Core.Tests;
@@ -223,12 +224,14 @@ public sealed class PremiereXmlGeneratorTests
             string directory,
             PremiereProject project,
             ProjectAudioAnalysis analysis,
-            string videoFingerprint)
+            string videoFingerprint,
+            long sourceStartSample)
         {
             Directory = directory;
             Project = project;
             Analysis = analysis;
             VideoFingerprint = videoFingerprint;
+            SourceStartSample = sourceStartSample;
         }
 
         public string Directory { get; }
@@ -239,13 +242,19 @@ public sealed class PremiereXmlGeneratorTests
 
         public string VideoFingerprint { get; }
 
-        public static WriterFixture Create(bool gainWasCapped = false)
+        private long SourceStartSample { get; }
+
+        public static WriterFixture Create(bool gainWasCapped = false, int frameRate = 25)
         {
+            var frameGrid = PremiereNdfFrameGrid.Create(frameRate);
             var directory = Path.Combine(Path.GetTempPath(), $"padx-writer-{Guid.NewGuid():N}");
             System.IO.Directory.CreateDirectory(directory);
             var xmlPath = Path.Combine(directory, "source.xml");
-            File.WriteAllText(xmlPath, SourceXml, new UTF8Encoding(false));
+            File.WriteAllText(xmlPath, SourceXml(frameGrid), new UTF8Encoding(false));
             var sourceHash = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(xmlPath)));
+            var sourceStartSample = frameGrid.FrameToSample(100);
+            var sourceEndSample = frameGrid.FrameToSample(110);
+            var waveSampleFrames = frameGrid.FrameToSample(300);
             var wave = new WaveFileInfo(
                 Path.Combine(directory, "voice.wav"),
                 WaveEncodingKind.Pcm,
@@ -255,9 +264,9 @@ public sealed class PremiereXmlGeneratorTests
                 24,
                 3,
                 44,
-                57_600,
-                57_600,
-                19_200,
+                checked(waveSampleFrames * 3),
+                checked(waveSampleFrames * 3),
+                waveSampleFrames,
                 0,
                 0);
             var clip = new PremiereAudioClip(
@@ -268,17 +277,17 @@ public sealed class PremiereXmlGeneratorTests
                 10,
                 100,
                 110,
-                1_016_064_000_000,
-                1_117_670_400_000,
-                192_000,
-                211_200,
+                frameGrid.FrameToTicks(100),
+                frameGrid.FrameToTicks(110),
+                sourceStartSample,
+                sourceEndSample,
                 "file-source",
                 new("media-source", "voice.wav", "file://localhost/F%3a/demo/voice.wav", wave.Path, wave));
             var track = new PremiereAudioTrack(1, 1, [clip]);
             var project = new PremiereProject(
                 xmlPath,
                 sourceHash,
-                new("sequence-source", "11111111-1111-1111-1111-111111111111", "Show", 25, 10, 2, 48_000, [track]));
+                new("sequence-source", "11111111-1111-1111-1111-111111111111", "Show", frameRate, 10, 2, 48_000, [track]));
             var compensatedGain = (float)(6 + DialogueProcessingPreset.Balanced.PremiereCenterPanCompensationDb);
             var measuredPeak = gainWasCapped
                 ? (float)(DialogueProcessingPreset.Balanced.TargetSamplePeakDbfs +
@@ -288,21 +297,21 @@ public sealed class PremiereXmlGeneratorTests
             var phrase = new DialoguePhrase(
                 "T01-P000001",
                 1,
-                3_840,
-                11_520,
-                3_840,
-                15_360,
+                frameGrid.FrameToSample(2),
+                frameGrid.FrameToSample(6),
+                frameGrid.FrameToSample(2),
+                frameGrid.FrameToSample(8),
                 measuredPeak,
                 gainWasCapped ? 24 : compensatedGain,
                 gainWasCapped ? 18 : compensatedGain,
                 gainWasCapped);
-            var fixture = new WriterFixture(directory, project, null!, string.Empty);
+            var fixture = new WriterFixture(directory, project, null!, string.Empty, sourceStartSample);
             var segments = new[]
             {
-                fixture.Segment(0, 3_840, AudioSegmentStatus.Noise, null, null, "vad-negative-noise"),
-                fixture.Segment(3_840, 11_520, AudioSegmentStatus.Speech, phrase.Id, phrase.AppliedGainDb, "confirmed-direct-speech"),
-                fixture.Segment(11_520, 15_360, AudioSegmentStatus.Ambiguous, phrase.Id, phrase.AppliedGainDb, "ambiguous-near-speech"),
-                fixture.Segment(15_360, 19_200, AudioSegmentStatus.Bleed, null, null, "confirmed-bleed-from-track-2")
+                fixture.Segment(0, frameGrid.FrameToSample(2), AudioSegmentStatus.Noise, null, null, "vad-negative-noise"),
+                fixture.Segment(frameGrid.FrameToSample(2), frameGrid.FrameToSample(6), AudioSegmentStatus.Speech, phrase.Id, phrase.AppliedGainDb, "confirmed-direct-speech"),
+                fixture.Segment(frameGrid.FrameToSample(6), frameGrid.FrameToSample(8), AudioSegmentStatus.Ambiguous, phrase.Id, phrase.AppliedGainDb, "ambiguous-near-speech"),
+                fixture.Segment(frameGrid.FrameToSample(8), frameGrid.FrameToSample(10), AudioSegmentStatus.Bleed, null, null, "confirmed-bleed-from-track-2")
             };
             var analysis = new ProjectAudioAnalysis(
                 [new(1, 7, [phrase], segments, -18)],
@@ -310,7 +319,7 @@ public sealed class PremiereXmlGeneratorTests
                 "MODEL-SHA256");
             var sourceDocument = XDocument.Load(xmlPath, LoadOptions.PreserveWhitespace);
             var videoFingerprint = Fingerprint(sourceDocument.Root!.Element("sequence")!.Element("media")!.Element("video")!);
-            return new(directory, project, analysis, videoFingerprint);
+            return new(directory, project, analysis, videoFingerprint, sourceStartSample);
         }
 
         public AnalyzedAudioSegment Segment(
@@ -324,8 +333,8 @@ public sealed class PremiereXmlGeneratorTests
                 "clip-source",
                 start,
                 end,
-                192_000 + start,
-                192_000 + end,
+                SourceStartSample + start,
+                SourceStartSample + end,
                 status,
                 phraseId,
                 gain,
@@ -348,14 +357,14 @@ public sealed class PremiereXmlGeneratorTests
             System.IO.Directory.Delete(Directory, recursive: true);
         }
 
-        private const string SourceXml = """
+        private static string SourceXml(PremiereNdfFrameGrid frameGrid) => $$"""
             <?xml version="1.0" encoding="UTF-8"?>
             <!DOCTYPE xmeml>
             <xmeml version="4">
               <sequence id="sequence-source">
                 <uuid>11111111-1111-1111-1111-111111111111</uuid>
                 <duration>10</duration>
-                <rate><timebase>25</timebase><ntsc>FALSE</ntsc></rate>
+                <rate><timebase>{{frameGrid.FramesPerSecond}}</timebase><ntsc>FALSE</ntsc></rate>
                 <name>Show</name>
                 <media>
                   <video><format><samplecharacteristics><width>3840</width><height>2160</height></samplecharacteristics></format><track><enabled>TRUE</enabled><locked>FALSE</locked></track></video>
@@ -366,8 +375,8 @@ public sealed class PremiereXmlGeneratorTests
                     <track premiereTrackType="Stereo" customRouting="preserve">
                       <clipitem id="clip-source" premiereChannelType="mono">
                         <masterclipid>masterclip-source</masterclipid><name>voice.wav</name><enabled>TRUE</enabled><duration>300</duration>
-                        <rate><timebase>25</timebase><ntsc>FALSE</ntsc></rate><start>0</start><end>10</end><in>100</in><out>110</out>
-                        <pproTicksIn>1016064000000</pproTicksIn><pproTicksOut>1117670400000</pproTicksOut>
+                        <rate><timebase>{{frameGrid.FramesPerSecond}}</timebase><ntsc>FALSE</ntsc></rate><start>0</start><end>10</end><in>100</in><out>110</out>
+                        <pproTicksIn>{{frameGrid.FrameToTicks(100)}}</pproTicksIn><pproTicksOut>{{frameGrid.FrameToTicks(110)}}</pproTicksOut>
                         <file id="file-source"><name>voice.wav</name><pathurl>file://localhost/F%3a/demo/voice.wav</pathurl></file>
                         <sourcetrack><mediatype>audio</mediatype><trackindex>1</trackindex></sourcetrack>
                         <logginginfo><description>preserve first</description></logginginfo><labels><label2>Caribbean</label2></labels>

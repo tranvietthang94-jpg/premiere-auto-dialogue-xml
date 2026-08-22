@@ -2,14 +2,35 @@ using PremiereAutoDialogueXml.Audio.Pcm;
 using PremiereAutoDialogueXml.Audio.Vad;
 using PremiereAutoDialogueXml.Core.Domain;
 using PremiereAutoDialogueXml.Core.ProjectModel;
+using PremiereAutoDialogueXml.Core.Timing;
 
 namespace PremiereAutoDialogueXml.Audio.Analysis;
 
-public sealed class TrackAudioScanner(PcmWaveSampleReader sampleReader)
+public sealed class TrackAudioScanner
 {
     private const int SourceSamplesPerVadChunk =
         SileroVoiceActivityDetector.SupportedChunkSampleCount *
         (AudioMath.SourceSampleRate / SileroVoiceActivityDetector.SupportedSampleRate);
+    private readonly PremiereNdfFrameGrid _frameGrid;
+    private readonly PcmWaveSampleReader _sampleReader;
+
+    public TrackAudioScanner(PcmWaveSampleReader sampleReader)
+        : this(sampleReader, PremiereNdfFrameGrid.Create(25))
+    {
+    }
+
+    public TrackAudioScanner(
+        PcmWaveSampleReader sampleReader,
+        PremiereNdfFrameGrid frameGrid)
+    {
+        _sampleReader = sampleReader ?? throw new ArgumentNullException(nameof(sampleReader));
+        if (!frameGrid.IsValid)
+        {
+            throw new ArgumentException("Frame-grid Premiere không hợp lệ.", nameof(frameGrid));
+        }
+
+        _frameGrid = frameGrid;
+    }
 
     public IReadOnlyList<AudioFrameObservation> Scan(
         PremiereAudioTrack track,
@@ -136,8 +157,8 @@ public sealed class TrackAudioScanner(PcmWaveSampleReader sampleReader)
         foreach (var clip in track.Clips.OrderBy(clip => clip.TimelineStartFrame))
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var clipStart = AudioMath.FramesToSamples(clip.TimelineStartFrame);
-            var clipEnd = AudioMath.FramesToSamples(clip.TimelineEndFrame);
+            var clipStart = _frameGrid.FrameToSample(clip.TimelineStartFrame);
+            var clipEnd = _frameGrid.FrameToSample(clip.TimelineEndFrame);
 
             if (!hasCursor)
             {
@@ -170,7 +191,7 @@ public sealed class TrackAudioScanner(PcmWaveSampleReader sampleReader)
             var sourceSampleCount = clip.SourceEndSample - clip.SourceStartSample;
             var readableSampleCount = Math.Min(timelineSampleCount, sourceSampleCount);
 
-            sampleReader.ReadRange(
+            _sampleReader.ReadRange(
                 clip.SourceMedia.Wave,
                 clip.SourceStartSample,
                 readableSampleCount,

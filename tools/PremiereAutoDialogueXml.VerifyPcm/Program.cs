@@ -108,7 +108,7 @@ try
         trackIndex,
         sourceMediaByFileId);
     var envelope = new PcmPilotEvidence(
-        "1.1",
+        "1.2",
         DateTimeOffset.UtcNow,
         Path.GetFileName(auditPath),
         await ComputeSha256Async(auditPath),
@@ -150,6 +150,8 @@ try
     {
         Report = Path.GetFileName(reportPath),
         validation.TrackIndex,
+        validation.FrameRate,
+        validation.SamplesPerFrame,
         validation.PhraseCount,
         validation.PassedPhraseCount,
         validation.FailedPhraseCount,

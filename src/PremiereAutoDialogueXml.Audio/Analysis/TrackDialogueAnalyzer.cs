@@ -6,6 +6,7 @@ namespace PremiereAutoDialogueXml.Audio.Analysis;
 public sealed class TrackDialogueAnalyzer(TimelinePcmAccessor pcmAccessor)
 {
     private const float VadAmbiguityMargin = 0.15f;
+    private int SamplesPerSequenceFrame => pcmAccessor.FrameGrid.SamplesPerFrame;
 
     public TrackAudioAnalysis Analyze(
         PremiereAudioTrack track,
@@ -311,7 +312,7 @@ public sealed class TrackDialogueAnalyzer(TimelinePcmAccessor pcmAccessor)
         return (updatedPhrases, updatedSegments);
     }
 
-    private static IReadOnlyDictionary<string, IReadOnlyList<TimelineInterval>> BuildFrameAlignedPhraseIntervals(
+    private IReadOnlyDictionary<string, IReadOnlyList<TimelineInterval>> BuildFrameAlignedPhraseIntervals(
         PremiereAudioTrack track,
         IReadOnlyList<AnalyzedAudioSegment> segments,
         CancellationToken cancellationToken)
@@ -329,26 +330,26 @@ public sealed class TrackDialogueAnalyzer(TimelinePcmAccessor pcmAccessor)
 
             var frameCount = checked((int)frameCountLong);
             var choices = new FrameAlignmentChoice[frameCount];
-            var clipStartSample = AudioMath.FramesToSamples(clip.TimelineStartFrame);
+            var clipStartSample = pcmAccessor.FrameGrid.FrameToSample(clip.TimelineStartFrame);
             foreach (var segment in segments
                          .Where(segment => segment.SourceClipId == clip.Id)
                          .OrderBy(segment => segment.TimelineStartSample))
             {
                 var startOffset = Math.Max(0, segment.TimelineStartSample - clipStartSample);
                 var endOffset = Math.Min(
-                    checked(frameCountLong * AudioMath.SamplesPerSequenceFrame),
+                    pcmAccessor.FrameGrid.FrameToSample(frameCountLong),
                     segment.TimelineEndSample - clipStartSample);
-                var firstFrame = checked((int)(startOffset / AudioMath.SamplesPerSequenceFrame));
+                var firstFrame = checked((int)(startOffset / SamplesPerSequenceFrame));
                 var lastFrameExclusive = checked((int)Math.Min(
                     frameCountLong,
-                    (endOffset + AudioMath.SamplesPerSequenceFrame - 1) /
-                    AudioMath.SamplesPerSequenceFrame));
+                    (endOffset + SamplesPerSequenceFrame - 1) /
+                    SamplesPerSequenceFrame));
                 var priority = FramePriority(segment.Status);
 
                 for (var frame = firstFrame; frame < lastFrameExclusive; frame++)
                 {
-                    var frameStart = checked((long)frame * AudioMath.SamplesPerSequenceFrame);
-                    var frameEnd = frameStart + AudioMath.SamplesPerSequenceFrame;
+                    var frameStart = checked((long)frame * SamplesPerSequenceFrame);
+                    var frameEnd = frameStart + SamplesPerSequenceFrame;
                     var overlap = Math.Max(
                         0,
                         Math.Min(endOffset, frameEnd) - Math.Max(startOffset, frameStart));
@@ -376,10 +377,11 @@ public sealed class TrackDialogueAnalyzer(TimelinePcmAccessor pcmAccessor)
                     continue;
                 }
 
-                var frameStartSample = AudioMath.FramesToSamples(clip.TimelineStartFrame + frame);
+                var frameStartSample = pcmAccessor.FrameGrid.FrameToSample(
+                    clip.TimelineStartFrame + frame);
                 var interval = new TimelineInterval(
                     frameStartSample,
-                    frameStartSample + AudioMath.SamplesPerSequenceFrame);
+                    frameStartSample + SamplesPerSequenceFrame);
                 if (!intervalsByPhrase.TryGetValue(segment.PhraseId, out var phraseIntervals))
                 {
                     phraseIntervals = [];
@@ -571,7 +573,7 @@ public sealed class TrackDialogueAnalyzer(TimelinePcmAccessor pcmAccessor)
         return phrases;
     }
 
-    private static IReadOnlyList<DialoguePhrase> ApplyNonOverlappingPadding(
+    private IReadOnlyList<DialoguePhrase> ApplyNonOverlappingPadding(
         IReadOnlyList<DialoguePhrase> phrases,
         PremiereAudioTrack track,
         DialogueProcessingPreset preset)
@@ -581,8 +583,10 @@ public sealed class TrackDialogueAnalyzer(TimelinePcmAccessor pcmAccessor)
             return phrases;
         }
 
-        var mediaStart = track.Clips.Min(clip => AudioMath.FramesToSamples(clip.TimelineStartFrame));
-        var mediaEnd = track.Clips.Max(clip => AudioMath.FramesToSamples(clip.TimelineEndFrame));
+        var mediaStart = track.Clips.Min(clip =>
+            pcmAccessor.FrameGrid.FrameToSample(clip.TimelineStartFrame));
+        var mediaEnd = track.Clips.Max(clip =>
+            pcmAccessor.FrameGrid.FrameToSample(clip.TimelineEndFrame));
         var before = AudioMath.MillisecondsToSamples(preset.PaddingBeforeMilliseconds);
         var after = AudioMath.MillisecondsToSamples(preset.PaddingAfterMilliseconds);
         var result = new DialoguePhrase[phrases.Count];
@@ -613,7 +617,7 @@ public sealed class TrackDialogueAnalyzer(TimelinePcmAccessor pcmAccessor)
         return result;
     }
 
-    private static IReadOnlyList<AnalyzedAudioSegment> BuildClipSegments(
+    private IReadOnlyList<AnalyzedAudioSegment> BuildClipSegments(
         PremiereAudioTrack track,
         IReadOnlyList<DialoguePhrase> phrases,
         IReadOnlyList<TimelineInterval> ambiguous,
@@ -625,8 +629,8 @@ public sealed class TrackDialogueAnalyzer(TimelinePcmAccessor pcmAccessor)
 
         foreach (var clip in track.Clips)
         {
-            var clipStart = AudioMath.FramesToSamples(clip.TimelineStartFrame);
-            var clipEnd = AudioMath.FramesToSamples(clip.TimelineEndFrame);
+            var clipStart = pcmAccessor.FrameGrid.FrameToSample(clip.TimelineStartFrame);
+            var clipEnd = pcmAccessor.FrameGrid.FrameToSample(clip.TimelineEndFrame);
             var boundaries = new SortedSet<long> { clipStart, clipEnd };
 
             foreach (var phrase in phrases)

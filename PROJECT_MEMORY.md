@@ -1,6 +1,6 @@
-# Memory handoff — Premiere Auto Dialogue XML, Phase 00–10
+# Memory handoff — Premiere Auto Dialogue XML, Phase 00–10 + Phase 12 hoàn tất local gate
 
-Ngày chốt: 2026-08-13 (Asia/Saigon). Đây là memory source-of-truth để một phiên Codex mới tiếp tục nâng cấp dự án mà không làm lại các phase đã hoàn tất.
+Ngày chốt: 2026-08-14 (Asia/Saigon). Đây là memory source-of-truth để một phiên Codex mới tiếp tục nâng cấp dự án mà không làm lại các phase đã hoàn tất.
 
 ## Định hướng và vị trí dự án
 
@@ -10,7 +10,7 @@ Ngày chốt: 2026-08-13 (Asia/Saigon). Đây là memory source-of-truth để m
 - Phase 10 qua PR `#14`, merge commit `19c6577f38b25a314e058b35c59f3219b4cfa4a8`; CI hậu merge `31691393143` đạt. Phase không tạo release mới.
 - Chủ dự án không muốn preview/review UI; app chỉ tập trung xử lý âm thanh và xuất XML. Phase 10 đã đạt mọi gate logic, HGE, Premiere round-trip và CI/installer.
 - Private draft prerelease: tag `v0.1.0-rc.1`, tên `Premiere Auto Dialogue XML 0.1.0 RC1`, target `8bdf47d`; URL draft hiện tại `https://github.com/tranvietthang94-jpg/premiere-auto-dialogue-xml/releases/tag/untagged-1c4ff86dc76dc88c43e3`.
-- Tài liệu phase đầy đủ nằm trong `docs/`; đọc trước `README.md`, `docs/IMPLEMENTATION_PLAN.md`, `docs/PHASE00_RESULT.md`, `docs/PHASE06_PILOT_RESULT.md`, `docs/PHASE07_INSTALLER_RELEASE.md`, `docs/PHASE08_REVIEW_QUEUE.md`, `docs/PHASE09_AUDIO_XML_HARDENING.md`, `docs/PHASE10_NOISE_BOUNDARY_STABILITY.md`, `docs/INTERNAL_CODE_SIGNING.md`.
+- Tài liệu phase đầy đủ nằm trong `docs/`; đọc trước `README.md`, `docs/IMPLEMENTATION_PLAN.md`, `docs/PHASE00_RESULT.md`, `docs/PHASE06_PILOT_RESULT.md`, `docs/PHASE07_INSTALLER_RELEASE.md`, `docs/PHASE08_REVIEW_QUEUE.md`, `docs/PHASE09_AUDIO_XML_HARDENING.md`, `docs/PHASE10_NOISE_BOUNDARY_STABILITY.md`, `docs/PHASE12_PREMIERE_INPUT_COMPATIBILITY.md`, `docs/INTERNAL_CODE_SIGNING.md`.
 
 ## Sản phẩm đã khóa
 
@@ -125,6 +125,7 @@ Ngày chốt: 2026-08-13 (Asia/Saigon). Đây là memory source-of-truth để m
 11. Self-signed không tự tạo SmartScreen reputation và chưa trusted trên máy mới. Không gọi đây là chữ ký công cộng, không tuyên bố “virus-free”. Luôn phát hành checksum/provenance và hướng dẫn trust nội bộ.
 12. Inno Setup hiện yêu cầu xem xét commercial license nếu phát hành thương mại; dự án hiện private/internal. Recheck license trước khi thương mại hóa.
 13. Full HGE từng đạt peak `5,247 GB` do giữ đồng thời hai cây XML DOM; bỏ cây đọc lại còn `1,849 GB` vẫn chưa đạt. Fix đúng là generation plan + streaming writer từng fragment, không hạ cổng RAM; lượt cuối còn `785,6 MB` và XML/audit semantic không đổi.
+14. CI Phase 12 từng đỏ sau khi build/test/publish/installer smoke đều đạt vì GitHub artifact storage đầy. Installer test vẫn là cổng bắt buộc; upload bản sao chỉ chạy ngoài PR, retention `7 ngày` và `continue-on-error` để quota lưu trữ không giả thành lỗi sản phẩm.
 
 ## Quy tắc tiếp tục ở phiên mới
 
@@ -141,4 +142,6 @@ Ngày chốt: 2026-08-13 (Asia/Saigon). Đây là memory source-of-truth để m
 
 ## Trạng thái bàn giao
 
-Phase 00–10 hoàn tất trên `main`. Phase 10 dùng merge bảo thủ hai tầng, audit `1.6` và output bounded; HGE2/full HGE, M19, PCM A1–A7, Premiere XML re-export và CI/installer đều đạt. Nếu tiếp tục, Phase 11 phải mở tài liệu/branch riêng và dùng hợp đồng Enabled/gain/XML/M19 hiện tại làm baseline.
+Phase 00–10 hoàn tất trên `main`. Phase 10 dùng merge bảo thủ hai tầng, audit `1.6` và output bounded; HGE2/full HGE, M19, PCM A1–A7, Premiere XML re-export và CI/installer đều đạt. Phase 11 calibrated multi-mic bleed đã hoàn tất như nghiên cứu shadow-only trên branch riêng nhưng không được adopt/merge; `main` không chứa logic Phase 11.
+
+Phase 12 mở ngày 2026-08-14 từ clean `main` commit `3f41d7cd2d8b4d90241b4bd2f50f798e23d65796` trên branch `codex/phase12-premiere-input-compatibility` và hoàn tất local gate ngày 2026-08-22. Cổng đầu nhận sequence nguyên `24/25/30 fps NDF`; source mono PCM `48 kHz`, master stereo, routing/gain/Enabled/M19 vẫn giữ Phase 10. Stereo source, sample rate/routing mới, `23,976/29,97` và drop-frame chưa mở. Slice 12A–12C dùng `PremiereNdfFrameGrid` xuyên parser, analysis, DOM/streaming XML, review, audit và validator; audit `1.8` ghi timing policy `phase12-integer-ndf-exact-frame-grid-v1`, PCM evidence `1.2`. Slice 12D: HGE2/full HGE 25 fps đều coverage mismatch `0`, lost Enabled `0`, newly Enabled `0`, M19 Enabled, temp `0`; full HGE `77 phút 02 giây`, peak `1.280,5 MB`; installer smoke đạt `410` payload file. Slice 12E: Premiere Pro 2026 tạo PCM mono 48 kHz/24-bit và XML re-export mới cho 24/30; mỗi rate đạt `2/2` phrase, `6/6` clip, `4 Enabled`, `2 Disabled`, `4` marker, max gain delta `0,0000138 dB`. Premiere chỉ normalize sequence depth metadata `24 → 16`; round-trip strict mặc định vẫn từ chối, Phase 12 chỉ cho phép explicit normalization `sequence-depth-24-to-16`. Adoption reports đạt `phase12-integer-ndf-premiere-artifacts-compatible`. Bước còn lại là test/CI cuối và merge PR Phase 12; không tạo release mới.

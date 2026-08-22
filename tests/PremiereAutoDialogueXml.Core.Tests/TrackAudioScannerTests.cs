@@ -3,6 +3,7 @@ using PremiereAutoDialogueXml.Audio.Pcm;
 using PremiereAutoDialogueXml.Audio.Vad;
 using PremiereAutoDialogueXml.Core.Domain;
 using PremiereAutoDialogueXml.Core.ProjectModel;
+using PremiereAutoDialogueXml.Core.Timing;
 
 namespace PremiereAutoDialogueXml.Core.Tests;
 
@@ -90,6 +91,27 @@ public sealed class TrackAudioScannerTests
         Assert.AreEqual(2, detector.ResetCount);
         Assert.AreEqual(0L, observations[0].TimelineStartSample);
         Assert.AreEqual(21_120L, observations[2].TimelineStartSample);
+    }
+
+    [TestMethod]
+    [DataRow(24, 2_000)]
+    [DataRow(25, 1_920)]
+    [DataRow(30, 1_600)]
+    public void ScanUsesProjectFrameGridForTimelineCoverage(int frameRate, int samplesPerFrame)
+    {
+        var samples = Enumerable.Repeat(0.1f, samplesPerFrame).ToArray();
+        using var fixture = TestAudioFixture.CreatePcm16(samples);
+        var track = new PremiereAudioTrack(1, 1, [fixture.Clip("clip-1", 0, 1)]);
+        using var detector = new CapturingDetector();
+        var frameGrid = PremiereNdfFrameGrid.Create(frameRate);
+
+        var observations = new TrackAudioScanner(new PcmWaveSampleReader(), frameGrid)
+            .Scan(track, detector, DialogueProcessingPreset.Balanced);
+
+        Assert.AreEqual(0L, observations[0].TimelineStartSample);
+        Assert.AreEqual(samplesPerFrame, observations[^1].TimelineEndSample);
+        Assert.AreEqual(samplesPerFrame, observations.Sum(observation =>
+            observation.TimelineEndSample - observation.TimelineStartSample));
     }
 
     private sealed class CapturingDetector : IVoiceActivityDetector

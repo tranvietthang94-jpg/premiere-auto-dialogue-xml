@@ -78,13 +78,18 @@ static AuditComparison Compare(Audit baseline, Audit candidate, string baselineP
     }
 
     var candidateNoiseBoundary = SummarizeNoiseBoundary(candidate.NoiseBoundaryComparison);
-    if (candidate.SchemaVersion == "1.6" && candidateNoiseBoundary is null)
+    if (SchemaAtLeast(candidate.SchemaVersion, 1, 6) && candidateNoiseBoundary is null)
     {
         failures.Add("candidate-noise-boundary-comparison-missing");
     }
     else if (candidateNoiseBoundary?.BaselineEnabledFinalDisabledCount > 0)
     {
         failures.Add("candidate-noise-boundary-baseline-enabled-lost");
+    }
+
+    if (SchemaAtLeast(candidate.SchemaVersion, 1, 8) && !ValidSequenceTiming(candidate.SequenceTiming))
+    {
+        failures.Add("candidate-sequence-timing-invalid");
     }
 
     var baselineTracks = baseline.Fragments
@@ -192,6 +197,18 @@ static AuditComparison Compare(Audit baseline, Audit candidate, string baselineP
         CandidateVadFrontEnd: SummarizeVad(candidate.VadFrontEndComparison),
         CandidateNoiseBoundary: candidateNoiseBoundary);
 }
+
+static bool SchemaAtLeast(string schemaVersion, int major, int minor) =>
+    Version.TryParse(schemaVersion, out var parsed) && parsed >= new Version(major, minor);
+
+static bool ValidSequenceTiming(SequenceTiming? timing) =>
+    timing is not null &&
+    timing.FrameRate is 24 or 25 or 30 &&
+    !timing.Ntsc &&
+    timing.AudioSampleRate == 48_000 &&
+    timing.AudioSampleRate % timing.FrameRate == 0 &&
+    timing.SamplesPerFrame == timing.AudioSampleRate / timing.FrameRate &&
+    timing.FrameGridPolicy == "phase12-integer-ndf-exact-frame-grid-v1";
 
 static Fragment? FindCovering(Fragment[] fragments, ref int index, long start, long end)
 {
@@ -334,6 +351,16 @@ sealed class Audit
     public List<Fragment> Fragments { get; init; } = [];
     public VadFrontEndComparison? VadFrontEndComparison { get; init; }
     public NoiseBoundaryProjectComparison? NoiseBoundaryComparison { get; init; }
+    public SequenceTiming? SequenceTiming { get; init; }
+}
+
+sealed class SequenceTiming
+{
+    public int FrameRate { get; init; }
+    public bool Ntsc { get; init; }
+    public int AudioSampleRate { get; init; }
+    public int SamplesPerFrame { get; init; }
+    public string FrameGridPolicy { get; init; } = "";
 }
 
 sealed class Fragment
