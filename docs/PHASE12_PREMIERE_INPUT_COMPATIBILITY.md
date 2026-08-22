@@ -103,6 +103,7 @@ Kết quả 12D:
 - HGE2 schema `1.8` giữ đúng `8.291` fragment; comparator với Phase 10 đạt, coverage mismatch `0`, lost Enabled `0`, newly Enabled `0`, temporary file `0`. M19/A3 frame `11214–11218` tiếp tục Enabled. XML SHA-256 `5A5127F9B4DCFEB7C38FAD50FA9A0BFFB58BF073D9DB4A8EBD93031B7052C2AD`; audit `1B287255F72B42BDF74DC1374426AC002F4CE7469BFCBEC3D85C85BF2ADAEA63`; runtime `76,7 giây`.
 - Full HGE schema `1.8` giữ đúng `162.922` fragment; comparator đạt với source hash khớp, coverage mismatch `0`, lost Enabled `0`, newly Enabled `0`, temporary file `0`. Runtime `77 phút 02 giây`, peak working set `1.280,5 MB`, dưới hai cổng `90 phút / 1,5 GB`. XML SHA-256 `13573F508CA95E12EDB1D10B19322AE63B3D06ABFAF87AA24DCB32C2B98DE70D`; audit `5BF843CE0405C7BD33EE9601FB1AEBB5F6AF8A2AACAB56EC2831150ED026E981`.
 - Self-contained publish và installer smoke đạt: `410` payload file, app mở được, install/uninstall exit `0`, payload được gỡ, file người dùng tạo vẫn còn, registry entry được tạo/xóa đúng. Installer unsigned nội bộ SHA-256 `8C479106D1019266BE0405307A37548B209E0BF2DF4B8F1ADD2ACA697BF29A85`; RC1 và release công khai không đổi.
+- CI vẫn bắt buộc build/test/publish và installer smoke. Upload bản sao installer chỉ chạy ngoài pull request, giữ `7 ngày` và là best-effort để quota artifact của GitHub không biến một installer đã kiểm đạt thành lỗi chất lượng giả.
 
 ### Slice 12E — Premiere adoption 24/30 fps
 

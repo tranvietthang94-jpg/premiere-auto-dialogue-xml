@@ -86,9 +86,11 @@ jobs:
           Get-ChildItem -LiteralPath $releaseDirectory | Copy-Item -Destination $artifactDirectory -Recurse
 
       - name: Upload verified Windows installer
+        if: github.event_name != 'pull_request'
+        continue-on-error: true
         uses: actions/upload-artifact@v7
         with:
           name: PremiereAutoDialogueXml-installer-${{ github.sha }}
           path: ${{ runner.temp }}/padx-installer-release/*
           if-no-files-found: error
-          retention-days: 14
+          retention-days: 7

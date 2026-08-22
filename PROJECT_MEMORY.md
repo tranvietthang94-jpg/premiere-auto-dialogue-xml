@@ -125,6 +125,7 @@ Ngày chốt: 2026-08-14 (Asia/Saigon). Đây là memory source-of-truth để m
 11. Self-signed không tự tạo SmartScreen reputation và chưa trusted trên máy mới. Không gọi đây là chữ ký công cộng, không tuyên bố “virus-free”. Luôn phát hành checksum/provenance và hướng dẫn trust nội bộ.
 12. Inno Setup hiện yêu cầu xem xét commercial license nếu phát hành thương mại; dự án hiện private/internal. Recheck license trước khi thương mại hóa.
 13. Full HGE từng đạt peak `5,247 GB` do giữ đồng thời hai cây XML DOM; bỏ cây đọc lại còn `1,849 GB` vẫn chưa đạt. Fix đúng là generation plan + streaming writer từng fragment, không hạ cổng RAM; lượt cuối còn `785,6 MB` và XML/audit semantic không đổi.
+14. CI Phase 12 từng đỏ sau khi build/test/publish/installer smoke đều đạt vì GitHub artifact storage đầy. Installer test vẫn là cổng bắt buộc; upload bản sao chỉ chạy ngoài PR, retention `7 ngày` và `continue-on-error` để quota lưu trữ không giả thành lỗi sản phẩm.
 
 ## Quy tắc tiếp tục ở phiên mới
 
