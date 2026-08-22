@@ -40,6 +40,7 @@ internal static class ConservativeNoiseBoundaryAnalysisMerger
         {
             BaselineEnabledFinalDisabledCount = baselineEnabledFinalDisabledCount,
             DecisionDifferences = [],
+            FinalDifferenceCount = finalDifferences.Count,
             FinalDifferences = finalDifferences
         });
     }

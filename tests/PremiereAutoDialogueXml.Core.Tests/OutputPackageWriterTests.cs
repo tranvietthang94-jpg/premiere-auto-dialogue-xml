@@ -41,7 +41,7 @@ public sealed class OutputPackageWriterTests
 
         using var audit = JsonDocument.Parse(await File.ReadAllTextAsync(result.AuditPath));
         var root = audit.RootElement;
-        Assert.AreEqual("1.8", root.GetProperty("schemaVersion").GetString());
+        Assert.AreEqual("1.9", root.GetProperty("schemaVersion").GetString());
         var sequenceTiming = root.GetProperty("sequenceTiming");
         Assert.AreEqual(25, sequenceTiming.GetProperty("frameRate").GetInt32());
         Assert.IsFalse(sequenceTiming.GetProperty("ntsc").GetBoolean());

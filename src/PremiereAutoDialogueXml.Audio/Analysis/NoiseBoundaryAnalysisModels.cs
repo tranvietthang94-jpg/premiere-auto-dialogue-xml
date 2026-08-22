@@ -189,6 +189,23 @@ public sealed record NoiseBoundaryTrackComparison(
     public IReadOnlyList<NoiseBoundaryPhraseDifference> PhraseDifferences { get; init; } = [];
 
     public IReadOnlyList<NoiseBoundaryFinalDecisionDifference> FinalDifferences { get; init; } = [];
+
+    public string PhraseDifferenceTraceSha256 { get; init; } =
+        ComparisonProvenanceCompactor.EmptyArraySha256;
+
+    public int CapturedPhraseDifferenceCount => PhraseDifferences.Count;
+
+    public string DecisionDifferenceTraceSha256 { get; init; } =
+        ComparisonProvenanceCompactor.EmptyArraySha256;
+
+    public int CapturedDecisionDifferenceCount => DecisionDifferences.Count;
+
+    public int FinalDifferenceCount { get; init; }
+
+    public string FinalDifferenceTraceSha256 { get; init; } =
+        ComparisonProvenanceCompactor.EmptyArraySha256;
+
+    public int CapturedFinalDifferenceCount => FinalDifferences.Count;
 }
 
 public sealed record NoiseBoundaryResamplingComparison(

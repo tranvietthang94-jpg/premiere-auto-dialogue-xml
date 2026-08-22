@@ -9,6 +9,7 @@ namespace PremiereAutoDialogueXml.Output.Validation;
 public sealed class OutputDecisionContractValidator
 {
     private const float GainToleranceDb = 0.001f;
+    private const int ProvenanceSampleLimit = 64;
     private const string NoiseBoundarySafetyReason = "ambiguous-noise-boundary-disagreement";
     private const string NoiseBoundaryCandidateOnlyFallbackReason =
         "ambiguous-noise-boundary-candidate-only-in-baseline-fallback";
@@ -52,6 +53,10 @@ public sealed class OutputDecisionContractValidator
             .Select(track => track.TrackIndex)
             .Order()
             .ToArray();
+        ValidateVadFrontEndProvenance(
+            analysis.VadFrontEndComparison
+                ?? throw new InvalidDataException("Audit shadow VAD bị thiếu trước publication."),
+            expectedTrackIndexes);
         var expectedFrontEnds = new[] { "AntiAliasFir", "LegacyStride3" };
         Require(
             projectComparison.FrontEnds.Select(frontEnd => frontEnd.Resampling).Order().SequenceEqual(expectedFrontEnds),
@@ -99,10 +104,17 @@ public sealed class OutputDecisionContractValidator
                     track.CapturedFrameDifferenceCount <= 64 &&
                     track.CapturedFrameDifferenceCount <= track.ChangedFrameCount &&
                     (track.ChangedFrameCount == 0 || track.CapturedFrameDifferenceCount > 0) &&
-                    track.FrameTraceSha256.Length == 64 &&
-                    track.FrameTraceSha256.All(Uri.IsHexDigit) &&
-                    track.PhraseDifferenceCount == track.PhraseDifferences.Count &&
-                    track.DecisionDifferences.Count == 0,
+                    IsSha256(track.FrameTraceSha256) &&
+                    track.CapturedPhraseDifferenceCount <= ProvenanceSampleLimit &&
+                    track.CapturedPhraseDifferenceCount <= track.PhraseDifferenceCount &&
+                    (track.PhraseDifferenceCount == 0) == (track.CapturedPhraseDifferenceCount == 0) &&
+                    IsSha256(track.PhraseDifferenceTraceSha256) &&
+                    track.CapturedDecisionDifferenceCount == 0 &&
+                    IsSha256(track.DecisionDifferenceTraceSha256) &&
+                    track.CapturedFinalDifferenceCount <= ProvenanceSampleLimit &&
+                    track.CapturedFinalDifferenceCount <= track.FinalDifferenceCount &&
+                    (track.FinalDifferenceCount == 0) == (track.CapturedFinalDifferenceCount == 0) &&
+                    IsSha256(track.FinalDifferenceTraceSha256),
                     $"Noise-boundary track {track.TrackIndex} có comparison count không nhất quán.");
 
                 var maximumFloorDeltaDb = 0f;
@@ -223,10 +235,10 @@ public sealed class OutputDecisionContractValidator
                 }
 
                 Require(
-                    lostBaselineCount == track.BaselineEnabledFinalDisabledCount && lostBaselineCount == 0,
+                    lostBaselineCount == 0 && track.BaselineEnabledFinalDisabledCount == 0,
                     $"Noise-boundary track {track.TrackIndex} làm mất vùng baseline Enabled.");
                 Require(
-                    (track.SegmentDifferenceCount == 0 || track.FinalDifferences.Count > 0) &&
+                    (track.SegmentDifferenceCount == 0 || track.FinalDifferenceCount > 0) &&
                     (track.BaselineEnabledCandidateDisabledCount == 0 || track.FinalDifferences.Any(difference =>
                         difference.BaselineEnabled && !difference.CandidateEnabled)) &&
                     (track.BaselineDisabledCandidateEnabledCount == 0 || track.FinalDifferences.Any(difference =>
@@ -236,10 +248,59 @@ public sealed class OutputDecisionContractValidator
         }
     }
 
+    private static void ValidateVadFrontEndProvenance(
+        VadFrontEndComparison comparison,
+        IReadOnlyList<int> expectedTrackIndexes)
+    {
+        Require(
+            comparison.LegacyResampling == "LegacyStride3" &&
+            comparison.CandidateResampling == "AntiAliasFir" &&
+            comparison.Tracks.Select(track => track.TrackIndex).Order().SequenceEqual(expectedTrackIndexes),
+            "Audit VAD front-end không đúng provenance hoặc không phủ toàn bộ track.");
+        foreach (var track in comparison.Tracks)
+        {
+            Require(
+                track.ObservationCount >= 0 &&
+                track.ChangedObservationCount >= 0 &&
+                track.ChangedObservationCount <= track.ObservationCount &&
+                track.SegmentDifferenceCount >= 0 &&
+                track.LegacyEnabledCandidateDisabledCount >= 0 &&
+                track.LegacyDisabledCandidateEnabledCount >= 0 &&
+                float.IsFinite(track.MaximumProbabilityDelta) &&
+                track.MaximumProbabilityDelta >= 0 &&
+                track.CapturedDifferenceCount <= ProvenanceSampleLimit &&
+                track.CapturedDifferenceCount <= track.SegmentDifferenceCount &&
+                (track.SegmentDifferenceCount == 0) == (track.CapturedDifferenceCount == 0) &&
+                IsSha256(track.DifferenceTraceSha256),
+                $"Audit VAD front-end track {track.TrackIndex} có aggregate/hash/sample không hợp lệ.");
+            foreach (var difference in track.Differences)
+            {
+                Require(
+                    difference.TrackIndex == track.TrackIndex &&
+                    difference.TimelineEndSample > difference.TimelineStartSample &&
+                    (!IsEnabled(difference.LegacyStatus) ||
+                     IsEnabled(difference.CandidateStatus) ||
+                     (difference.FinalStatus == AudioSegmentStatus.Ambiguous &&
+                      difference.FinalReason == "ambiguous-vad-front-end-disagreement")),
+                    $"Audit VAD front-end track {track.TrackIndex} có sample fail-safe không hợp lệ.");
+            }
+
+            Require(
+                (track.LegacyEnabledCandidateDisabledCount == 0 || track.Differences.Any(difference =>
+                    IsEnabled(difference.LegacyStatus) && !IsEnabled(difference.CandidateStatus))) &&
+                (track.LegacyDisabledCandidateEnabledCount == 0 || track.Differences.Any(difference =>
+                    !IsEnabled(difference.LegacyStatus) && IsEnabled(difference.CandidateStatus))),
+                $"Audit VAD front-end track {track.TrackIndex} thiếu sample theo nhóm safety.");
+        }
+    }
+
     private static bool IsEnabled(AudioSegmentStatus? status) =>
         status is AudioSegmentStatus.Speech or AudioSegmentStatus.Ambiguous;
 
     private static bool IsFiniteOptional(float? value) => value is null || float.IsFinite(value.Value);
+
+    private static bool IsSha256(string value) =>
+        value.Length == 64 && value.All(Uri.IsHexDigit);
 
     private static bool IsTrainingEligible(NoiseFloorTrainingDecision decision) => decision is
         NoiseFloorTrainingDecision.WarmupCandidate or

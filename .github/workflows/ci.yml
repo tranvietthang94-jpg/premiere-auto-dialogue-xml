@@ -9,6 +9,7 @@ on:
 
 permissions:
   contents: read
+  actions: write
 
 env:
   DOTNET_CLI_TELEMETRY_OPTOUT: "1"
@@ -38,6 +39,10 @@ jobs:
 
       - name: Test
         run: dotnet test PremiereAutoDialogueXml.slnx --configuration Release --no-build --logger "trx;LogFileName=tests.trx"
+
+      - name: Validate Premiere 24 and 30 fps round-trip policy
+        shell: pwsh
+        run: ./scripts/phase13/Test-PremiereRoundTripPolicy.ps1
 
       - name: Validate self-contained win-x64 publish
         shell: pwsh
@@ -84,6 +89,20 @@ jobs:
           $artifactDirectory = Join-Path $env:RUNNER_TEMP 'padx-installer-release'
           New-Item -ItemType Directory -Path $artifactDirectory | Out-Null
           Get-ChildItem -LiteralPath $releaseDirectory | Copy-Item -Destination $artifactDirectory -Recurse
+
+      - name: Remove previous verified installer artifacts
+        if: github.event_name != 'pull_request'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $artifactIds = @(
+            gh api --paginate "repos/$env:GITHUB_REPOSITORY/actions/artifacts?per_page=100" `
+              --jq '.artifacts[] | select(.name | startswith("PremiereAutoDialogueXml-installer-")) | .id'
+          )
+          foreach ($artifactId in $artifactIds) {
+            gh api --method DELETE "repos/$env:GITHUB_REPOSITORY/actions/artifacts/$artifactId"
+          }
 
       - name: Upload verified Windows installer
         if: github.event_name != 'pull_request'

@@ -111,7 +111,13 @@ public sealed record VadFrontEndTrackComparison(
     int SegmentDifferenceCount,
     int LegacyEnabledCandidateDisabledCount,
     int LegacyDisabledCandidateEnabledCount,
-    IReadOnlyList<VadDecisionDifference> Differences);
+    IReadOnlyList<VadDecisionDifference> Differences)
+{
+    public string DifferenceTraceSha256 { get; init; } =
+        ComparisonProvenanceCompactor.EmptyArraySha256;
+
+    public int CapturedDifferenceCount => Differences.Count;
+}
 
 public sealed record VadFrontEndComparison(
     string LegacyResampling,

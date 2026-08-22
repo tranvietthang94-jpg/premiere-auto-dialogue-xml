@@ -49,20 +49,44 @@ public sealed class TrackAudioScanner
         ArgumentNullException.ThrowIfNull(track);
         ArgumentNullException.ThrowIfNull(detector);
         ArgumentNullException.ThrowIfNull(preset);
+        var target = new ScanTarget(detector, resamplingMode, nameof(detector));
+        ScanCore(track, preset, [target], cancellationToken);
+        return target.Observations;
+    }
 
-        if (detector.SampleRate != SileroVoiceActivityDetector.SupportedSampleRate ||
-            detector.ChunkSampleCount != SileroVoiceActivityDetector.SupportedChunkSampleCount)
+    public VadObservationPair ScanPair(
+        PremiereAudioTrack track,
+        IVoiceActivityDetector legacyDetector,
+        IVoiceActivityDetector antiAliasDetector,
+        DialogueProcessingPreset preset,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(track);
+        ArgumentNullException.ThrowIfNull(legacyDetector);
+        ArgumentNullException.ThrowIfNull(antiAliasDetector);
+        ArgumentNullException.ThrowIfNull(preset);
+        if (ReferenceEquals(legacyDetector, antiAliasDetector))
         {
-            throw new ArgumentException("Detector không khớp hợp đồng Silero 16 kHz/512 mẫu.", nameof(detector));
+            throw new ArgumentException("Hai front-end VAD phải dùng detector state độc lập.", nameof(antiAliasDetector));
         }
 
-        var observations = new List<AudioFrameObservation>();
+        var legacy = new ScanTarget(legacyDetector, VadResamplingMode.LegacyStride3, nameof(legacyDetector));
+        var antiAlias = new ScanTarget(
+            antiAliasDetector,
+            VadResamplingMode.AntiAliasFir,
+            nameof(antiAliasDetector));
+        ScanCore(track, preset, [legacy, antiAlias], cancellationToken);
+        return new(legacy.Observations, antiAlias.Observations);
+    }
+
+    private void ScanCore(
+        PremiereAudioTrack track,
+        DialogueProcessingPreset preset,
+        IReadOnlyList<ScanTarget> targets,
+        CancellationToken cancellationToken)
+    {
         var sourceChunk = new float[SourceSamplesPerVadChunk];
         var silence = new float[SourceSamplesPerVadChunk];
-        var vadChunk = new float[SileroVoiceActivityDetector.SupportedChunkSampleCount];
-        var antiAliasResampler = resamplingMode == VadResamplingMode.AntiAliasFir
-            ? new StreamingFirDecimator3()
-            : null;
         var filled = 0;
         var chunkStart = 0L;
         var cursor = 0L;
@@ -79,23 +103,6 @@ public sealed class TrackAudioScanner
 
             cancellationToken.ThrowIfCancellationRequested();
             sourceChunk.AsSpan(filled).Clear();
-            if (antiAliasResampler is null)
-            {
-                for (var index = 0; index < vadChunk.Length; index++)
-                {
-                    vadChunk[index] = sourceChunk[index * 3];
-                }
-            }
-            else
-            {
-                var outputCount = antiAliasResampler.Process(sourceChunk, vadChunk);
-                if (outputCount != vadChunk.Length)
-                {
-                    throw new InvalidDataException(
-                        $"Resampler tạo {outputCount} mẫu thay vì {vadChunk.Length} mẫu VAD.");
-                }
-            }
-
             double squareSum = 0;
             var peak = 0f;
             for (var index = 0; index < filled; index++)
@@ -105,15 +112,19 @@ public sealed class TrackAudioScanner
                 squareSum += sourceChunk[index] * sourceChunk[index];
             }
 
-            var probability = detector.ProcessChunk(vadChunk);
             var rms = filled == 0 ? 0 : Math.Sqrt(squareSum / filled);
-            observations.Add(new(
-                chunkStart,
-                checked(chunkStart + filled),
-                probability,
-                AudioMath.LinearToDbfs(rms),
-                AudioMath.LinearToDbfs(peak),
-                containsMedia));
+            var rmsDbfs = AudioMath.LinearToDbfs(rms);
+            var peakDbfs = AudioMath.LinearToDbfs(peak);
+            foreach (var target in targets)
+            {
+                target.Emit(
+                    sourceChunk,
+                    chunkStart,
+                    checked(chunkStart + filled),
+                    rmsDbfs,
+                    peakDbfs,
+                    containsMedia);
+            }
 
             sourceChunk.AsSpan(0, filled).Clear();
             filled = 0;
@@ -164,8 +175,10 @@ public sealed class TrackAudioScanner
             {
                 cursor = clipStart;
                 hasCursor = true;
-                detector.Reset();
-                antiAliasResampler?.Reset();
+                foreach (var target in targets)
+                {
+                    target.Reset();
+                }
             }
             else if (clipStart > cursor)
             {
@@ -173,8 +186,10 @@ public sealed class TrackAudioScanner
                 if (gap >= resetGapSamples)
                 {
                     EmitChunk();
-                    detector.Reset();
-                    antiAliasResampler?.Reset();
+                    foreach (var target in targets)
+                    {
+                        target.Reset();
+                    }
                     cursor = clipStart;
                 }
                 else
@@ -206,6 +221,77 @@ public sealed class TrackAudioScanner
         }
 
         EmitChunk();
-        return observations;
+    }
+
+    private sealed class ScanTarget
+    {
+        private readonly IVoiceActivityDetector _detector;
+        private readonly float[] _vadChunk = new float[SileroVoiceActivityDetector.SupportedChunkSampleCount];
+        private readonly StreamingFirDecimator3? _antiAliasResampler;
+
+        public ScanTarget(
+            IVoiceActivityDetector detector,
+            VadResamplingMode resamplingMode,
+            string parameterName)
+        {
+            if (detector.SampleRate != SileroVoiceActivityDetector.SupportedSampleRate ||
+                detector.ChunkSampleCount != SileroVoiceActivityDetector.SupportedChunkSampleCount)
+            {
+                throw new ArgumentException(
+                    "Detector không khớp hợp đồng Silero 16 kHz/512 mẫu.",
+                    parameterName);
+            }
+
+            _detector = detector;
+            _antiAliasResampler = resamplingMode == VadResamplingMode.AntiAliasFir
+                ? new StreamingFirDecimator3()
+                : null;
+        }
+
+        public List<AudioFrameObservation> Observations { get; } = [];
+
+        public void Emit(
+            ReadOnlySpan<float> sourceChunk,
+            long timelineStartSample,
+            long timelineEndSample,
+            float rmsDbfs,
+            float peakDbfs,
+            bool containsMedia)
+        {
+            if (_antiAliasResampler is null)
+            {
+                for (var index = 0; index < _vadChunk.Length; index++)
+                {
+                    _vadChunk[index] = sourceChunk[index * 3];
+                }
+            }
+            else
+            {
+                var outputCount = _antiAliasResampler.Process(sourceChunk, _vadChunk);
+                if (outputCount != _vadChunk.Length)
+                {
+                    throw new InvalidDataException(
+                        $"Resampler tạo {outputCount} mẫu thay vì {_vadChunk.Length} mẫu VAD.");
+                }
+            }
+
+            Observations.Add(new(
+                timelineStartSample,
+                timelineEndSample,
+                _detector.ProcessChunk(_vadChunk),
+                rmsDbfs,
+                peakDbfs,
+                containsMedia));
+        }
+
+        public void Reset()
+        {
+            _detector.Reset();
+            _antiAliasResampler?.Reset();
+        }
     }
 }
+
+public sealed record VadObservationPair(
+    IReadOnlyList<AudioFrameObservation> Legacy,
+    IReadOnlyList<AudioFrameObservation> AntiAlias);

@@ -33,7 +33,7 @@ public sealed class AudioProjectAnalyzerTests
     }
 
     [TestMethod]
-    public async Task AnalyzeAsyncLimitsLongTimelineToOneWorkerForMemorySafety()
+    public async Task AnalyzeAsyncLimitsLongTimelineToOneWorkerForMemoryHeadroom()
     {
         using var fixture = TestAudioFixture.CreatePcm16(Enumerable.Repeat(0.01f, 1_920).ToArray());
         var tracks = Enumerable.Range(1, 6)
