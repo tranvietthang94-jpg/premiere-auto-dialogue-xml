@@ -114,6 +114,49 @@ public sealed class TrackAudioScannerTests
             observation.TimelineEndSample - observation.TimelineStartSample));
     }
 
+    [TestMethod]
+    public void ScanPairMatchesTwoIndependentScansExactly()
+    {
+        var firstSamples = Enumerable.Range(0, 4_100)
+            .Select(index => 0.31f * MathF.Sin(2 * MathF.PI * (300 + (index % 3_000)) * index / 48_000))
+            .ToArray();
+        var secondSamples = Enumerable.Range(0, 3_700)
+            .Select(index => 0.17f * MathF.Cos(2 * MathF.PI * 1_200 * index / 48_000))
+            .ToArray();
+        using var first = TestAudioFixture.CreatePcm16(firstSamples);
+        using var second = TestAudioFixture.CreatePcm16(secondSamples);
+        var track = new PremiereAudioTrack(
+            1,
+            1,
+            [first.Clip("clip-1", 0, 2), second.Clip("clip-2", 12, 14)]);
+        var scanner = new TrackAudioScanner(new PcmWaveSampleReader());
+        using var independentLegacy = new WeightedDetector();
+        using var independentAntiAlias = new WeightedDetector();
+        using var pairedLegacy = new WeightedDetector();
+        using var pairedAntiAlias = new WeightedDetector();
+
+        var expectedLegacy = scanner.Scan(
+            track,
+            independentLegacy,
+            DialogueProcessingPreset.Balanced,
+            VadResamplingMode.LegacyStride3);
+        var expectedAntiAlias = scanner.Scan(
+            track,
+            independentAntiAlias,
+            DialogueProcessingPreset.Balanced,
+            VadResamplingMode.AntiAliasFir);
+        var actual = scanner.ScanPair(
+            track,
+            pairedLegacy,
+            pairedAntiAlias,
+            DialogueProcessingPreset.Balanced);
+
+        CollectionAssert.AreEqual(expectedLegacy.ToArray(), actual.Legacy.ToArray());
+        CollectionAssert.AreEqual(expectedAntiAlias.ToArray(), actual.AntiAlias.ToArray());
+        Assert.AreEqual(independentLegacy.ResetCount, pairedLegacy.ResetCount);
+        Assert.AreEqual(independentAntiAlias.ResetCount, pairedAntiAlias.ResetCount);
+    }
+
     private sealed class CapturingDetector : IVoiceActivityDetector
     {
         public int SampleRate => 16_000;
@@ -128,6 +171,32 @@ public sealed class TrackAudioScannerTests
         {
             Chunks.Add(samples.ToArray());
             return 0.01f;
+        }
+
+        public void Reset() => ResetCount++;
+
+        public void Dispose()
+        {
+        }
+    }
+
+    private sealed class WeightedDetector : IVoiceActivityDetector
+    {
+        public int SampleRate => 16_000;
+
+        public int ChunkSampleCount => 512;
+
+        public int ResetCount { get; private set; }
+
+        public float ProcessChunk(ReadOnlySpan<float> samples)
+        {
+            double weighted = 0;
+            for (var index = 0; index < samples.Length; index++)
+            {
+                weighted += samples[index] * ((index % 17) + 1);
+            }
+
+            return (float)Math.Clamp(Math.Abs(weighted) / 1_000, 0, 1);
         }
 
         public void Reset() => ResetCount++;

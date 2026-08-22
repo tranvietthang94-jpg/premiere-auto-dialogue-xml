@@ -9,6 +9,7 @@ namespace PremiereAutoDialogueXml.Audio.Analysis;
 public sealed class AudioProjectAnalyzer
 {
     private const double LongTimelineObservationThreshold = 1_000_000;
+    private const int LongTimelineMaximumWorkers = 1;
     private readonly Func<IVoiceActivityDetector> _detectorFactory;
     private readonly PcmWaveSampleReader _sampleReader;
     private readonly bool _enableVadFrontEndShadow;
@@ -76,26 +77,47 @@ public sealed class AudioProjectAnalyzer
         var completed = 0;
         progress?.Report(new(0, tracks.Count, null, "Bắt đầu phân tích âm thanh."));
 
-        await Parallel.ForEachAsync(
-            Enumerable.Range(0, tracks.Count),
-            new ParallelOptions
-            {
-                MaxDegreeOfParallelism = maximumWorkers,
-                CancellationToken = cancellationToken
-            },
-            (position, token) =>
-            {
-                var track = tracks[position];
-                progress?.Report(new(
-                    Volatile.Read(ref completed),
-                    tracks.Count,
-                    track.Index,
-                    $"Đang phân tích track {track.Index}."));
+        ValueTask AnalyzeTrackPosition(int position, CancellationToken token)
+        {
+            var track = tracks[position];
+            progress?.Report(new(
+                Volatile.Read(ref completed),
+                tracks.Count,
+                track.Index,
+                $"Đang phân tích track {track.Index}."));
 
-                var scanner = new TrackAudioScanner(_sampleReader, frameGrid);
-                var analyzer = new TrackDialogueAnalyzer(
-                    new TimelinePcmAccessor(_sampleReader, frameGrid));
-                using (var detector = _detectorFactory())
+            var scanner = new TrackAudioScanner(_sampleReader, frameGrid);
+            var analyzer = new TrackDialogueAnalyzer(
+                new TimelinePcmAccessor(_sampleReader, frameGrid));
+            using (var detector = _detectorFactory())
+            {
+                if (_enableVadFrontEndShadow)
+                {
+                    using var candidateDetector = _detectorFactory();
+                    var observationPair = scanner.ScanPair(
+                        track,
+                        detector,
+                        candidateDetector,
+                        preset,
+                        token);
+                    var observations = observationPair.Legacy;
+                    var legacyShadow = AnalyzeNoiseBoundaryPair(
+                        analyzer, track, observations, preset, token);
+                    legacyBaselineResults[position] = legacyShadow.Baseline;
+                    legacyNoiseCandidateResults[position] = legacyShadow.Candidate;
+                    legacyNoiseComparisons[position] = legacyShadow.Comparison;
+
+                    var candidateObservations = observationPair.AntiAlias;
+                    var antiAliasShadow = AnalyzeNoiseBoundaryPair(
+                        analyzer, track, candidateObservations, preset, token);
+                    antiAliasBaselineResults[position] = antiAliasShadow.Baseline;
+                    antiAliasNoiseCandidateResults[position] = antiAliasShadow.Candidate;
+                    antiAliasNoiseComparisons[position] = antiAliasShadow.Comparison;
+                    observationComparisons[position] = CompareObservations(
+                        observations,
+                        candidateObservations);
+                }
+                else
                 {
                     var observations = scanner.Scan(
                         track,
@@ -103,45 +125,28 @@ public sealed class AudioProjectAnalyzer
                         preset,
                         VadResamplingMode.LegacyStride3,
                         token);
-                    if (_enableVadFrontEndShadow)
-                    {
-                        var legacyShadow = AnalyzeNoiseBoundaryPair(
-                            analyzer, track, observations, preset, token);
-                        legacyBaselineResults[position] = legacyShadow.Baseline;
-                        legacyNoiseCandidateResults[position] = legacyShadow.Candidate;
-                        legacyNoiseComparisons[position] = legacyShadow.Comparison;
-
-                        using var candidateDetector = _detectorFactory();
-                        var candidateObservations = scanner.Scan(
-                            track,
-                            candidateDetector,
-                            preset,
-                            VadResamplingMode.AntiAliasFir,
-                            token);
-                        var antiAliasShadow = AnalyzeNoiseBoundaryPair(
-                            analyzer, track, candidateObservations, preset, token);
-                        antiAliasBaselineResults[position] = antiAliasShadow.Baseline;
-                        antiAliasNoiseCandidateResults[position] = antiAliasShadow.Candidate;
-                        antiAliasNoiseComparisons[position] = antiAliasShadow.Comparison;
-                        observationComparisons[position] = CompareObservations(
-                            observations,
-                            candidateObservations);
-                    }
-                    else
-                    {
-                        legacyBaselineResults[position] = analyzer.Analyze(
-                            track, observations, preset, token);
-                    }
+                    legacyBaselineResults[position] = analyzer.Analyze(
+                        track, observations, preset, token);
                 }
+            }
 
-                var nowCompleted = Interlocked.Increment(ref completed);
-                progress?.Report(new(
-                    nowCompleted,
-                    tracks.Count,
-                    track.Index,
-                    $"Đã phân tích xong track {track.Index}."));
-                return ValueTask.CompletedTask;
-            });
+            var nowCompleted = Interlocked.Increment(ref completed);
+            progress?.Report(new(
+                nowCompleted,
+                tracks.Count,
+                track.Index,
+                $"Đã phân tích xong track {track.Index}."));
+            return ValueTask.CompletedTask;
+        }
+
+        await Parallel.ForEachAsync(
+            Enumerable.Range(0, tracks.Count),
+            new ParallelOptions
+            {
+                MaxDegreeOfParallelism = maximumWorkers,
+                CancellationToken = cancellationToken
+            },
+            AnalyzeTrackPosition);
 
         progress?.Report(new(tracks.Count, tracks.Count, null, "Đang đối chiếu bleed giữa các track."));
         var bleedResolver = new BleedResolver(new TimelinePcmAccessor(_sampleReader, frameGrid));
@@ -179,21 +184,29 @@ public sealed class AudioProjectAnalyzer
                     legacyNoiseComparisons[position],
                     resolvedLegacyBaseline[position],
                     resolvedLegacyNoiseCandidate[position]);
-                (mergedLegacyNoise[position], legacyNoiseComparisons[position]) =
+                legacyComparison = ComparisonProvenanceCompactor.Compact(legacyComparison);
+                var legacyMerge =
                     ConservativeNoiseBoundaryAnalysisMerger.Merge(
                         resolvedLegacyBaseline[position],
                         resolvedLegacyNoiseCandidate[position],
                         legacyComparison);
+                mergedLegacyNoise[position] = legacyMerge.Analysis;
+                legacyNoiseComparisons[position] = ComparisonProvenanceCompactor.Compact(
+                    legacyMerge.Comparison);
 
                 var antiAliasComparison = NoiseBoundaryShadowComparer.RefreshDecisions(
                     antiAliasNoiseComparisons[position],
                     resolvedAntiAliasBaseline[position],
                     resolvedAntiAliasNoiseCandidate[position]);
-                (mergedAntiAliasNoise[position], antiAliasNoiseComparisons[position]) =
+                antiAliasComparison = ComparisonProvenanceCompactor.Compact(antiAliasComparison);
+                var antiAliasMerge =
                     ConservativeNoiseBoundaryAnalysisMerger.Merge(
                         resolvedAntiAliasBaseline[position],
                         resolvedAntiAliasNoiseCandidate[position],
                         antiAliasComparison);
+                mergedAntiAliasNoise[position] = antiAliasMerge.Analysis;
+                antiAliasNoiseComparisons[position] = ComparisonProvenanceCompactor.Compact(
+                    antiAliasMerge.Comparison);
             }
 
             var merged = new TrackAudioAnalysis[tracks.Count];
@@ -202,12 +215,14 @@ public sealed class AudioProjectAnalyzer
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 var observationComparison = observationComparisons[position];
-                (merged[position], trackComparisons[position]) = ConservativeVadAnalysisMerger.Merge(
+                var vadMerge = ConservativeVadAnalysisMerger.Merge(
                     mergedLegacyNoise[position],
                     mergedAntiAliasNoise[position],
                     observationComparison.ObservationCount,
                     observationComparison.ChangedObservationCount,
                     observationComparison.MaximumProbabilityDelta);
+                merged[position] = vadMerge.Analysis;
+                trackComparisons[position] = ComparisonProvenanceCompactor.Compact(vadMerge.Comparison);
             }
 
             resolved = merged;
@@ -255,7 +270,7 @@ public sealed class AudioProjectAnalyzer
         return new(
             shadow.Baseline with { NoiseBoundaryTrace = null },
             shadow.Candidate with { NoiseBoundaryTrace = null },
-            shadow.Comparison);
+            ComparisonProvenanceCompactor.Compact(shadow.Comparison));
     }
 
     internal static int DetermineMaximumWorkers(
@@ -264,14 +279,19 @@ public sealed class AudioProjectAnalyzer
     {
         ArgumentNullException.ThrowIfNull(project);
         ArgumentNullException.ThrowIfNull(preset);
+        return IsLongTimeline(project)
+            ? Math.Min(LongTimelineMaximumWorkers, preset.MaximumWorkers)
+            : preset.MaximumWorkers;
+    }
+
+    private static bool IsLongTimeline(PremiereProject project)
+    {
         var estimatedObservationsPerTrack =
             project.Sequence.DurationFrames *
             (double)project.Sequence.AudioSampleRate /
             project.Sequence.FrameRate /
             1_536d;
-        return estimatedObservationsPerTrack >= LongTimelineObservationThreshold
-            ? 1
-            : preset.MaximumWorkers;
+        return estimatedObservationsPerTrack >= LongTimelineObservationThreshold;
     }
 
     private static ObservationComparison CompareObservations(

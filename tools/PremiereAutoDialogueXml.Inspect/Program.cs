@@ -99,7 +99,9 @@ foreach (var xmlPath in xmlPaths)
                         frontEnd.BaselineEnabledFinalDisabledCount,
                         TrainingEligibilityDifferenceCount = frontEnd.Tracks.Sum(track =>
                             track.TrainingEligibilityDifferenceCount),
-                        FinalDifferenceCount = frontEnd.Tracks.Sum(track => track.FinalDifferences.Count),
+                        FinalDifferenceCount = frontEnd.Tracks.Sum(track => track.FinalDifferenceCount),
+                        CapturedFinalDifferenceCount = frontEnd.Tracks.Sum(track =>
+                            track.CapturedFinalDifferenceCount),
                         MaximumNoiseFloorDeltaDb = frontEnd.Tracks
                             .Select(track => track.MaximumNoiseFloorDeltaDb)
                             .DefaultIfEmpty()
@@ -115,9 +117,13 @@ foreach (var xmlPath in xmlPaths)
                     FrameDifferenceRecordCount = analysis.NoiseBoundaryComparison.FrontEnds.Sum(frontEnd =>
                         frontEnd.Tracks.Sum(track => track.FrameDifferenceSamples.Count)),
                     PhraseDifferenceRecordCount = analysis.NoiseBoundaryComparison.FrontEnds.Sum(frontEnd =>
-                        frontEnd.Tracks.Sum(track => track.PhraseDifferences.Count)),
+                        frontEnd.Tracks.Sum(track => track.PhraseDifferenceCount)),
+                    CapturedPhraseDifferenceRecordCount = analysis.NoiseBoundaryComparison.FrontEnds.Sum(frontEnd =>
+                        frontEnd.Tracks.Sum(track => track.CapturedPhraseDifferenceCount)),
                     FinalDifferenceRecordCount = analysis.NoiseBoundaryComparison.FrontEnds.Sum(frontEnd =>
-                        frontEnd.Tracks.Sum(track => track.FinalDifferences.Count))
+                        frontEnd.Tracks.Sum(track => track.FinalDifferenceCount)),
+                    CapturedFinalDifferenceRecordCount = analysis.NoiseBoundaryComparison.FrontEnds.Sum(frontEnd =>
+                        frontEnd.Tracks.Sum(track => track.CapturedFinalDifferenceCount))
                 }
         };
 

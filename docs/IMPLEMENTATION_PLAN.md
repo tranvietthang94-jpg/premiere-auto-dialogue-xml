@@ -19,6 +19,7 @@ Mỗi phase dùng branch và draft pull request riêng. Các thay đổi có ý 
 11. `codex/phase10-noise-boundary-stability`
 12. `codex/phase11-calibrated-multimic-bleed` — research-only, đóng không merge
 13. `codex/phase12-premiere-input-compatibility`
+14. `codex/phase13-reliability-performance`
 
 Phase 00–09 đã hoàn tất và merge vào `main`. Theo quyết định sản phẩm ngày 2026-08-09, app không mở nhánh preview/review UI; Phase 09 tập trung làm chắc đầu vào VAD, safety validator và XML output. Phase 09 đạt mọi gate HGE2/full HGE, Premiere PCM A1–A7, Final Cut Pro XML re-export và CI/packaging; merge qua PR `#12` tại `50ee4f9`, CI hậu merge `31461869682` đạt. Xem [PHASE09_AUDIO_XML_HARDENING.md](PHASE09_AUDIO_XML_HARDENING.md).
 
@@ -27,6 +28,8 @@ Phase 10 đã đạt toàn bộ gate và merge qua PR `#14` tại `19c6577`; CI 
 Phase 11 calibrated multi-mic bleed đã hoàn tất như nghiên cứu shadow-only trên branch riêng nhưng không được adopt/merge vì hai corpus thật không tạo stable calibration hoặc lợi ích chất lượng, trong khi tăng audit/RAM. `main`, RC1 và production semantic vẫn giữ Phase 10.
 
 Phase 12 đã đạt cổng local trên branch `codex/phase12-premiere-input-compatibility`. Cổng đầu mở rộng sequence nguyên `24/25/30 fps NDF`; `25 fps` là regression baseline. Source vẫn mono PCM `48 kHz`, master stereo và routing `mono-center-equal-power-to-stereo`. Slice 12A–12C truyền một frame-grid duy nhất qua parser, analysis, DOM/streaming writer, review, audit và validator; audit production `1.8` ghi timing provenance. Slice 12D chứng minh HGE2/full HGE 25 fps có coverage mismatch/lost Enabled/newly Enabled bằng `0`, giữ M19, đạt runtime/RAM và installer smoke. Slice 12E import/re-export thật trên Premiere Pro 2026: PCM 24/30 đạt mọi phrase; XML giữ clip, Enabled/Disabled, gain và marker. Premiere chỉ normalize sequence depth metadata `24 → 16`; ngoại lệ này được khóa explicit và không nới các trường khác. `24/25/30 fps NDF` đã được adopt; stereo source, sample rate/routing mới, fractional-rate và drop-frame là các cổng riêng chưa mở. Xem [PHASE12_PREMIERE_INPUT_COMPATIBILITY.md](PHASE12_PREMIERE_INPUT_COMPATIBILITY.md).
+
+Phase 13 đạt local gate trên branch `codex/phase13-reliability-performance` mà không đổi VAD/noise/bleed/gain/routing/marker/XML semantic. CI có `8/8` policy case khóa strict/explicit sequence-depth cho cả 24/30; Actions chủ động giữ tối đa một installer CI. Paired scan đọc PCM một lần cho hai detector độc lập; audit `1.9` giữ full count/SHA-256 và mẫu bounded. HGE2 giảm RAM/audit với runtime trong `+5%`; full HGE đạt `75:52,4`/`1.218,3 MB`/audit `157,52 MB`, coverage mismatch/lost Enabled/newly Enabled `0`, M19 Enabled. Xem [PHASE13_RELIABILITY_PERFORMANCE.md](PHASE13_RELIABILITY_PERFORMANCE.md).
 
 ## Kiến trúc
 
