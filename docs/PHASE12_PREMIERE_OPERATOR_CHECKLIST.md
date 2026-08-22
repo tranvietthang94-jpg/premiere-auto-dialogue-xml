@@ -2,6 +2,8 @@
 
 Tài liệu này chỉ dùng cho hai candidate Phase 12 đã khóa hash. Không import XML nguồn `*-input.xml`, không dùng lại PCM/XML re-export của phase cũ và không ghi đè bất kỳ file nào.
 
+Trạng thái ngày 2026-08-22: đã hoàn tất trên Premiere Pro 2026. Premiere tự đặt tên output theo sequence; validator dùng đúng file hash thật, không yêu cầu đổi tên hoặc ghi đè.
+
 ## Candidate 24 fps
 
 - Import file:
@@ -31,3 +33,10 @@ Tài liệu này chỉ dùng cho hai candidate Phase 12 đã khóa hash. Không 
 5. Không relink sang WAV khác. Media đúng là `phase12-24fps-ndf-voice.wav` hoặc `phase12-30fps-ndf-voice.wav`, cùng SHA-256 `7F54C0FA61789A5F97791D7DA0B5A564BD8822FEBC57C770E7A0F682AA518F96`.
 
 Sau khi đủ WAV và XML re-export, chạy `scripts/phase12/Test-IntegerNdfPremiereAdoption.ps1`. Validator tự khóa source/candidate/audit hash, timing NDF, peak phrase, target hậu routing, Disabled, gain và marker; mỗi report là file mới và không được ghi đè. Report chỉ kết luận các artifact tương thích; nó không tự chứng minh ứng dụng đã tạo file, nên vẫn phải đi cùng xác nhận import/phát trực quan ở checklist trên.
+
+## Kết quả đã khóa
+
+- 24 fps: PCM `EE601B250E7D87B7016947EED25E8A37561F191F8D2B1C57FB73AE983A2C7D1A`, XML re-export `1ED321A0E3AAA6844DF63E87D761E8B384B58DE34FD11A479B709C065DBB0291`, adoption report `AC46489421A7915277E30E3216ADBC728179E4DEF133ACD1D568B78926A7CB3F`.
+- 30 fps: PCM `8067C493C0260BB2CAD97C6CA06A27B2BF7020A67F5305D7E3F45A953BC2A97E`, XML re-export `757260934261096728CFCB89422FE62A8AD9010A57982B8DD52811F296CC3CB8`, adoption report `E0202CDC3E255E86CE442BB8FDEB09C685511CCDE846FF24FA5C960C9F156A7D`.
+- Cả hai đạt `2/2` phrase PCM, `6/6` clip XML, `4 Enabled`, `2 Disabled`, `4` marker và maximum gain delta `0,0000138 dB`.
+- Premiere re-export sequence depth `24 → 16` trong metadata nhưng WAV thật vẫn mono `48 kHz / 24-bit`. Chỉ normalization cụ thể này được Phase 12 ghi nhận; validator mặc định và mọi metadata khác vẫn fail closed.

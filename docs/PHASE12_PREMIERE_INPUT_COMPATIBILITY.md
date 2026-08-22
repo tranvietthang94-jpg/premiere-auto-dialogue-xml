@@ -1,6 +1,6 @@
 # Phase 12 — Tương thích input Premiere theo từng cổng
 
-Trạng thái: `Slice 12C passed; synthetic 24/25/30 publication gate open` ngày 2026-08-14. Phase được mở từ clean `main` commit `3f41d7cd2d8b4bd2f50f798e23d65796` trên branch `codex/phase12-premiere-input-compatibility`. Phase 11 calibrated multi-mic bleed đã được giữ ở nhánh nghiên cứu và không merge; Phase 12 không mang code, audit `1.7` hoặc quyết định shadow của Phase 11 sang. Adoption thực tế vẫn chờ regression 25 fps và Premiere round-trip riêng cho 24/30.
+Trạng thái: `Phase 12 passed; 24/25/30 fps NDF adopted` ngày 2026-08-22. Phase được mở từ clean `main` commit `3f41d7cd2d8b4bd2f50f798e23d65796` trên branch `codex/phase12-premiere-input-compatibility`. Phase 11 calibrated multi-mic bleed đã được giữ ở nhánh nghiên cứu và không merge; Phase 12 không mang code, audit `1.7` hoặc quyết định shadow của Phase 11 sang. Regression 25 fps, Premiere PCM và Final Cut Pro XML re-export riêng cho 24/30 đều đã đạt.
 
 ## Quyết định sản phẩm
 
@@ -98,6 +98,12 @@ Kết quả 12C:
 - HGE2 và full HGE `25 fps` phải có coverage mismatch `0`, lost Enabled `0`, M19 Enabled, không đổi status/gain/marker/XML semantic so với Phase 10.
 - Runtime full HGE dưới `90 phút`, peak RAM dưới `1,5 GB`, temporary file count `0`.
 
+Kết quả 12D:
+
+- HGE2 schema `1.8` giữ đúng `8.291` fragment; comparator với Phase 10 đạt, coverage mismatch `0`, lost Enabled `0`, newly Enabled `0`, temporary file `0`. M19/A3 frame `11214–11218` tiếp tục Enabled. XML SHA-256 `5A5127F9B4DCFEB7C38FAD50FA9A0BFFB58BF073D9DB4A8EBD93031B7052C2AD`; audit `1B287255F72B42BDF74DC1374426AC002F4CE7469BFCBEC3D85C85BF2ADAEA63`; runtime `76,7 giây`.
+- Full HGE schema `1.8` giữ đúng `162.922` fragment; comparator đạt với source hash khớp, coverage mismatch `0`, lost Enabled `0`, newly Enabled `0`, temporary file `0`. Runtime `77 phút 02 giây`, peak working set `1.280,5 MB`, dưới hai cổng `90 phút / 1,5 GB`. XML SHA-256 `13573F508CA95E12EDB1D10B19322AE63B3D06ABFAF87AA24DCB32C2B98DE70D`; audit `5BF843CE0405C7BD33EE9601FB1AEBB5F6AF8A2AACAB56EC2831150ED026E981`.
+- Self-contained publish và installer smoke đạt: `410` payload file, app mở được, install/uninstall exit `0`, payload được gỡ, file người dùng tạo vẫn còn, registry entry được tạo/xóa đúng. Installer unsigned nội bộ SHA-256 `8C479106D1019266BE0405307A37548B209E0BF2DF4B8F1ADD2ACA697BF29A85`; RC1 và release công khai không đổi.
+
 ### Slice 12E — Premiere adoption 24/30 fps
 
 - Mỗi rate có một fixture Premiere riêng với source trim, gap, clip nối tiếp, phrase qua biên WAV, Disable và gain đại diện.
@@ -106,14 +112,17 @@ Kết quả 12C:
 - Re-export Final Cut Pro XML và so semantic timing/source/Enabled/gain/marker với đúng candidate.
 - Chỉ rate vượt toàn bộ cổng mới được thêm vào phạm vi sản phẩm. Một rate thất bại không kéo rate còn lại vào adoption.
 
-Chuẩn bị 12E đã hoàn tất, chưa phải adoption:
+Kết quả 12E:
 
 - `scripts/phase12/New-IntegerNdfPremiereFixture.ps1` tạo fixture local/offline, không ghi đè, với speech mức vừa, speech rất nhỏ, source trim, phrase qua biên hai clip, gap một giây và trailing silence. Cùng WAV nguồn được dùng cho 24/30 để cô lập biến frame-grid.
 - Inspector nhận cả hai fixture với `0 warning / 0 error`. App tạo mỗi candidate trong dưới `1,1 giây`: cùng `2 phrase` gồm `1 uncapped` qua hai source clip và `1 capped +18 dB`, `6 fragment`, `4 marker`, `2 review group`; Disabled xuất hiện ở silence.
 - Candidate 24 fps có XML SHA-256 `69322FF3D8CD335C99A9505AEA84002F0C19D499CB95941179D61EB4851316D2`, audit `FBFBD945F3390D0F09CDE3EF1EE6CE7164E38814F1C34705EF9BB555370941CD`, grid `2.000 sample/frame`.
 - Candidate 30 fps có XML SHA-256 `F5929453819147F8D201EC0F5B942CCA42E02867D4CA90E9712EB31A0045FEC0`, audit `D65F3045A7C740DE91D2010B049FEAF3DD16C1B692AA50053313F528274454F5`, grid `1.600 sample/frame`.
-- `scripts/phase12/Test-IntegerNdfPremiereAdoption.ps1` chỉ nhận audit `1.8`, khóa đúng source/candidate hash và timing, rồi mới chạy PCM validator `1.2` cùng round-trip validator. Smoke âm tính bằng WAV nguồn chưa render bị từ chối đúng tại PCM gate; smoke dương dựng từ audit đạt để khóa orchestration. Vì artifact byte-compatible không tự chứng minh provenance ứng dụng, status được giới hạn là `phase12-integer-ndf-premiere-artifacts-compatible` và không thay xác nhận import/phát trực quan.
-- Đường dẫn import/export bất biến và checklist vận hành ở [PHASE12_PREMIERE_OPERATOR_CHECKLIST.md](PHASE12_PREMIERE_OPERATOR_CHECKLIST.md). Cả hai rate vẫn chờ import, PCM và XML re-export thật từ Premiere.
+- Hai candidate được import vào Premiere Pro 2026 và tạo PCM mono `48 kHz / 24-bit` cùng Final Cut Pro XML re-export mới trong hai thư mục evidence riêng. PCM 24 fps SHA-256 `EE601B250E7D87B7016947EED25E8A37561F191F8D2B1C57FB73AE983A2C7D1A`; PCM 30 fps `8067C493C0260BB2CAD97C6CA06A27B2BF7020A67F5305D7E3F45A953BC2A97E`.
+- PCM validator `1.2` đạt ở cả hai rate: `2/2 phrase`, `0` failure; phrase không cap đạt target hậu routing và phrase `+18 dB` cap khớp predicted peak trong tolerance. 24 fps dùng `2.000 sample/frame`; 30 fps dùng `1.600 sample/frame`.
+- XML re-export giữ `6/6` clip, `4 Enabled`, `2 Disabled`, `4` marker và semantic gain với maximum delta `0,0000138 dB` ở cả hai rate. XML 24 fps SHA-256 `1ED321A0E3AAA6844DF63E87D761E8B384B58DE34FD11A479B709C065DBB0291`; XML 30 fps `757260934261096728CFCB89422FE62A8AD9010A57982B8DD52811F296CC3CB8`.
+- Premiere 2026 chuẩn hóa duy nhất sequence metadata depth từ `24` thành `16` khi re-export, dù PCM thực vẫn là mono `24-bit`. Round-trip validator mặc định tiếp tục từ chối mismatch này; Phase 12 chỉ cho phép explicit normalization `sequence-depth-24-to-16`, ghi vào report schema `1.2`, và vẫn từ chối mọi depth transition khác. Clip/media/timing/Enabled/gain/marker không được miễn.
+- Adoption report đạt status giới hạn `phase12-integer-ndf-premiere-artifacts-compatible`: 24 fps SHA-256 `AC46489421A7915277E30E3216ADBC728179E4DEF133ACD1D568B78926A7CB3F`; 30 fps `E0202CDC3E255E86CE442BB8FDEB09C685511CCDE846FF24FA5C960C9F156A7D`. Đường dẫn và checklist vận hành nằm ở [PHASE12_PREMIERE_OPERATOR_CHECKLIST.md](PHASE12_PREMIERE_OPERATOR_CHECKLIST.md).
 
 ### Cổng sau — stereo source, sample rate và routing
 
@@ -150,4 +159,4 @@ Chỉ mở sau khi 12E đóng. Mỗi profile mới phải có channel mapping do
 
 ## Bước tiếp theo
 
-Thực hiện Slice 12D: chạy regression HGE2/full HGE ở baseline `25 fps`, so candidate audit/XML với Phase 10, khóa coverage mismatch và lost Enabled bằng `0`, xác nhận M19 tiếp tục Enabled, sau đó chạy publish và installer smoke trên candidate hiện tại. Chưa dùng PCM hoặc XML re-export cũ để chứng minh candidate mới.
+Chạy Release/build/format/diff cuối trên đúng branch, cập nhật PR bằng toàn bộ evidence và merge Phase 12 sau khi CI xanh. Cổng nâng cấp tiếp theo phải được mở thành phase riêng; không gộp stereo source, resampling, fractional-rate hoặc routing profile mới vào Phase 12 đã khóa.

@@ -8,7 +8,9 @@ param(
 
     [string]$ReportPath,
 
-    [double]$GainToleranceDb = 0.1
+    [double]$GainToleranceDb = 0.1,
+
+    [switch]$AllowPremiereSequenceDepthNormalization
 )
 
 $ErrorActionPreference = 'Stop'
@@ -16,6 +18,7 @@ $culture = [Globalization.CultureInfo]::InvariantCulture
 $gainFilterId = '{61756678, 4761696e, 4b657947}'
 $mismatchCounts = [Collections.Generic.Dictionary[string, int]]::new([StringComparer]::Ordinal)
 $mismatchExamples = [Collections.Generic.List[string]]::new()
+$allowedNormalizations = [Collections.Generic.List[string]]::new()
 
 function Add-Mismatch {
     param([string]$Category, [string]$Message)
@@ -191,8 +194,20 @@ $exportedSelection = Get-ComparableSequence $exportedDocument 'Premiere-exported
 $inputSequence = $inputSelection.Node
 $exportedSequence = $exportedSelection.Node
 
-foreach ($field in @('name', 'duration', 'rate/timebase', 'rate/ntsc', 'media/audio/format/samplecharacteristics/depth', 'media/audio/format/samplecharacteristics/samplerate', 'media/audio/format/samplecharacteristics/channelcount')) {
+foreach ($field in @('name', 'duration', 'rate/timebase', 'rate/ntsc', 'media/audio/format/samplecharacteristics/samplerate', 'media/audio/format/samplecharacteristics/channelcount')) {
     Compare-TextField 'sequence' 'sequence' $inputSequence $exportedSequence $field
+}
+$sequenceDepthXPath = 'media/audio/format/samplecharacteristics/depth'
+$inputSequenceDepth = Get-NodeText $inputSequence $sequenceDepthXPath
+$exportedSequenceDepth = Get-NodeText $exportedSequence $sequenceDepthXPath
+if (-not ([StringComparer]::Ordinal).Equals($inputSequenceDepth, $exportedSequenceDepth)) {
+    if ($AllowPremiereSequenceDepthNormalization -and
+        $inputSequenceDepth -eq '24' -and
+        $exportedSequenceDepth -eq '16') {
+        $allowedNormalizations.Add("sequence-depth-24-to-16")
+    } else {
+        Add-Mismatch 'sequence' "sequence ${sequenceDepthXPath}: '$inputSequenceDepth' -> '$exportedSequenceDepth'."
+    }
 }
 
 $inputTracks = @($inputSequence.SelectNodes('media/audio/track'))
@@ -309,7 +324,7 @@ $inputGainFilters = @($inputSequence.SelectNodes("media/audio/track/clipitem/fil
 $exportedGainFilters = @($exportedSequence.SelectNodes("media/audio/track/clipitem/filter/effect[effectid='$gainFilterId']")).Count
 $status = if ($mismatchCounts.Count -eq 0) { 'phase09-roundtrip-compatible' } else { 'phase09-roundtrip-incompatible' }
 $result = [ordered]@{
-    SchemaVersion = '1.1'
+    SchemaVersion = if ($AllowPremiereSequenceDepthNormalization) { '1.2' } else { '1.1' }
     Status = $status
     GainToleranceDb = $GainToleranceDb
     Input = [ordered]@{
@@ -352,6 +367,9 @@ $result = [ordered]@{
     }
     MismatchCounts = $mismatchCounts
     MismatchExamples = @($mismatchExamples)
+}
+if ($AllowPremiereSequenceDepthNormalization) {
+    $result.AllowedNormalizations = @($allowedNormalizations)
 }
 $json = $result | ConvertTo-Json -Depth 8
 

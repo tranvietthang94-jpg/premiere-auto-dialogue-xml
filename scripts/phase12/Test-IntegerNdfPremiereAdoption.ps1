@@ -120,13 +120,19 @@ if ($LASTEXITCODE -ne 0) {
 & $roundTripValidator `
     -InputXml $candidatePath `
     -ExportedXml $exportedPath `
-    -ReportPath $roundTripReportPath | Out-Null
+    -ReportPath $roundTripReportPath `
+    -AllowPremiereSequenceDepthNormalization | Out-Null
 
 $pcm = Get-Content -Raw -LiteralPath $pcmReportPath | ConvertFrom-Json
 $roundTrip = Get-Content -Raw -LiteralPath $roundTripReportPath | ConvertFrom-Json
 if (-not [bool]$pcm.validation.allWithinTolerance -or
     $roundTrip.status -ne 'phase09-roundtrip-compatible') {
     throw 'Premiere PCM or XML round-trip gate did not pass.'
+}
+$allowedNormalizations = @($roundTrip.allowedNormalizations)
+if (@($allowedNormalizations | Where-Object { $_ -ne 'sequence-depth-24-to-16' }).Count -gt 0 -or
+    @($allowedNormalizations | Where-Object { $_ -eq 'sequence-depth-24-to-16' }).Count -gt 1) {
+    throw 'Premiere XML round-trip reported an unsupported normalization.'
 }
 
 $summary = [ordered]@{
@@ -154,6 +160,7 @@ $summary = [ordered]@{
     RoundTrip = [ordered]@{
         ReportFileName = Split-Path -Leaf $roundTripReportPath
         Status = $roundTrip.status
+        AllowedNormalizations = $allowedNormalizations
         ComparedClipCount = [int]$roundTrip.clips.compared
         EnabledClipCount = [int]$roundTrip.clips.exportedEnabled
         DisabledClipCount = [int]$roundTrip.clips.exportedDisabled
