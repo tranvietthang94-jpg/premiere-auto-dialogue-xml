@@ -71,6 +71,7 @@ Phase 13 chỉ trả nợ kỹ thuật sau Phase 12. Phase không thêm preview,
 - GitHub Billing xác nhận gói Free đã dùng `0,5/0,5 GB` Actions storage của kỳ, nên xóa file không giảm usage đã tích lũy trong kỳ. Chủ dự án quyết định không mua thêm quota và không chờ reset: từ 2026-08-23 GitHub chỉ lưu source code.
 - Draft RC1 GitHub chứa `9` asset đã được xóa sau khi đối chiếu đủ tên, kích thước và SHA-256/digest với bản phục hồi cục bộ trong `private-artifacts/release-v0.1.0-rc1`; không xóa bản cục bộ hoặc source.
 - Workflow cuối bỏ `actions: write`, bước cleanup và `actions/upload-artifact`; CI vẫn chứng minh installer build/cài/mở/xác minh/gỡ được nhưng binary tạm bị hủy cùng runner. Artifact API `0` là trạng thái mong muốn, không còn là blocker.
+- Source-only PR `#19` CI `32645714062` đạt restore/build, `201/201` test, policy `8/8`, self-contained publish, xác minh Inno Setup và installer smoke trong `3 phút 06 giây`; không có bước hoặc annotation upload artifact.
 
 ### HGE2
 
