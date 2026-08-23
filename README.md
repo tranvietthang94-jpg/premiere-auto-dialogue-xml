@@ -29,7 +29,7 @@ Phase 00–10 đã hoàn tất về logic và bằng chứng bắt buộc. Phase
 
 Phase 12 đã đạt local gate và mở input sequence nguyên `24/25/30 fps NDF` với source mono PCM `48 kHz`, master stereo và routing hiện hành. Regression HGE2/full HGE 25 fps không mất Enabled; Premiere Pro 2026 PCM/XML round-trip 24/30 giữ đúng phrase, clip, Enabled/Disabled, gain và marker. Stereo source, sample rate/routing mới, fractional-rate và drop-frame vẫn bị từ chối. Phase không thay logic speech/noise/bleed/gain hoặc RC1. Xem [docs/PHASE09_AUDIO_XML_HARDENING.md](docs/PHASE09_AUDIO_XML_HARDENING.md), [docs/PHASE10_NOISE_BOUNDARY_STABILITY.md](docs/PHASE10_NOISE_BOUNDARY_STABILITY.md) và [docs/PHASE12_PREMIERE_INPUT_COMPATIBILITY.md](docs/PHASE12_PREMIERE_INPUT_COMPATIBILITY.md). Cổng nhãn nghe Mục tiêu được chủ dự án miễn, nên dự án không tuyên bố các tỷ lệ 100%/90%/0% chưa đo.
 
-Phase 13 đã đạt local gate về độ tin cậy và hiệu năng mà không đổi semantic audio/XML: validator 24/30 có `8/8` policy case trong CI; Actions chỉ giữ tối đa một installer có thể tái tạo; paired PCM scan và audit provenance bounded giảm full HGE từ `77:02` xuống `75:52,4`, peak từ `1.280,5` xuống `1.218,3 MB`, audit từ `677,37` xuống `157,52 MB`. Comparator giữ coverage mismatch/lost Enabled/newly Enabled bằng `0`; M19 vẫn Enabled. Xem [docs/PHASE13_RELIABILITY_PERFORMANCE.md](docs/PHASE13_RELIABILITY_PERFORMANCE.md).
+Phase 13 đã đạt mà không đổi semantic audio/XML: implementation merge qua PR `#18` tại `ad89d2a`; validator 24/30 có `8/8` policy case trong CI; paired PCM scan và audit provenance bounded giảm full HGE từ `77:02` xuống `75:52,4`, peak từ `1.280,5` xuống `1.218,3 MB`, audit từ `677,37` xuống `157,52 MB`. Comparator giữ coverage mismatch/lost Enabled/newly Enabled bằng `0`; M19 vẫn Enabled. GitHub chỉ lưu source code: CI vẫn build/smoke-test installer tạm thời nhưng không upload hoặc phát hành installer; bộ cài dùng thật được tạo và giữ cục bộ trong thư mục đã bị Git bỏ qua. Source-only PR `#19` CI `32645714062` đạt toàn bộ gate. Xem [docs/PHASE13_RELIABILITY_PERFORMANCE.md](docs/PHASE13_RELIABILITY_PERFORMANCE.md).
 
 ## Hệ điều hành mục tiêu
 
@@ -64,5 +64,13 @@ Tạo publish folder và ZIP self-contained mới, không ghi đè artifact cũ:
 ```
 
 Script kiểm apphost, .NET/CoreCLR, WPF, ONNX native, model checksum, license, Python/PDB và tạo `publish-manifest.json` chứa SHA-256 payload. ZIP pilot chưa phải installer.
+
+Tạo installer cục bộ mới trong thư mục bị Git bỏ qua:
+
+```powershell
+.\scripts\build-installer.ps1 -OutputRoot .\private-artifacts\installer-local
+```
+
+GitHub Actions chỉ smoke-test một installer tạm trên runner rồi hủy cùng runner; workflow không upload installer artifact. Bản ký nội bộ vẫn phải theo quy trình riêng bên dưới.
 
 Tài liệu cài đặt nằm tại [docs/CAI_DAT_WINDOWS.md](docs/CAI_DAT_WINDOWS.md). Quy trình tự ký nội bộ và giới hạn tin cậy nằm tại [docs/INTERNAL_CODE_SIGNING.md](docs/INTERNAL_CODE_SIGNING.md).

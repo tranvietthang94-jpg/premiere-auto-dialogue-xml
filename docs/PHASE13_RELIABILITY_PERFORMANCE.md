@@ -1,6 +1,6 @@
 # Phase 13 — Độ tin cậy CI và headroom full HGE
 
-Trạng thái: local gate `đạt` ngày 2026-08-22 từ clean `main` commit `9d3abf55ea6a0231da2b064b5e60251777d64087` trên branch `codex/phase13-reliability-performance`; chờ PR CI và hậu merge CI.
+Trạng thái: `đạt`. Implementation đã merge qua PR `#18` ngày 2026-08-22 tại commit `ad89d2a38488ecfb05d9f41ad18085d9359f494b`; PR CI `32562437223` và hậu merge CI `32562657372` đạt toàn bộ quality gate. Closeout ngày 2026-08-23 chuyển sang chính sách GitHub chỉ lưu source code; installer dùng thật chỉ giữ cục bộ.
 
 ## Quyết định sản phẩm
 
@@ -9,7 +9,7 @@ Phase 13 chỉ trả nợ kỹ thuật sau Phase 12. Phase không thêm preview,
 ## Mục tiêu
 
 1. Đưa policy validator Premiere 24/30 fps vào CI: strict mode phải từ chối thay đổi sequence depth; explicit mode chỉ được phép `24 → 16` và vẫn từ chối mọi thay đổi Enabled, timing, gain, media hoặc marker.
-2. Giải phóng quota GitHub Actions artifact đang đầy và giữ chính sách không tái đầy: PR không upload installer, main/manual chỉ giữ bản ngắn hạn, installer build/smoke vẫn là quality gate bắt buộc.
+2. Chấm dứt phụ thuộc vào quota GitHub Actions artifact: workflow không upload hoặc quản lý installer; CI chỉ build/smoke-test bản tạm trên runner, còn installer dùng thật được tạo và giữ cục bộ ngoài Git.
 3. Tạo headroom thật cho full HGE bằng profile và tối ưu phần quét/diagnostic provenance; không đổi VAD, noise/bleed, phrase, gain, routing, marker hoặc XML encoding.
 
 ## Baseline khóa
@@ -28,13 +28,12 @@ Phase 13 chỉ trả nợ kỹ thuật sau Phase 12. Phase không thêm preview,
 - Chứng minh explicit mode pass và chỉ ghi đúng normalization `sequence-depth-24-to-16`.
 - Chứng minh explicit mode vẫn fail với depth transition khác và một thay đổi semantic đại diện.
 
-## Slice 13B — artifact hygiene
+## Slice 13B — source-only và installer cục bộ
 
-- Liệt kê chính xác artifact repo trước khi xóa.
-- Giữ bản phát hành nội bộ đã ký ở local/release; artifact Actions chỉ là bản unsigned tạm thời có thể tái tạo.
-- Xóa artifact hết hạn và bản CI trùng, giữ tối đa một fallback trong lúc Phase 13 đang làm.
-- Workflow chỉ upload ngoài PR, chủ động xóa installer Actions cũ trước khi upload, retention ngắn và upload không được che khuất kết quả build/test/publish/installer smoke. Vì vậy storage của workflow được chặn ở tối đa một installer có thể tái tạo.
-- Sau merge, main phải tạo được một artifact mới hoặc báo rõ lỗi quota độc lập với quality gate.
+- Liệt kê chính xác và dọn artifact repo cũ trước khi đổi policy.
+- Giữ bản phát hành nội bộ đã ký và installer kỹ thuật ở local; không commit, upload Actions artifact hoặc tạo GitHub Release chứa binary.
+- Workflow không cần quyền `actions: write`; build/publish/installer smoke vẫn là quality gate bắt buộc nhưng output chỉ tồn tại tạm trên runner.
+- `private-artifacts/`, `artifacts/`, installer, ZIP và chứng thư tiếp tục bị `.gitignore` chặn.
 
 ## Slice 13C — performance và audit bounded
 
@@ -47,7 +46,7 @@ Phase 13 chỉ trả nợ kỹ thuật sau Phase 12. Phase không thêm preview,
 ## Cổng nghiệm thu
 
 - CI chạy validator policy trước publish/installer và phát hiện được policy bị nới sai.
-- GitHub artifact storage còn headroom rõ ràng; không còn hàng chục installer CI trùng nhau.
+- GitHub chỉ lưu source code; workflow không upload installer artifact và artifact API của repo ở `0` theo thiết kế.
 - HGE2 không được chậm hơn baseline quá `5%`, đồng thời phải giảm peak RAM và audit bytes; full HGE phải thấp hơn baseline về runtime, peak RAM và audit bytes.
 - Comparator với Phase 12: source hash khớp, coverage mismatch `0`, lost Enabled `0`, newly Enabled `0`, temp file `0`; M19 vẫn Enabled.
 - XML output giữ semantic audio Phase 12; thay đổi audit diagnostic không được làm thay đổi Enabled, gain, timing hoặc marker.
@@ -65,8 +64,14 @@ Phase 13 chỉ trả nợ kỹ thuật sau Phase 12. Phase không thêm preview,
 ### Artifact quota
 
 - Trước cleanup có `52` installer artifact, tổng `2.699.478.351 bytes` xấp xỉ `2,7 GB`.
-- Đã xóa an toàn `51` bản cũ/trùng, giải phóng `2.647.547.749 bytes`; trong lúc branch đang làm chỉ giữ một fallback `51.930.602 bytes`.
-- Mỗi main/manual run mới chủ động xóa đúng artifact có prefix `PremiereAutoDialogueXml-installer-` của repo trước upload. PR không upload; retention vẫn `7 ngày`; build/publish/installer smoke vẫn bắt buộc và độc lập với bản sao Actions best-effort.
+- Đã xóa an toàn `51` bản cũ/trùng, giải phóng `2.647.547.749 bytes`; fallback `51.930.602 bytes` còn lại sau đó cũng được workflow cleanup xóa trước retry.
+- Policy thử nghiệm ban đầu cho main/manual xóa installer cũ rồi upload một bản retention `7 ngày`; build/publish/installer smoke vẫn độc lập với bản sao best-effort.
+- Quota được xác định là account-wide: đã xóa thêm `29` artifact `github-pages` hết hạn của repository `filmtechxai`, giải phóng `953.430.813 bytes`. Theo yêu cầu chủ dự án, repository đó được xóa hoàn toàn ngày 2026-08-23 sau khi source local được đồng bộ và tạo Git bundle đầy đủ; việc này còn loại bỏ artifact Pages `50.154.296 bytes` và cache `147.371.032 bytes` khỏi GitHub.
+- Main/retry `32562657372`, `32566303057`, `32616557631`, `32616802621`, `32618600568`, `32638141440`, `32641055228` và `32644110187` đều đạt build, `201/201` test, policy `8/8`, publish và installer smoke; upload vẫn nhận `Failed to CreateArtifact`.
+- GitHub Billing xác nhận gói Free đã dùng `0,5/0,5 GB` Actions storage của kỳ, nên xóa file không giảm usage đã tích lũy trong kỳ. Chủ dự án quyết định không mua thêm quota và không chờ reset: từ 2026-08-23 GitHub chỉ lưu source code.
+- Draft RC1 GitHub chứa `9` asset đã được xóa sau khi đối chiếu đủ tên, kích thước và SHA-256/digest với bản phục hồi cục bộ trong `private-artifacts/release-v0.1.0-rc1`; không xóa bản cục bộ hoặc source.
+- Workflow cuối bỏ `actions: write`, bước cleanup và `actions/upload-artifact`; CI vẫn chứng minh installer build/cài/mở/xác minh/gỡ được nhưng binary tạm bị hủy cùng runner. Artifact API `0` là trạng thái mong muốn, không còn là blocker.
+- Source-only PR `#19` CI `32645714062` đạt restore/build, `201/201` test, policy `8/8`, self-contained publish, xác minh Inno Setup và installer smoke trong `3 phút 06 giây`; không có bước hoặc annotation upload artifact.
 
 ### HGE2
 
