@@ -29,7 +29,7 @@ local-inputs/
 *.pek
 *.cfa
 
-# Packages and installers are published as release artifacts
+# Packages and installers stay local; GitHub stores source code only
 *.exe
 *.msi
 *.msix
