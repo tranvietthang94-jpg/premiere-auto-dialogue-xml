@@ -1,6 +1,6 @@
 # Phase 13 — Độ tin cậy CI và headroom full HGE
 
-Trạng thái: local gate `đạt` ngày 2026-08-22 từ clean `main` commit `9d3abf55ea6a0231da2b064b5e60251777d64087` trên branch `codex/phase13-reliability-performance`; chờ PR CI và hậu merge CI.
+Trạng thái: implementation đã merge qua PR `#18` ngày 2026-08-22 tại commit `ad89d2a38488ecfb05d9f41ad18085d9359f494b`; PR CI `32562437223` và hậu merge CI `32562657372` đạt toàn bộ quality gate. Closeout artifact đang chờ GitHub tính lại quota sau cleanup account-wide.
 
 ## Quyết định sản phẩm
 
@@ -65,8 +65,11 @@ Phase 13 chỉ trả nợ kỹ thuật sau Phase 12. Phase không thêm preview,
 ### Artifact quota
 
 - Trước cleanup có `52` installer artifact, tổng `2.699.478.351 bytes` xấp xỉ `2,7 GB`.
-- Đã xóa an toàn `51` bản cũ/trùng, giải phóng `2.647.547.749 bytes`; trong lúc branch đang làm chỉ giữ một fallback `51.930.602 bytes`.
+- Đã xóa an toàn `51` bản cũ/trùng, giải phóng `2.647.547.749 bytes`; fallback `51.930.602 bytes` còn lại sau đó cũng được workflow cleanup xóa trước retry.
 - Mỗi main/manual run mới chủ động xóa đúng artifact có prefix `PremiereAutoDialogueXml-installer-` của repo trước upload. PR không upload; retention vẫn `7 ngày`; build/publish/installer smoke vẫn bắt buộc và độc lập với bản sao Actions best-effort.
+- Quota được xác định là account-wide: đã xóa thêm `29` artifact `github-pages` hết hạn của repository `filmtechxai`, giải phóng `953.430.813 bytes`. Theo yêu cầu chủ dự án, repository đó được xóa hoàn toàn ngày 2026-08-23 sau khi source local được đồng bộ và tạo Git bundle đầy đủ; việc này còn loại bỏ artifact Pages `50.154.296 bytes` và cache `147.371.032 bytes` khỏi GitHub.
+- Main/retry `32562657372`, `32566303057`, `32616557631`, `32616802621` và controlled retry `32618600568` đều đạt build, `201/201` test, policy `8/8`, publish và installer smoke. Tuy nhiên upload vẫn có annotation `Failed to CreateArtifact` vì billing usage chỉ được GitHub tính lại sau `6–12 giờ`; workflow xanh không được dùng thay cho bằng chứng artifact API.
+- Tại `2026-08-23T04:48:56Z`, artifact API của app vẫn trả `0`; closeout chỉ hoàn tất khi API có đúng một installer không hết hạn mang tên theo SHA `main`.
 
 ### HGE2
 
