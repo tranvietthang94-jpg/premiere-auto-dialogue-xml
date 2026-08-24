@@ -168,11 +168,15 @@ try {
 
         $clipNumberLeft = $leftIndex + 1
         $clipNumberRight = $rightIndex + 1
-        $boundaryTicks = [long]($frame * $frameTicks)
+        $leftSourceTicks = [long](Get-NodeText $candidateClips[$leftIndex] 'pproTicksOut')
+        $rightSourceTicks = [long](Get-NodeText $candidateClips[$rightIndex] 'pproTicksIn')
+        if ($leftSourceTicks -ne $rightSourceTicks) {
+            throw "Candidate A$TrackIndex/frame $frame không có source tick liên tục."
+        }
         [void]$expectedMismatch.Add("[clip] track $TrackIndex clip $clipNumberLeft end: '$frame' -> '-1'.")
-        [void]$expectedMismatch.Add("[clip] track $TrackIndex clip $clipNumberLeft pproTicksOut: '$boundaryTicks' -> '$($boundaryTicks + $halfFrameTicks)'.")
+        [void]$expectedMismatch.Add("[clip] track $TrackIndex clip $clipNumberLeft pproTicksOut: '$leftSourceTicks' -> '$($leftSourceTicks + $halfFrameTicks)'.")
         [void]$expectedMismatch.Add("[clip] track $TrackIndex clip $clipNumberRight start: '$frame' -> '-1'.")
-        [void]$expectedMismatch.Add("[clip] track $TrackIndex clip $clipNumberRight pproTicksIn: '$boundaryTicks' -> '$($boundaryTicks - $halfFrameTicks)'.")
+        [void]$expectedMismatch.Add("[clip] track $TrackIndex clip $clipNumberRight pproTicksIn: '$rightSourceTicks' -> '$($rightSourceTicks - $halfFrameTicks)'.")
     }
 
     $candidateTransitionCount = @($candidateSequence.SelectNodes('media/audio/track/transitionitem')).Count

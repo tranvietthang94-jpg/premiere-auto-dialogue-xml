@@ -43,6 +43,10 @@ jobs:
         shell: pwsh
         run: ./scripts/phase13/Test-PremiereRoundTripPolicy.ps1
 
+      - name: Validate Phase 15 multi-boundary normalization policy
+        shell: pwsh
+        run: ./scripts/phase15/Test-MultiboundaryRoundTripPolicy.ps1
+
       - name: Validate self-contained win-x64 publish
         shell: pwsh
         run: ./scripts/publish-win-x64.ps1 -OutputRoot "$env:RUNNER_TEMP/padx-publish"

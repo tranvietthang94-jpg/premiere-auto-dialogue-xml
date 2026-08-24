@@ -1,7 +1,7 @@
 # Phase 15 — rollout click-safe nhiều boundary
 
 Ngày mở: 2026-08-24 (Asia/Saigon)  
-Trạng thái: **đang thực hiện — implementation và local HGE2 gate đạt; chờ Premiere round-trip/PCM**
+Trạng thái: **hoàn tất ở phạm vi candidate/tooling — multi-boundary giảm click đạt, production adoption không đạt gain gate**
 
 ## Mục tiêu
 
@@ -67,12 +67,20 @@ PremiereAutoDialogueXml.Inspect --constant-gain-batch-candidate <audit.json> <so
 | A7 | 39116 | 00:26:04:16 | Enabled→Disabled |
 | A7 | 39766 | 00:26:30:16 | Disabled→Enabled |
 
-## Cổng Premiere còn lại
+## Kết quả Premiere round-trip
 
-1. Import candidate HGE2, không chỉnh clip/transition thủ công.
-2. Re-export Final Cut Pro XML mới.
-3. Export full-sequence WAV mono PCM 48 kHz/24-bit từ đầu sequence cho A2, A3, A6 và A7; mỗi lần Solo đúng một track.
-4. Validator phải thấy đúng `12` Constant Gain và chỉ các normalization một-lần đã khóa ở Phase 14; clip/Enabled/gain/marker ngoài policy không đổi, M19 vẫn Enabled.
-5. Cả `12` focused boundary phải giảm bước PCM, không boundary nào tệ hơn baseline và không còn vượt cùng transient threshold.
+- Người vận hành import đúng candidate, re-export XML và xuất full-sequence WAV mono PCM 48 kHz/24-bit cho A2, A3, A6 và A7.
+- XML re-export `phase15-hge2-constant-gain-12-renlai.xml` có SHA-256 `D55443442BB6CD3603E0C55390429C8D44F5591ECC46F02C13A23046CF4A5C98`.
+- Premiere giữ đúng `12` Constant Gain. Validator chấp nhận đúng `48` normalization đã khóa: với mỗi transition, Premiere đổi `end/start` của hai clip sang `-1` và mở `pproTicksOut/pproTicksIn` mỗi phía nửa frame theo source tick. Không có normalization tích lũy hoặc mismatch ngoài policy.
+- Sau round-trip vẫn có `8.291/8.291` clip, `4.488` Enabled, `3.803` Disabled và `5.207` marker; max gain delta `0,0000552434 dB`. Report `phase15-premiere-roundtrip.report.json` có SHA-256 `E6B77A472338F9B44D6BF51CDB8834A95436FDE2F66D8758047D3178A525457E`.
+- CI có regression policy tổng hợp ba transition: chấp nhận đúng 12 normalization của ba boundary và từ chối mutation Enabled. Validator lấy `pproTicksIn/Out` theo source clip, không suy diễn source tick từ timeline frame.
 
-Chỉ khi năm cổng này đạt mới cân nhắc nối policy batch vào production writer. Nếu một boundary tăng click, Premiere tạo normalization tích lũy hoặc mất Enabled/M19, Phase 15 rollback candidate và app tiếp tục semantic Phase 13.
+## Kết quả PCM và quyết định adoption
+
+- Cả `12/12` boundary đều giảm rendered step so với baseline, trong khoảng `31,6284–61,9658 dB`, và không boundary nào còn vượt transient threshold Phase 14.
+- M19/A3 frame `11214–11218` vẫn Enabled trong XML; cửa sổ PCM có `7.680` sample, peak `-35,207469 dBFS`, RMS `-48,234571 dBFS` và không im lặng.
+- Full phrase gate đạt A3 `386/386`, A6 `274/274`, A7 `351/351`. A2 chỉ đạt `296/297`: phrase `T02-P000010-legacy-safety` tại frame `11140–11161`, gain `+17,487829 dB`, dự đoán `-6,0000003 dBFS` nhưng render còn `-8,7990888 dBFS`, lệch `-2,7990885 dB`.
+- Regression A2 là hệ quả thực của transition smoothing: peak ngắn dùng để lập gain đã bị giảm. Vì vậy Phase 15 **không nối batch policy vào production writer** và app mặc định tiếp tục semantic Phase 13, không tự chèn transition.
+- Candidate mechanics, XML round-trip validator và policy regression vẫn được giữ vì fail-closed và chỉ chạy khi gọi CLI candidate rõ ràng. Consolidated report `phase15-pcm-adoption.report.json` có SHA-256 `0F2DE05F0672C44674652936F456B2CFFCB789B12FF88A224A36BDC21E8DF0CB`, status `phase15-click-reduction-passed-production-gain-gate-failed`.
+
+Phase 15 đóng mà không cần export thêm. Nếu tiếp tục hướng này, phase sau phải lập gain có xét envelope transition hoặc loại bảo thủ các phrase mà peak nằm tại boundary, rồi tạo một candidate và Premiere render mới; không được rollout hàng loạt từ bằng chứng hiện tại.

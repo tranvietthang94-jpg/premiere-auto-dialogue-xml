@@ -21,7 +21,7 @@ Mỗi phase dùng branch và draft pull request riêng. Các thay đổi có ý 
 13. `codex/phase12-premiere-input-compatibility`
 14. `codex/phase13-reliability-performance`
 15. `codex/phase14-click-safe-boundary-research` — research/candidate tooling, production writer chưa adopt transition
-16. `codex/phase15-multiboundary-click-safe` — bounded multi-boundary candidate, chờ Premiere gate trước production adoption
+16. `codex/phase15-multiboundary-click-safe` — bounded candidate/tooling đạt; production adoption bị từ chối bởi gain gate
 
 Phase 00–09 đã hoàn tất và merge vào `main`. Theo quyết định sản phẩm ngày 2026-08-09, app không mở nhánh preview/review UI; Phase 09 tập trung làm chắc đầu vào VAD, safety validator và XML output. Phase 09 đạt mọi gate HGE2/full HGE, Premiere PCM A1–A7, Final Cut Pro XML re-export và CI/packaging; merge qua PR `#12` tại `50ee4f9`, CI hậu merge `31461869682` đạt. Xem [PHASE09_AUDIO_XML_HARDENING.md](PHASE09_AUDIO_XML_HARDENING.md).
 
@@ -35,7 +35,7 @@ Phase 13 đã đạt; implementation merge PR `#18` tại `ad89d2a`, PR CI `3256
 
 Phase 14 đã đạt phạm vi nghiên cứu/candidate một-boundary trên PR `#20`, CI `32703259587` đạt `213/213` test và policy `8/8`. HGE2 source screen giữ `1.282` transient candidate từ `8.176` transition; Premiere PCM baseline có `982` candidate trên bảy track. Operator nghe click nhẹ ở ba excerpt. Constant Gain 0 dB một frame tại A2 giảm bước PCM từ `-6,1826` xuống `-68,1484 dBFS`; candidate v3 re-export chỉ normalization đúng một lần, khớp fixture thủ công `0` mismatch, giữ `8.291` clip, Enabled/gain/marker và M19. Production writer chưa tự động chèn transition vì một pilot không đủ khóa multi-boundary conflict hoặc cả ba transition kind. Xem [PHASE14_CLICK_SAFE_BOUNDARY_RESEARCH.md](PHASE14_CLICK_SAFE_BOUNDARY_RESEARCH.md).
 
-Phase 15 đang mở policy candidate nhiều boundary có giới hạn. Local implementation đã đạt `218/218` test và candidate HGE2 chọn `12` transition gồm đủ Enabled→Disabled, Disabled→Enabled và gain change; comparator với baseline có mismatch `0`. App mặc định chưa adopt transition cho tới khi candidate qua Premiere XML re-export và PCM A2/A3/A6/A7. Xem [PHASE15_MULTIBOUNDARY_CLICK_SAFE.md](PHASE15_MULTIBOUNDARY_CLICK_SAFE.md).
+Phase 15 đã đóng ở phạm vi candidate/tooling nhiều boundary. Candidate HGE2 có `12` transition gồm đủ Enabled→Disabled, Disabled→Enabled và gain change; Premiere re-export chỉ tạo đúng `48` normalization đã khóa, giữ clip/Enabled/gain/marker và M19. PCM A2/A3/A6/A7 cho thấy cả `12/12` boundary giảm step `31,63–61,97 dB`, nhưng phrase A2 frame `11140–11161` render `-8,7991 dBFS` thay vì mục tiêu `-6 dBFS`. Do gain gate thất bại, batch policy không được nối vào production writer; app mặc định giữ semantic Phase 13. Candidate CLI, provenance checks và policy regression được giữ để nghiên cứu fail-closed. Xem [PHASE15_MULTIBOUNDARY_CLICK_SAFE.md](PHASE15_MULTIBOUNDARY_CLICK_SAFE.md).
 
 ## Kiến trúc
 
