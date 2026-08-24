@@ -1,6 +1,6 @@
 # Phase 14 — Nghiên cứu chất lượng biên cắt âm thanh
 
-Trạng thái: `in progress; v2 giảm click nhưng bị Premiere mở source handle lần hai nên đã reject; candidate import v3 không pre-normalize đang chờ round-trip/render`. Phase mở ngày 2026-08-24 từ clean `main` commit `90e8e2d81a2a20903a349f50bec10b953a8794c5` trên branch `codex/phase14-click-safe-boundary-research`.
+Trạng thái: `complete; research/candidate tooling đạt, production writer giữ nguyên và chưa tự động chèn transition`. Phase mở ngày 2026-08-24 từ clean `main` commit `90e8e2d81a2a20903a349f50bec10b953a8794c5` trên branch `codex/phase14-click-safe-boundary-research`.
 
 ## Quyết định sản phẩm
 
@@ -115,9 +115,11 @@ Fixture lần hai `phase14-constant-gain-A2_lan 2.xml`, SHA-256 `41D69497E533B0E
 - `PremiereConstantGainCandidateWriter` và CLI `Inspect --constant-gain-candidate` chỉ tạo file mới, khóa SHA-256 generated XML/audit, exact frame-grid 24/25/30 NDF, 48 kHz, clip ID/state/tick/source sample và cùng `SourceClipId`; từ chối transition có sẵn, biên source gốc, media khác, input stale hoặc output đã tồn tại.
 - Candidate v2 `phase14-app-candidate-constant-gain-A2-v2.xml`, SHA-256 `CCE79BC6B3ACB779AE8142AABF87CC19F7CD895B21B4577A8AABE69BC8D2F014`, pre-normalize hai clip theo fixture export. WAV Premiere mono 48 kHz/24-bit SHA-256 `FE2A1E5B0882B071E79A7C6526390A6F807E739DA8635C06AB3DA7DEFC490BCE` cho bước A2 giảm từ `-6,1826 dBFS` xuống `-67,0303 dBFS` (`60,8477 dB`) và không còn là transient candidate; operator cũng nghe `giảm click`.
 - Tuy nhiên re-export v2 SHA-256 `44A4F410F090B88377BBD559EFF9198FC419F72ECEDE579A80C44F2EDD91D035` báo `Custom Fade ... Cross Fade (0 dB) used instead` và mở source handle thêm lần hai: clip trái `out +1` cùng `pproTicksOut + nửa frame`, clip phải `in -1` cùng `pproTicksIn - nửa frame`. V2 bị reject dù audio tốt, vì normalization tích lũy vi phạm round-trip safety.
-- Candidate v3 `phase14-app-candidate-constant-gain-A2-v3.xml`, SHA-256 `F12B4AE1D595F1E6ADB81CCD9DA63F890F72E272A56077A6273D5098CBBD8EFD`, chỉ chèn transition và để clip range/tick nguyên baseline để Premiere tự normalize đúng một lần. Comparator baseline có `0` mismatch trên clip/Enabled/gain/filter/marker; v3 đang chờ import/re-export/render thực tế. Đây vẫn là pilot một điểm, không phải production policy cho toàn bộ `1.282` candidate.
+- Candidate v3 `phase14-app-candidate-constant-gain-A2-v3.xml`, SHA-256 `F12B4AE1D595F1E6ADB81CCD9DA63F890F72E272A56077A6273D5098CBBD8EFD`, chỉ chèn transition và để clip range/tick nguyên baseline để Premiere tự normalize đúng một lần. Baseline comparator có `0` mismatch. Premiere re-export SHA-256 `56E65218F63216A0226CA89245A4C645405D71F473EC51211F51996D1D9160C9` chỉ tạo đúng bốn normalization một lần và so với fixture thủ công đạt `phase09-roundtrip-compatible` với `0` mismatch; có đúng một transition A2 `KGAudioTransCrossFade0dB`.
+- WAV v3 mono 48 kHz/24-bit/full-sequence SHA-256 `F42356FF4C604C5959E8B010B7A0876449346466A5D5EE4E5281A00FE949C58A` đo A2 còn `-68,1484 dBFS`, giảm `61,9658 dB` so với baseline `-6,1826 dBFS`; bước này thấp hơn local p99 `28,0780 dB` và không còn là transient candidate. M19/A3 frame `11214–11218` vẫn `TRUE`; clip/Enabled/Disabled/gain/filter/marker ngoài normalization đã chứng minh không đổi.
+- V3 đạt cổng pilot một điểm nhưng chưa tạo bằng chứng cho việc rải transition lên toàn bộ `1.282` source-screen candidate, gồm conflict giữa các boundary sát nhau và ba transition kind. Vì vậy Phase 14 không đổi production writer; adoption hàng loạt phải là phase riêng với corpus Premiere tương xứng.
 
-PR `#20` CI run `32698485975` đạt build, `208/208` test, policy Premiere 24/30 `8/8`, self-contained publish và installer smoke; workflow source-only không upload artifact.
+PR `#20` CI run `32703259587` đạt build, `213/213` test, policy Premiere 24/30 `8/8`, self-contained publish và installer smoke; workflow source-only không upload artifact.
 
 ## Cổng nghiệm thu
 
@@ -125,7 +127,12 @@ PR `#20` CI run `32698485975` đạt build, `208/208` test, policy Premiere 24/3
 - Scanner fail closed khi hash, media, coverage hoặc source sample range không khớp.
 - Synthetic metric có kết quả deterministic và không tuyên bố audibility.
 - Report bounded, không chứa absolute path và không ghi đè input/output.
-- Production XML/audio semantic giữ nguyên trừ khi Slice 14E đạt đầy đủ bằng chứng Premiere.
+- Slice 14E đạt cho một boundary A2: nghe giảm click, PCM giảm `61,9658 dB`, v3 round-trip khớp fixture thủ công và không mất Enabled/M19.
+- Production XML/audio semantic giữ nguyên; candidate tooling chỉ chạy explicit ngoài app.
+
+## Quyết định đóng Phase 14
+
+Phase 14 đạt mục tiêu nghiên cứu và khóa được import geometry đúng cho Constant Gain 0 dB một frame. Kết quả chứng minh đây là hướng cải thiện chất lượng có thật, đồng thời phát hiện và loại v2 có normalization tích lũy trước khi ảnh hưởng production. App chính vẫn giữ cốt lõi MVP Phase 13; bước tiếp theo nếu tiếp tục click-safe adoption phải xây policy multi-boundary, conflict resolution và Premiere corpus riêng, không suy rộng từ một A2 pilot.
 
 ## Điều kiện rollback
 
