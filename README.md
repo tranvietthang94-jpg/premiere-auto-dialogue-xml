@@ -31,6 +31,8 @@ Phase 12 đã đạt local gate và mở input sequence nguyên `24/25/30 fps ND
 
 Phase 13 đã đạt mà không đổi semantic audio/XML: implementation merge qua PR `#18` tại `ad89d2a`; validator 24/30 có `8/8` policy case trong CI; paired PCM scan và audit provenance bounded giảm full HGE từ `77:02` xuống `75:52,4`, peak từ `1.280,5` xuống `1.218,3 MB`, audit từ `677,37` xuống `157,52 MB`. Comparator giữ coverage mismatch/lost Enabled/newly Enabled bằng `0`; M19 vẫn Enabled. GitHub chỉ lưu source code: CI vẫn build/smoke-test installer tạm thời nhưng không upload hoặc phát hành installer; bộ cài dùng thật được tạo và giữ cục bộ trong thư mục đã bị Git bỏ qua. Source-only PR `#19` CI `32645714062` đạt toàn bộ gate. Xem [docs/PHASE13_RELIABILITY_PERFORMANCE.md](docs/PHASE13_RELIABILITY_PERFORMANCE.md).
 
+Phase 14 đã hoàn tất nghiên cứu biên click-safe trên PR `#20`: scanner nguồn/PCM và candidate tooling đều fail-closed; CI `32703259587` đạt `213/213` test. Premiere pilot A2 chứng minh Constant Gain 0 dB một frame giảm bước boundary khoảng `61,97 dB`, re-export v3 khớp fixture thủ công với `0` mismatch và giữ M19 Enabled. Đây là bằng chứng hướng nâng chất lượng, chưa phải rollout production: app mặc định vẫn xuất XML Phase 13 không transition; adoption nhiều boundary cần phase/corpus Premiere riêng. Xem [docs/PHASE14_CLICK_SAFE_BOUNDARY_RESEARCH.md](docs/PHASE14_CLICK_SAFE_BOUNDARY_RESEARCH.md).
+
 ## Hệ điều hành mục tiêu
 
 - Windows 11 x64.

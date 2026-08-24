@@ -12,6 +12,11 @@ public sealed class AudioProjectAnalyzerTests
     [TestMethod]
     public async Task AnalyzeAsyncNeverExceedsFourWorkers()
     {
+        ThreadPool.GetMinThreads(out var originalWorkerThreads, out var originalCompletionPortThreads);
+        Assert.IsTrue(
+            ThreadPool.SetMinThreads(Math.Max(originalWorkerThreads, 4), originalCompletionPortThreads),
+            "Không thể chuẩn bị đủ worker ThreadPool cho phép thử đồng thời.");
+
         using var fixture = TestAudioFixture.CreatePcm16(Enumerable.Repeat(0.01f, 1_920).ToArray());
         var tracks = Enumerable.Range(1, 6)
             .Select(index => new PremiereAudioTrack(
@@ -25,11 +30,20 @@ public sealed class AudioProjectAnalyzerTests
             () => new ProbedDetector(probe),
             new PcmWaveSampleReader());
 
-        var result = await analyzer.AnalyzeAsync(project, DialogueProcessingPreset.Balanced);
+        try
+        {
+            var result = await analyzer.AnalyzeAsync(project, DialogueProcessingPreset.Balanced);
 
-        Assert.HasCount(6, result.Tracks);
-        Assert.IsLessThanOrEqualTo(4, probe.MaximumActive);
-        Assert.IsGreaterThanOrEqualTo(2, probe.MaximumActive);
+            Assert.HasCount(6, result.Tracks);
+            Assert.IsLessThanOrEqualTo(4, probe.MaximumActive);
+            Assert.IsGreaterThanOrEqualTo(2, probe.MaximumActive);
+        }
+        finally
+        {
+            Assert.IsTrue(
+                ThreadPool.SetMinThreads(originalWorkerThreads, originalCompletionPortThreads),
+                "Không thể khôi phục ThreadPool sau phép thử đồng thời.");
+        }
     }
 
     [TestMethod]

@@ -1,4 +1,6 @@
+using System.Security.Cryptography;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using PremiereAutoDialogueXml.Audio.Analysis;
 using PremiereAutoDialogueXml.Audio.Pcm;
 using PremiereAutoDialogueXml.Audio.Vad;
@@ -6,6 +8,18 @@ using PremiereAutoDialogueXml.Core.Domain;
 using PremiereAutoDialogueXml.Core.Timing;
 using PremiereAutoDialogueXml.Core.Xml;
 using PremiereAutoDialogueXml.Output;
+using PremiereAutoDialogueXml.Output.Audit;
+using PremiereAutoDialogueXml.Validation;
+
+if (args.Length > 0 && args[0].Equals("--constant-gain-candidate", StringComparison.OrdinalIgnoreCase))
+{
+    return await WriteConstantGainCandidateAsync(args);
+}
+
+if (args.Length > 0 && args[0].Equals("--boundary-report", StringComparison.OrdinalIgnoreCase))
+{
+    return await WriteBoundaryReportAsync(args);
+}
 
 if (args.Length > 0 && args[0].Equals("--vad-window", StringComparison.OrdinalIgnoreCase))
 {
@@ -22,6 +36,8 @@ if (xmlPaths.Length == 0)
     Console.Error.WriteLine("Usage: PremiereAutoDialogueXml.Inspect [--analyze] <premiere.xml> [more.xml]");
     Console.Error.WriteLine("       PremiereAutoDialogueXml.Inspect --write <premiere.xml> <existing-output-parent>");
     Console.Error.WriteLine("       PremiereAutoDialogueXml.Inspect --vad-window <premiere.xml> <track> <start-frame> <end-frame> <new-report.json>");
+    Console.Error.WriteLine("       PremiereAutoDialogueXml.Inspect --boundary-report <audit.json> <source.xml> <new-report.json>");
+    Console.Error.WriteLine("       PremiereAutoDialogueXml.Inspect --constant-gain-candidate <audit.json> <generated.xml> <track> <boundary-frame> <new-output.xml>");
     return 2;
 }
 
@@ -179,6 +195,212 @@ foreach (var xmlPath in xmlPaths)
 }
 
 return failed ? 1 : 0;
+
+static async Task<int> WriteConstantGainCandidateAsync(string[] arguments)
+{
+    if (arguments.Length != 6 ||
+        !int.TryParse(arguments[3], out var trackIndex) || trackIndex <= 0 ||
+        !long.TryParse(arguments[4], out var boundaryFrame) || boundaryFrame <= 0)
+    {
+        Console.Error.WriteLine(
+            "Cách dùng: --constant-gain-candidate <audit.json> <generated.xml> <track> <boundary-frame> <new-output.xml>");
+        return 2;
+    }
+
+    var auditPath = Path.GetFullPath(arguments[1]);
+    var inputPath = Path.GetFullPath(arguments[2]);
+    var outputPath = Path.GetFullPath(arguments[5]);
+    try
+    {
+        if (!File.Exists(auditPath) || !File.Exists(inputPath))
+        {
+            Console.Error.WriteLine("Không tìm thấy audit hoặc generated XML đầu vào.");
+            return 2;
+        }
+
+        var jsonOptions = new JsonSerializerOptions
+        {
+            PropertyNameCaseInsensitive = true,
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) }
+        };
+        await using var auditStream = new FileStream(
+            auditPath,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.Read,
+            bufferSize: 1024 * 1024,
+            FileOptions.Asynchronous | FileOptions.SequentialScan);
+        var audit = await JsonSerializer.DeserializeAsync<OutputAudit>(auditStream, jsonOptions)
+            ?? throw new InvalidDataException("Audit JSON rỗng hoặc không hợp lệ.");
+        var auditSha256 = await ComputeSha256Async(auditPath);
+        var inputSha256 = await ComputeSha256Async(inputPath);
+        var result = await new PremiereConstantGainCandidateWriter().WriteAsync(
+            inputPath,
+            inputSha256,
+            audit,
+            auditSha256,
+            outputPath,
+            trackIndex,
+            boundaryFrame);
+        Console.WriteLine(JsonSerializer.Serialize(new
+        {
+            PremiereConstantGainCandidateWriter.Policy,
+            Audit = Path.GetFileName(auditPath),
+            Input = Path.GetFileName(inputPath),
+            Output = Path.GetFileName(outputPath),
+            result.InputXmlSha256,
+            result.InputAuditSha256,
+            result.AuditRunId,
+            result.OutputXmlSha256,
+            result.TrackIndex,
+            result.BoundaryFrame,
+            Timecode = ToTimecode(result.BoundaryFrame, result.FrameRate),
+            result.FrameRate,
+            result.FrameTicks,
+            result.HalfFrameTicks,
+            result.LeftClipItemId,
+            result.RightClipItemId,
+            result.LeftEnabled,
+            result.RightEnabled,
+            result.EffectName,
+            result.EffectId
+        }, new JsonSerializerOptions { WriteIndented = true }));
+        return 0;
+    }
+    catch (Exception exception) when (
+        exception is IOException or UnauthorizedAccessException or InvalidDataException or
+        PremiereXmlLoadException or JsonException or ArgumentException or OverflowException)
+    {
+        Console.Error.WriteLine(exception.Message);
+        return 1;
+    }
+}
+
+static async Task<int> WriteBoundaryReportAsync(string[] arguments)
+{
+    if (arguments.Length != 4)
+    {
+        Console.Error.WriteLine(
+            "Cách dùng: --boundary-report <audit.json> <source.xml> <new-report.json>");
+        return 2;
+    }
+
+    var auditPath = Path.GetFullPath(arguments[1]);
+    var sourceXmlPath = Path.GetFullPath(arguments[2]);
+    var reportPath = Path.GetFullPath(arguments[3]);
+    if (!File.Exists(auditPath) || !File.Exists(sourceXmlPath))
+    {
+        Console.Error.WriteLine("Không tìm thấy audit hoặc XML nguồn.");
+        return 2;
+    }
+
+    var reportDirectory = Path.GetDirectoryName(reportPath);
+    if (string.IsNullOrWhiteSpace(reportDirectory) || !Directory.Exists(reportDirectory))
+    {
+        Console.Error.WriteLine("Thư mục chứa report phải tồn tại.");
+        return 2;
+    }
+
+    if (File.Exists(reportPath) ||
+        string.Equals(reportPath, auditPath, StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(reportPath, sourceXmlPath, StringComparison.OrdinalIgnoreCase))
+    {
+        Console.Error.WriteLine("Boundary report phải là file mới và không được trùng input.");
+        return 2;
+    }
+
+    var jsonOptions = new JsonSerializerOptions
+    {
+        PropertyNameCaseInsensitive = true,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        WriteIndented = true,
+        Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) }
+    };
+
+    try
+    {
+        await using var auditStream = new FileStream(
+            auditPath,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.Read,
+            bufferSize: 1024 * 1024,
+            FileOptions.Asynchronous | FileOptions.SequentialScan);
+        var audit = await JsonSerializer.DeserializeAsync<OutputAudit>(auditStream, jsonOptions)
+            ?? throw new InvalidDataException("Audit JSON rỗng hoặc không hợp lệ.");
+        var inspection = new PremiereXmlInspector().Inspect(sourceXmlPath);
+        if (!inspection.CanProceed || inspection.Project is null)
+        {
+            throw new InvalidDataException("XML nguồn không qua inspector; từ chối quét boundary.");
+        }
+
+        var scan = new BoundaryDiscontinuityScanner().Scan(audit, inspection.Project);
+        var report = new
+        {
+            SchemaVersion = "1.1",
+            CreatedAtUtc = DateTimeOffset.UtcNow,
+            AuditFileName = Path.GetFileName(auditPath),
+            AuditSha256 = await ComputeSha256Async(auditPath),
+            SourceXmlFileName = Path.GetFileName(sourceXmlPath),
+            inspection.Project.SourceXmlSha256,
+            scan
+        };
+        var tempPath = Path.Combine(
+            reportDirectory,
+            $".{Path.GetFileName(reportPath)}.{Guid.NewGuid():N}.tmp");
+        try
+        {
+            await using (var stream = new FileStream(
+                             tempPath,
+                             FileMode.CreateNew,
+                             FileAccess.Write,
+                             FileShare.None,
+                             bufferSize: 64 * 1024,
+                             FileOptions.Asynchronous | FileOptions.WriteThrough))
+            {
+                await JsonSerializer.SerializeAsync(stream, report, jsonOptions);
+                await stream.FlushAsync();
+            }
+
+            File.Move(tempPath, reportPath);
+        }
+        finally
+        {
+            if (File.Exists(tempPath))
+            {
+                File.Delete(tempPath);
+            }
+        }
+
+        Console.WriteLine(JsonSerializer.Serialize(new
+        {
+            Report = Path.GetFileName(reportPath),
+            scan.Policy,
+            scan.SourceClipCount,
+            scan.AppCreatedBoundaryCount,
+            scan.TransitionCount,
+            scan.EnabledToDisabledCount,
+            scan.DisabledToEnabledCount,
+            scan.GainChangeCount,
+            scan.ScreeningCandidateCount,
+            scan.TransientScreeningCandidateCount,
+            scan.MaximumExcessStepDbfs,
+            scan.P95ExcessStepDbfs,
+            scan.MaximumRenderedStepAboveLocalP99Db,
+            scan.TransitionStreamSha256,
+            scan.CapturedSampleCount
+        }, jsonOptions));
+        return 0;
+    }
+    catch (Exception exception) when (
+        exception is IOException or UnauthorizedAccessException or InvalidDataException or JsonException or
+        ArgumentException or OverflowException)
+    {
+        Console.Error.WriteLine(exception.Message);
+        return 1;
+    }
+}
 
 static async Task<int> WriteVadWindowReportAsync(string[] arguments)
 {
@@ -366,6 +588,18 @@ static string ToTimecode(long frame, int frameRate)
     var seconds = remainder / frameRate;
     var frames = remainder % frameRate;
     return $"{hours:00}:{minutes:00}:{seconds:00}:{frames:00}";
+}
+
+static async Task<string> ComputeSha256Async(string path)
+{
+    await using var stream = new FileStream(
+        path,
+        FileMode.Open,
+        FileAccess.Read,
+        FileShare.Read,
+        bufferSize: 1024 * 1024,
+        FileOptions.Asynchronous | FileOptions.SequentialScan);
+    return Convert.ToHexString(await SHA256.HashDataAsync(stream));
 }
 
 internal sealed class InlineProgress<T>(Action<T> report) : IProgress<T>
