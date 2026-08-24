@@ -11,9 +11,14 @@ using PremiereAutoDialogueXml.Output;
 using PremiereAutoDialogueXml.Output.Audit;
 using PremiereAutoDialogueXml.Validation;
 
+if (args.Length > 0 && args[0].Equals("--constant-gain-safe-batch-candidate", StringComparison.OrdinalIgnoreCase))
+{
+    return await WriteConstantGainBatchCandidateAsync(args, requireGainSafety: true);
+}
+
 if (args.Length > 0 && args[0].Equals("--constant-gain-batch-candidate", StringComparison.OrdinalIgnoreCase))
 {
-    return await WriteConstantGainBatchCandidateAsync(args);
+    return await WriteConstantGainBatchCandidateAsync(args, requireGainSafety: false);
 }
 
 if (args.Length > 0 && args[0].Equals("--constant-gain-candidate", StringComparison.OrdinalIgnoreCase))
@@ -44,6 +49,7 @@ if (xmlPaths.Length == 0)
     Console.Error.WriteLine("       PremiereAutoDialogueXml.Inspect --boundary-report <audit.json> <source.xml> <new-report.json>");
     Console.Error.WriteLine("       PremiereAutoDialogueXml.Inspect --constant-gain-candidate <audit.json> <generated.xml> <track> <boundary-frame> <new-output.xml>");
     Console.Error.WriteLine("       PremiereAutoDialogueXml.Inspect --constant-gain-batch-candidate <audit.json> <source.xml> <generated.xml> <max-transitions> <new-output.xml> <new-report.json>");
+    Console.Error.WriteLine("       PremiereAutoDialogueXml.Inspect --constant-gain-safe-batch-candidate <audit.json> <source.xml> <generated.xml> <max-transitions> <new-output.xml> <new-report.json>");
     return 2;
 }
 
@@ -202,14 +208,16 @@ foreach (var xmlPath in xmlPaths)
 
 return failed ? 1 : 0;
 
-static async Task<int> WriteConstantGainBatchCandidateAsync(string[] arguments)
+static async Task<int> WriteConstantGainBatchCandidateAsync(
+    string[] arguments,
+    bool requireGainSafety)
 {
     if (arguments.Length != 7 ||
         !int.TryParse(arguments[4], out var maximumTransitions) ||
         maximumTransitions is < 1 or > PremiereConstantGainBatchPlanner.MaximumTransitionsPerCandidate)
     {
         Console.Error.WriteLine(
-            "Cách dùng: --constant-gain-batch-candidate <audit.json> <source.xml> <generated.xml> <max-transitions> <new-output.xml> <new-report.json>");
+            $"Cách dùng: {(requireGainSafety ? "--constant-gain-safe-batch-candidate" : "--constant-gain-batch-candidate")} <audit.json> <source.xml> <generated.xml> <max-transitions> <new-output.xml> <new-report.json>");
         return 2;
     }
 
@@ -278,8 +286,25 @@ static async Task<int> WriteConstantGainBatchCandidateAsync(string[] arguments)
             audit,
             inspection.Project,
             maximumCapturedSamples: 1_024);
-        var plan = new PremiereConstantGainBatchPlanner().Plan(scan, maximumTransitions);
-        if (plan.SelectedCount == 0)
+        PremiereTransitionGainSafetyReport? gainSafety = null;
+        PremiereConstantGainSafeBatchPlan? safePlan = null;
+        PremiereConstantGainBatchPlan? phase15Plan = null;
+        if (requireGainSafety)
+        {
+            gainSafety = new PremiereTransitionGainSafetyGate().Evaluate(
+                scan,
+                audit,
+                inspection.Project);
+            safePlan = new PremiereConstantGainSafeBatchPlanner().Plan(gainSafety, maximumTransitions);
+        }
+        else
+        {
+            phase15Plan = new PremiereConstantGainBatchPlanner().Plan(scan, maximumTransitions);
+        }
+
+        var selected = safePlan?.Selected ?? phase15Plan!.Selected;
+        var selectedCount = safePlan?.SelectedCount ?? phase15Plan!.SelectedCount;
+        if (selectedCount == 0)
         {
             throw new InvalidDataException("Boundary scan không chọn được transition an toàn nào.");
         }
@@ -290,11 +315,12 @@ static async Task<int> WriteConstantGainBatchCandidateAsync(string[] arguments)
             audit,
             auditSha256,
             outputXmlPath,
-            plan.Selected);
+            selected);
         candidateCreated = true;
+        var plan = (object?)safePlan ?? phase15Plan!;
         var report = new
         {
-            SchemaVersion = "1.0",
+            SchemaVersion = requireGainSafety ? "1.1" : "1.0",
             CreatedAtUtc = DateTimeOffset.UtcNow,
             AuditFileName = Path.GetFileName(auditPath),
             AuditSha256 = auditSha256,
@@ -320,6 +346,7 @@ static async Task<int> WriteConstantGainBatchCandidateAsync(string[] arguments)
                 scan.TransitionStreamSha256,
                 scan.CapturedSampleCount
             },
+            GainSafety = gainSafety,
             Plan = plan,
             Candidate = candidate
         };
@@ -355,16 +382,18 @@ static async Task<int> WriteConstantGainBatchCandidateAsync(string[] arguments)
             Candidate = Path.GetFileName(outputXmlPath),
             Report = Path.GetFileName(reportPath),
             candidate.OutputXmlSha256,
-            plan.Policy,
-            plan.RequestedMaximumTransitions,
-            plan.ScannerTransientCandidateCount,
-            plan.CapturedTransientCandidateCount,
-            plan.UncapturedTransientCandidateCount,
-            plan.SelectedCount,
-            plan.EnabledToDisabledSelectedCount,
-            plan.DisabledToEnabledSelectedCount,
-            plan.GainChangeSelectedCount,
-            plan.SelectionStreamSha256
+            Policy = safePlan?.Policy ?? phase15Plan!.Policy,
+            RequestedMaximumTransitions = safePlan?.RequestedMaximumTransitions ?? phase15Plan!.RequestedMaximumTransitions,
+            ScannerTransientCandidateCount = safePlan?.ScannerTransientCandidateCount ?? phase15Plan!.ScannerTransientCandidateCount,
+            CapturedTransientCandidateCount = safePlan?.CapturedTransientCandidateCount ?? phase15Plan!.CapturedTransientCandidateCount,
+            UncapturedTransientCandidateCount = safePlan?.UncapturedTransientCandidateCount ?? phase15Plan!.UncapturedTransientCandidateCount,
+            SafetyEligibleCount = gainSafety?.EligibleCount,
+            SafetyRejectedCount = gainSafety?.RejectedCount,
+            SelectedCount = selectedCount,
+            EnabledToDisabledSelectedCount = safePlan?.EnabledToDisabledSelectedCount ?? phase15Plan!.EnabledToDisabledSelectedCount,
+            DisabledToEnabledSelectedCount = safePlan?.DisabledToEnabledSelectedCount ?? phase15Plan!.DisabledToEnabledSelectedCount,
+            GainChangeSelectedCount = safePlan?.GainChangeSelectedCount ?? phase15Plan!.GainChangeSelectedCount,
+            SelectionStreamSha256 = safePlan?.SelectionStreamSha256 ?? phase15Plan!.SelectionStreamSha256
         }, jsonOptions));
         return 0;
     }
