@@ -1,6 +1,6 @@
 # Phase 14 — Nghiên cứu chất lượng biên cắt âm thanh
 
-Trạng thái: `in progress; Slice 14E đang chờ xác nhận nghe`. Phase mở ngày 2026-08-24 từ clean `main` commit `90e8e2d81a2a20903a349f50bec10b953a8794c5` trên branch `codex/phase14-click-safe-boundary-research`.
+Trạng thái: `in progress; click nhẹ đã được operator xác nhận, đang chờ Premiere-authored transition fixture`. Phase mở ngày 2026-08-24 từ clean `main` commit `90e8e2d81a2a20903a349f50bec10b953a8794c5` trên branch `codex/phase14-click-safe-boundary-research`.
 
 ## Quyết định sản phẩm
 
@@ -102,6 +102,10 @@ Ba excerpt PCM mono 48 kHz/24-bit, dài đúng `2 giây`, đặt boundary tại 
 3. `A2-00-19-46-17-enabled-to-disabled.wav`, SHA-256 `8FEBA8179099AA1015C385BC4AD18F96AB00F898B9AB6E24D18C7E5BF541B51E`.
 
 Thư mục cục bộ: `private-artifacts/phase14-listening-clips-20260824-1`. Chỉ khi operator xác nhận nghe click/pop tại chính giữa excerpt mới nghiên cứu candidate XML nhỏ. Trước xác nhận này production writer giữ nguyên.
+
+Operator xác nhận ngày 2026-08-24: cả ba excerpt đều nghe click nhẹ tại boundary. Cổng nghe đã mở, nhưng production writer vẫn chưa đổi. Bằng chứng kế tiếp phải là một `Constant Gain` ngắn do Premiere áp trên bản sao sequence tại A2 `00:07:25:15`, sau đó export Final Cut Pro XML mới vào `private-artifacts/phase14-premiere-transition-fixture-20260824-1`. Fixture này quyết định cấu trúc transition thật; không suy đoán effect ID hoặc normalization từ DTD.
+
+PR `#20` CI run `32698485975` đạt build, `208/208` test, policy Premiere 24/30 `8/8`, self-contained publish và installer smoke; workflow source-only không upload artifact.
 
 ## Cổng nghiệm thu
 
