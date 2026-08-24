@@ -11,6 +11,11 @@ using PremiereAutoDialogueXml.Output;
 using PremiereAutoDialogueXml.Output.Audit;
 using PremiereAutoDialogueXml.Validation;
 
+if (args.Length > 0 && args[0].Equals("--constant-gain-batch-candidate", StringComparison.OrdinalIgnoreCase))
+{
+    return await WriteConstantGainBatchCandidateAsync(args);
+}
+
 if (args.Length > 0 && args[0].Equals("--constant-gain-candidate", StringComparison.OrdinalIgnoreCase))
 {
     return await WriteConstantGainCandidateAsync(args);
@@ -38,6 +43,7 @@ if (xmlPaths.Length == 0)
     Console.Error.WriteLine("       PremiereAutoDialogueXml.Inspect --vad-window <premiere.xml> <track> <start-frame> <end-frame> <new-report.json>");
     Console.Error.WriteLine("       PremiereAutoDialogueXml.Inspect --boundary-report <audit.json> <source.xml> <new-report.json>");
     Console.Error.WriteLine("       PremiereAutoDialogueXml.Inspect --constant-gain-candidate <audit.json> <generated.xml> <track> <boundary-frame> <new-output.xml>");
+    Console.Error.WriteLine("       PremiereAutoDialogueXml.Inspect --constant-gain-batch-candidate <audit.json> <source.xml> <generated.xml> <max-transitions> <new-output.xml> <new-report.json>");
     return 2;
 }
 
@@ -195,6 +201,186 @@ foreach (var xmlPath in xmlPaths)
 }
 
 return failed ? 1 : 0;
+
+static async Task<int> WriteConstantGainBatchCandidateAsync(string[] arguments)
+{
+    if (arguments.Length != 7 ||
+        !int.TryParse(arguments[4], out var maximumTransitions) ||
+        maximumTransitions is < 1 or > PremiereConstantGainBatchPlanner.MaximumTransitionsPerCandidate)
+    {
+        Console.Error.WriteLine(
+            "Cách dùng: --constant-gain-batch-candidate <audit.json> <source.xml> <generated.xml> <max-transitions> <new-output.xml> <new-report.json>");
+        return 2;
+    }
+
+    var auditPath = Path.GetFullPath(arguments[1]);
+    var sourceXmlPath = Path.GetFullPath(arguments[2]);
+    var generatedXmlPath = Path.GetFullPath(arguments[3]);
+    var outputXmlPath = Path.GetFullPath(arguments[5]);
+    var reportPath = Path.GetFullPath(arguments[6]);
+    if (!File.Exists(auditPath) || !File.Exists(sourceXmlPath) || !File.Exists(generatedXmlPath))
+    {
+        Console.Error.WriteLine("Không tìm thấy audit, source XML hoặc generated XML đầu vào.");
+        return 2;
+    }
+
+    var outputDirectory = Path.GetDirectoryName(outputXmlPath);
+    var reportDirectory = Path.GetDirectoryName(reportPath);
+    if (string.IsNullOrWhiteSpace(outputDirectory) || !Directory.Exists(outputDirectory) ||
+        string.IsNullOrWhiteSpace(reportDirectory) || !Directory.Exists(reportDirectory))
+    {
+        Console.Error.WriteLine("Thư mục chứa batch candidate và report phải tồn tại.");
+        return 2;
+    }
+
+    var inputPaths = new[] { auditPath, sourceXmlPath, generatedXmlPath };
+    if (File.Exists(outputXmlPath) || File.Exists(reportPath) ||
+        inputPaths.Any(path => string.Equals(path, outputXmlPath, StringComparison.OrdinalIgnoreCase)) ||
+        inputPaths.Any(path => string.Equals(path, reportPath, StringComparison.OrdinalIgnoreCase)) ||
+        string.Equals(outputXmlPath, reportPath, StringComparison.OrdinalIgnoreCase))
+    {
+        Console.Error.WriteLine("Batch candidate/report phải là hai file mới, riêng biệt và không trùng input.");
+        return 2;
+    }
+
+    var jsonOptions = new JsonSerializerOptions
+    {
+        PropertyNameCaseInsensitive = true,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        WriteIndented = true,
+        Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) }
+    };
+    var candidateCreated = false;
+    try
+    {
+        OutputAudit audit;
+        await using (var auditStream = new FileStream(
+                         auditPath,
+                         FileMode.Open,
+                         FileAccess.Read,
+                         FileShare.Read,
+                         bufferSize: 1024 * 1024,
+                         FileOptions.Asynchronous | FileOptions.SequentialScan))
+        {
+            audit = await JsonSerializer.DeserializeAsync<OutputAudit>(auditStream, jsonOptions)
+                ?? throw new InvalidDataException("Audit JSON rỗng hoặc không hợp lệ.");
+        }
+
+        var inspection = new PremiereXmlInspector().Inspect(sourceXmlPath);
+        if (!inspection.CanProceed || inspection.Project is null)
+        {
+            throw new InvalidDataException("XML nguồn không qua inspector; từ chối lập batch candidate.");
+        }
+
+        var auditSha256 = await ComputeSha256Async(auditPath);
+        var generatedXmlSha256 = await ComputeSha256Async(generatedXmlPath);
+        var scan = new BoundaryDiscontinuityScanner().Scan(
+            audit,
+            inspection.Project,
+            maximumCapturedSamples: 1_024);
+        var plan = new PremiereConstantGainBatchPlanner().Plan(scan, maximumTransitions);
+        if (plan.SelectedCount == 0)
+        {
+            throw new InvalidDataException("Boundary scan không chọn được transition an toàn nào.");
+        }
+
+        var candidate = await new PremiereConstantGainBatchCandidateWriter().WriteAsync(
+            generatedXmlPath,
+            generatedXmlSha256,
+            audit,
+            auditSha256,
+            outputXmlPath,
+            plan.Selected);
+        candidateCreated = true;
+        var report = new
+        {
+            SchemaVersion = "1.0",
+            CreatedAtUtc = DateTimeOffset.UtcNow,
+            AuditFileName = Path.GetFileName(auditPath),
+            AuditSha256 = auditSha256,
+            SourceXmlFileName = Path.GetFileName(sourceXmlPath),
+            inspection.Project.SourceXmlSha256,
+            GeneratedXmlFileName = Path.GetFileName(generatedXmlPath),
+            GeneratedXmlSha256 = generatedXmlSha256,
+            OutputXmlFileName = Path.GetFileName(outputXmlPath),
+            Scan = new
+            {
+                scan.SchemaVersion,
+                scan.Policy,
+                scan.ScreeningThresholdDbfs,
+                scan.SourceClipCount,
+                scan.AppCreatedBoundaryCount,
+                scan.TransitionCount,
+                scan.EnabledToDisabledCount,
+                scan.DisabledToEnabledCount,
+                scan.GainChangeCount,
+                scan.TransientScreeningCandidateCount,
+                scan.MaximumRenderedStepDbfs,
+                scan.MaximumRenderedStepAboveLocalP99Db,
+                scan.TransitionStreamSha256,
+                scan.CapturedSampleCount
+            },
+            Plan = plan,
+            Candidate = candidate
+        };
+        var tempPath = Path.Combine(
+            reportDirectory,
+            $".{Path.GetFileName(reportPath)}.{Guid.NewGuid():N}.tmp");
+        try
+        {
+            await using (var stream = new FileStream(
+                             tempPath,
+                             FileMode.CreateNew,
+                             FileAccess.Write,
+                             FileShare.None,
+                             bufferSize: 64 * 1024,
+                             FileOptions.Asynchronous | FileOptions.WriteThrough))
+            {
+                await JsonSerializer.SerializeAsync(stream, report, jsonOptions);
+                await stream.FlushAsync();
+            }
+
+            File.Move(tempPath, reportPath);
+        }
+        finally
+        {
+            if (File.Exists(tempPath))
+            {
+                File.Delete(tempPath);
+            }
+        }
+
+        Console.WriteLine(JsonSerializer.Serialize(new
+        {
+            Candidate = Path.GetFileName(outputXmlPath),
+            Report = Path.GetFileName(reportPath),
+            candidate.OutputXmlSha256,
+            plan.Policy,
+            plan.RequestedMaximumTransitions,
+            plan.ScannerTransientCandidateCount,
+            plan.CapturedTransientCandidateCount,
+            plan.UncapturedTransientCandidateCount,
+            plan.SelectedCount,
+            plan.EnabledToDisabledSelectedCount,
+            plan.DisabledToEnabledSelectedCount,
+            plan.GainChangeSelectedCount,
+            plan.SelectionStreamSha256
+        }, jsonOptions));
+        return 0;
+    }
+    catch (Exception exception) when (
+        exception is IOException or UnauthorizedAccessException or InvalidDataException or JsonException or
+        PremiereXmlLoadException or ArgumentException or OverflowException)
+    {
+        if (candidateCreated && File.Exists(outputXmlPath) && !File.Exists(reportPath))
+        {
+            File.Delete(outputXmlPath);
+        }
+
+        Console.Error.WriteLine(exception.Message);
+        return 1;
+    }
+}
 
 static async Task<int> WriteConstantGainCandidateAsync(string[] arguments)
 {

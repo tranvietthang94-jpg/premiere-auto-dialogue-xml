@@ -33,6 +33,8 @@ Phase 13 đã đạt mà không đổi semantic audio/XML: implementation merge 
 
 Phase 14 đã hoàn tất nghiên cứu biên click-safe trên PR `#20`: scanner nguồn/PCM và candidate tooling đều fail-closed; CI `32703259587` đạt `213/213` test. Premiere pilot A2 chứng minh Constant Gain 0 dB một frame giảm bước boundary khoảng `61,97 dB`, re-export v3 khớp fixture thủ công với `0` mismatch và giữ M19 Enabled. Đây là bằng chứng hướng nâng chất lượng, chưa phải rollout production: app mặc định vẫn xuất XML Phase 13 không transition; adoption nhiều boundary cần phase/corpus Premiere riêng. Xem [docs/PHASE14_CLICK_SAFE_BOUNDARY_RESEARCH.md](docs/PHASE14_CLICK_SAFE_BOUNDARY_RESEARCH.md).
 
+Phase 15 đang kiểm chứng rollout nhiều boundary có giới hạn: planner ưu tiên rủi ro nhưng bao phủ ba transition kind, loại boundary xung đột và writer kiểm lại provenance trước khi tạo XML mới. Local gate `218/218` đạt; candidate HGE2 12 transition không đổi clip/Enabled/gain/marker so với baseline. Production writer vẫn giữ nguyên cho tới khi XML/PCM round-trip thật đạt. Xem [docs/PHASE15_MULTIBOUNDARY_CLICK_SAFE.md](docs/PHASE15_MULTIBOUNDARY_CLICK_SAFE.md).
+
 ## Hệ điều hành mục tiêu
 
 - Windows 11 x64.
