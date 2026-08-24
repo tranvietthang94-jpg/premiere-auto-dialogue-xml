@@ -1,6 +1,6 @@
 # Phase 14 — Nghiên cứu chất lượng biên cắt âm thanh
 
-Trạng thái: `in progress; đã có fixture Constant Gain 0 dB đúng, đang chờ kết quả nghe tại A2 trước khi sinh candidate XML`. Phase mở ngày 2026-08-24 từ clean `main` commit `90e8e2d81a2a20903a349f50bec10b953a8794c5` trên branch `codex/phase14-click-safe-boundary-research`.
+Trạng thái: `in progress; Constant Gain 0 dB một frame làm giảm click và candidate A2 đã tạo, đang chờ Premiere round-trip/render`. Phase mở ngày 2026-08-24 từ clean `main` commit `90e8e2d81a2a20903a349f50bec10b953a8794c5` trên branch `codex/phase14-click-safe-boundary-research`.
 
 ## Quyết định sản phẩm
 
@@ -83,7 +83,7 @@ Nếu không có click được xác nhận, Phase 14 đóng `research-only; no 
 - Synthetic suite phân biệt biên amplitude cao với gần zero, báo riêng mute/enable/gain, bỏ biên giữa hai source clip và deterministic trên empty stream.
 - HGE2 Phase 13 có `8.291` fragment, `8.284` biên do app tạo, `8.176` transition (`3.803` Enabled → Disabled, `3.798` Disabled → Enabled, `575` gain change). Screen nguồn `-40 dBFS` giữ `1.816` candidate; maximum excess `-3,1743 dBFS`, p95 `-29,9364 dBFS`, transition hash `0E6BE9F62FF73FD5CF354400F9390C2159A67CB77896AE94319A5F55AEB13B63`.
 - Report cục bộ: `private-artifacts/phase14-boundary-hge2-20260824-1/phase14-hge2-boundary-report.json`, SHA-256 `6757FB647EE17D0B3EE335A0142669AFF4B67514366069B345F0B22328217437`. Report chỉ là screening, không kết luận nghe.
-- Scanner v2 còn so rendered step dự đoán với p99 derivative nguồn đã áp state/gain trong cửa sổ hai phía `±10 ms`. Điều kiện kết hợp `>= -40 dBFS` và cao hơn local p99 ít nhất `12 dB` giảm HGE2 từ `1.816` excess candidate xuống `1.282` transient candidate; maximum above-local-p99 `40,7495 dB`. Report cục bộ `phase14-hge2-boundary-report-v2.json`, SHA-256 `4C0F60E6EB31AECD7496C74FB9AFE64C9770C02DC18AED7BC1AE1149BB2C33F1`; local full suite `209/209`, policy `8/8`, build `0` warning/error.
+- Scanner v2 còn so rendered step dự đoán với p99 derivative nguồn đã áp state/gain trong cửa sổ hai phía `±10 ms`. Điều kiện kết hợp `>= -40 dBFS` và cao hơn local p99 ít nhất `12 dB` giảm HGE2 từ `1.816` excess candidate xuống `1.282` transient candidate; maximum above-local-p99 `40,7495 dB`. Report cục bộ `phase14-hge2-boundary-report-v2.json`, SHA-256 `4C0F60E6EB31AECD7496C74FB9AFE64C9770C02DC18AED7BC1AE1149BB2C33F1`; local full suite `212/212`, policy `8/8`, build `0` warning/error.
 
 ### Đối chiếu PCM Premiere thật
 
@@ -108,7 +108,13 @@ Operator xác nhận ngày 2026-08-24: cả ba excerpt đều nghe click nhẹ t
 
 Fixture đầu tiên `phase14-constant-gain-A2.xml`, SHA-256 `F9A2D99669FB07C6439AB228FDFEF232AA475376A35A2CF79BDBA8167D75E56C`, có đúng vị trí A2 frame `11140` và độ dài một frame theo `pproTicks`, nhưng XML ghi `Cross Fade (+3dB)` / `KGAudioTransCrossFade3dB`. Đây là Constant Power, không phải Constant Gain 0 dB, nên không được dùng để suy ra production effect ID. Round-trip comparator chỉ thấy bốn normalization dự kiến ở hai clip kề transition (`start/end = -1` và mở rộng `pproTicksIn/Out` nửa frame); fragment count, Enabled count, marker và gain ngoài transition không đổi.
 
-Fixture lần hai `phase14-constant-gain-A2_lan 2.xml`, SHA-256 `41D69497E533B0E7135455CC85D5E2A63A0FB2937FA14736F3F620BBD8755883`, đã khóa đúng cấu trúc Premiere-authored một frame: `Cross Fade ( 0dB)` / `KGAudioTransCrossFade0dB`, `alignment=center`, `cutPointTicks=5080320000`, `pproTicksIn/Out` cách cut đúng nửa frame tại A2 frame `11140`. So với XML Phase 13, comparator vẫn chỉ thấy đúng bốn normalization nói trên; `8.291` clip, `4.488` Enabled, `3.803` Disabled, `5.207` marker và gain tolerance đều giữ nguyên. Cấu trúc XML đã đạt cổng fixture; kết quả nghe Constant Gain vẫn phải do operator xác nhận trước khi sinh candidate.
+Fixture lần hai `phase14-constant-gain-A2_lan 2.xml`, SHA-256 `41D69497E533B0E7135455CC85D5E2A63A0FB2937FA14736F3F620BBD8755883`, đã khóa đúng cấu trúc Premiere-authored một frame: `Cross Fade ( 0dB)` / `KGAudioTransCrossFade0dB`, `alignment=center`, `cutPointTicks=5080320000`, `pproTicksIn/Out` cách cut đúng nửa frame tại A2 frame `11140`. So với XML Phase 13, comparator vẫn chỉ thấy đúng bốn normalization nói trên; `8.291` clip, `4.488` Enabled, `3.803` Disabled, `5.207` marker và gain tolerance đều giữ nguyên. Operator nghe lại và xác nhận `giảm click`, không tuyên bố đã hết click.
+
+### Candidate XML A2
+
+- `PremiereConstantGainCandidateWriter` và CLI `Inspect --constant-gain-candidate` chỉ tạo file mới, khóa SHA-256 generated XML/audit, exact frame-grid 24/25/30 NDF, 48 kHz, clip ID/state/tick/source sample và cùng `SourceClipId`; từ chối transition có sẵn, biên source gốc, media khác, input stale hoặc output đã tồn tại.
+- Candidate cục bộ `phase14-app-candidate-constant-gain-A2-v2.xml`, SHA-256 `CCE79BC6B3ACB779AE8142AABF87CC19F7CD895B21B4577A8AABE69BC8D2F014`, được sinh từ audit run `20260822-053724-0829560fdf3846049f2abcb8ce35ae54` SHA-256 `900FCA61FDFFDF6CAFD8A5E3596CCF5167E86E9EB4FE1D2C03A29BCDDB4C54E2`.
+- Transition subtree của candidate bằng đúng fixture Premiere-authored theo semantic XML. So baseline chỉ có bốn normalization ở hai clip sát A2; clip/Enabled/Disabled/marker/gain/filter còn lại không đổi. Đây vẫn là pilot một điểm, không phải production policy cho toàn bộ `1.282` candidate.
 
 PR `#20` CI run `32698485975` đạt build, `208/208` test, policy Premiere 24/30 `8/8`, self-contained publish và installer smoke; workflow source-only không upload artifact.
 

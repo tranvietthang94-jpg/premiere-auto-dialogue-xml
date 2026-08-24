@@ -11,6 +11,11 @@ using PremiereAutoDialogueXml.Output;
 using PremiereAutoDialogueXml.Output.Audit;
 using PremiereAutoDialogueXml.Validation;
 
+if (args.Length > 0 && args[0].Equals("--constant-gain-candidate", StringComparison.OrdinalIgnoreCase))
+{
+    return await WriteConstantGainCandidateAsync(args);
+}
+
 if (args.Length > 0 && args[0].Equals("--boundary-report", StringComparison.OrdinalIgnoreCase))
 {
     return await WriteBoundaryReportAsync(args);
@@ -32,6 +37,7 @@ if (xmlPaths.Length == 0)
     Console.Error.WriteLine("       PremiereAutoDialogueXml.Inspect --write <premiere.xml> <existing-output-parent>");
     Console.Error.WriteLine("       PremiereAutoDialogueXml.Inspect --vad-window <premiere.xml> <track> <start-frame> <end-frame> <new-report.json>");
     Console.Error.WriteLine("       PremiereAutoDialogueXml.Inspect --boundary-report <audit.json> <source.xml> <new-report.json>");
+    Console.Error.WriteLine("       PremiereAutoDialogueXml.Inspect --constant-gain-candidate <audit.json> <generated.xml> <track> <boundary-frame> <new-output.xml>");
     return 2;
 }
 
@@ -189,6 +195,87 @@ foreach (var xmlPath in xmlPaths)
 }
 
 return failed ? 1 : 0;
+
+static async Task<int> WriteConstantGainCandidateAsync(string[] arguments)
+{
+    if (arguments.Length != 6 ||
+        !int.TryParse(arguments[3], out var trackIndex) || trackIndex <= 0 ||
+        !long.TryParse(arguments[4], out var boundaryFrame) || boundaryFrame <= 0)
+    {
+        Console.Error.WriteLine(
+            "Cách dùng: --constant-gain-candidate <audit.json> <generated.xml> <track> <boundary-frame> <new-output.xml>");
+        return 2;
+    }
+
+    var auditPath = Path.GetFullPath(arguments[1]);
+    var inputPath = Path.GetFullPath(arguments[2]);
+    var outputPath = Path.GetFullPath(arguments[5]);
+    try
+    {
+        if (!File.Exists(auditPath) || !File.Exists(inputPath))
+        {
+            Console.Error.WriteLine("Không tìm thấy audit hoặc generated XML đầu vào.");
+            return 2;
+        }
+
+        var jsonOptions = new JsonSerializerOptions
+        {
+            PropertyNameCaseInsensitive = true,
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) }
+        };
+        await using var auditStream = new FileStream(
+            auditPath,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.Read,
+            bufferSize: 1024 * 1024,
+            FileOptions.Asynchronous | FileOptions.SequentialScan);
+        var audit = await JsonSerializer.DeserializeAsync<OutputAudit>(auditStream, jsonOptions)
+            ?? throw new InvalidDataException("Audit JSON rỗng hoặc không hợp lệ.");
+        var auditSha256 = await ComputeSha256Async(auditPath);
+        var inputSha256 = await ComputeSha256Async(inputPath);
+        var result = await new PremiereConstantGainCandidateWriter().WriteAsync(
+            inputPath,
+            inputSha256,
+            audit,
+            auditSha256,
+            outputPath,
+            trackIndex,
+            boundaryFrame);
+        Console.WriteLine(JsonSerializer.Serialize(new
+        {
+            PremiereConstantGainCandidateWriter.Policy,
+            Audit = Path.GetFileName(auditPath),
+            Input = Path.GetFileName(inputPath),
+            Output = Path.GetFileName(outputPath),
+            result.InputXmlSha256,
+            result.InputAuditSha256,
+            result.AuditRunId,
+            result.OutputXmlSha256,
+            result.TrackIndex,
+            result.BoundaryFrame,
+            Timecode = ToTimecode(result.BoundaryFrame, result.FrameRate),
+            result.FrameRate,
+            result.FrameTicks,
+            result.HalfFrameTicks,
+            result.LeftClipItemId,
+            result.RightClipItemId,
+            result.LeftEnabled,
+            result.RightEnabled,
+            result.EffectName,
+            result.EffectId
+        }, new JsonSerializerOptions { WriteIndented = true }));
+        return 0;
+    }
+    catch (Exception exception) when (
+        exception is IOException or UnauthorizedAccessException or InvalidDataException or
+        PremiereXmlLoadException or JsonException or ArgumentException or OverflowException)
+    {
+        Console.Error.WriteLine(exception.Message);
+        return 1;
+    }
+}
 
 static async Task<int> WriteBoundaryReportAsync(string[] arguments)
 {
