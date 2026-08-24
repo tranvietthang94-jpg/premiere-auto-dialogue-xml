@@ -27,6 +27,24 @@ public sealed record PremiereConstantGainCandidateResult(
     string EffectName,
     string EffectId);
 
+public sealed record PremiereConstantGainBoundaryRequest(
+    int TrackIndex,
+    long BoundaryFrame,
+    BoundaryTransitionKind ExpectedKind,
+    double RenderedStepDbfs,
+    double StepAboveLocalP99Db);
+
+public sealed record PremiereConstantGainBoundaryResult(
+    int TrackIndex,
+    long BoundaryFrame,
+    BoundaryTransitionKind Kind,
+    string LeftClipItemId,
+    string RightClipItemId,
+    bool LeftEnabled,
+    bool RightEnabled,
+    string EffectName,
+    string EffectId);
+
 public sealed class PremiereConstantGainCandidateWriter
 {
     public const string EffectName = "Cross Fade ( 0dB)";
@@ -120,6 +138,57 @@ public sealed class PremiereConstantGainCandidateWriter
             throw new InvalidDataException("Track candidate đã có transition; từ chối chèn chồng.");
         }
 
+        var boundary = InsertValidatedBoundary(
+            track,
+            audit,
+            frameGrid,
+            trackIndex,
+            boundaryFrame,
+            expectedKind: null);
+
+        var tempPath = Path.Combine(
+            outputDirectory,
+            $".{Path.GetFileName(outputPath)}.{Guid.NewGuid():N}.tmp");
+        try
+        {
+            await WriteDocumentAsync(document, tempPath, cancellationToken);
+            var outputSha256 = await ComputeSha256Async(tempPath, cancellationToken);
+            PremiereXmlDocumentLoader.ValidateGeneratedOutputSyntax(tempPath, outputSha256);
+            File.Move(tempPath, outputPath);
+            return new(
+                source.Sha256,
+                inputAuditSha256,
+                audit.RunId,
+                outputSha256,
+                trackIndex,
+                boundaryFrame,
+                frameRate,
+                frameTicks,
+                halfFrameTicks,
+                boundary.LeftClipItemId,
+                boundary.RightClipItemId,
+                boundary.LeftEnabled,
+                boundary.RightEnabled,
+                EffectName,
+                EffectId);
+        }
+        finally
+        {
+            if (File.Exists(tempPath))
+            {
+                File.Delete(tempPath);
+            }
+        }
+    }
+
+    internal static PremiereConstantGainBoundaryResult InsertValidatedBoundary(
+        XElement track,
+        OutputAudit audit,
+        PremiereNdfFrameGrid frameGrid,
+        int trackIndex,
+        long boundaryFrame,
+        BoundaryTransitionKind? expectedKind)
+    {
         var clips = track.Elements("clipitem").ToArray();
         var leftMatches = clips.Where(clip => ReadLong(clip, "end") == boundaryFrame).ToArray();
         var rightMatches = clips.Where(clip => ReadLong(clip, "start") == boundaryFrame).ToArray();
@@ -154,6 +223,7 @@ public sealed class PremiereConstantGainCandidateWriter
             throw new InvalidDataException("Candidate chỉ được đặt giữa hai fragment cùng source clip/media.");
         }
 
+        var halfFrameTicks = frameGrid.FrameToTicks(1) / 2;
         var leftPproTicksIn = ReadLong(left, "pproTicksIn");
         var leftPproTicksOut = ReadLong(left, "pproTicksOut");
         var rightPproTicksIn = ReadLong(right, "pproTicksIn");
@@ -170,7 +240,7 @@ public sealed class PremiereConstantGainCandidateWriter
         var rightEnabled = ReadBoolean(right, "enabled");
         var leftId = RequiredAttribute(left, "id");
         var rightId = RequiredAttribute(right, "id");
-        ValidateAuditBoundary(
+        var kind = ValidateAuditBoundary(
             audit,
             trackIndex,
             boundaryFrame,
@@ -184,48 +254,29 @@ public sealed class PremiereConstantGainCandidateWriter
             leftPproTicksOut,
             rightPproTicksIn,
             rightPproTicksOut);
+        if (expectedKind is not null && kind != expectedKind)
+        {
+            throw new InvalidDataException(
+                $"Loại boundary A{trackIndex}/frame {boundaryFrame} không khớp scan đã khóa.");
+        }
+
         var boundaryTicks = frameGrid.FrameToTicks(boundaryFrame);
-        var transition = CreateTransition(
+        left.AddAfterSelf(CreateTransition(
             boundaryFrame,
-            frameRate,
+            frameGrid.FramesPerSecond,
             checked(boundaryTicks - halfFrameTicks),
             checked(boundaryTicks + halfFrameTicks),
-            halfFrameTicks);
-        left.AddAfterSelf(transition);
-
-        var tempPath = Path.Combine(
-            outputDirectory,
-            $".{Path.GetFileName(outputPath)}.{Guid.NewGuid():N}.tmp");
-        try
-        {
-            await WriteDocumentAsync(document, tempPath, cancellationToken);
-            var outputSha256 = await ComputeSha256Async(tempPath, cancellationToken);
-            PremiereXmlDocumentLoader.ValidateGeneratedOutputSyntax(tempPath, outputSha256);
-            File.Move(tempPath, outputPath);
-            return new(
-                source.Sha256,
-                inputAuditSha256,
-                audit.RunId,
-                outputSha256,
-                trackIndex,
-                boundaryFrame,
-                frameRate,
-                frameTicks,
-                halfFrameTicks,
-                leftId,
-                rightId,
-                leftEnabled,
-                rightEnabled,
-                EffectName,
-                EffectId);
-        }
-        finally
-        {
-            if (File.Exists(tempPath))
-            {
-                File.Delete(tempPath);
-            }
-        }
+            halfFrameTicks));
+        return new(
+            trackIndex,
+            boundaryFrame,
+            kind,
+            leftId,
+            rightId,
+            leftEnabled,
+            rightEnabled,
+            EffectName,
+            EffectId);
     }
 
     private static XElement CreateTransition(
@@ -257,7 +308,7 @@ public sealed class PremiereConstantGainCandidateWriter
                 new XElement("endratio", 1),
                 new XElement("reverse", "FALSE")));
 
-    private static void ValidateAuditEnvelope(
+    internal static void ValidateAuditEnvelope(
         OutputAudit audit,
         string inputXmlSha256,
         PremiereNdfFrameGrid frameGrid)
@@ -279,7 +330,7 @@ public sealed class PremiereConstantGainCandidateWriter
         }
     }
 
-    private static void ValidateAuditBoundary(
+    private static BoundaryTransitionKind ValidateAuditBoundary(
         OutputAudit audit,
         int trackIndex,
         long boundaryFrame,
@@ -342,9 +393,21 @@ public sealed class PremiereConstantGainCandidateWriter
         {
             throw new InvalidDataException("Boundary audit không đổi state hoặc gain; từ chối transition.");
         }
+
+        if (left.Enabled && !right.Enabled)
+        {
+            return BoundaryTransitionKind.EnabledToDisabled;
+        }
+
+        if (!left.Enabled && right.Enabled)
+        {
+            return BoundaryTransitionKind.DisabledToEnabled;
+        }
+
+        return BoundaryTransitionKind.GainChange;
     }
 
-    private static int ReadSequenceFrameRate(XElement sequence)
+    internal static int ReadSequenceFrameRate(XElement sequence)
     {
         var rate = RequiredElement(sequence, "rate");
         if (!string.Equals(RequiredElement(rate, "ntsc").Value, "FALSE", StringComparison.OrdinalIgnoreCase) ||
@@ -381,7 +444,7 @@ public sealed class PremiereConstantGainCandidateWriter
         throw new InvalidDataException($"Giá trị {name} không phải TRUE/FALSE.");
     }
 
-    private static XElement RequiredElement(XElement parent, string name) =>
+    internal static XElement RequiredElement(XElement parent, string name) =>
         parent.Element(name) ?? throw new InvalidDataException($"XML thiếu phần tử {name}.");
 
     private static string RequiredAttribute(XElement element, string name) =>
@@ -389,7 +452,7 @@ public sealed class PremiereConstantGainCandidateWriter
             ? value
             : throw new InvalidDataException($"XML thiếu attribute {name}.");
 
-    private static void RemoveInsignificantWhitespace(XDocument document)
+    internal static void RemoveInsignificantWhitespace(XDocument document)
     {
         foreach (var whitespace in document.DescendantNodes()
                      .OfType<XText>()
@@ -400,7 +463,7 @@ public sealed class PremiereConstantGainCandidateWriter
         }
     }
 
-    private static async Task WriteDocumentAsync(
+    internal static async Task WriteDocumentAsync(
         XDocument document,
         string path,
         CancellationToken cancellationToken)
@@ -434,7 +497,7 @@ public sealed class PremiereConstantGainCandidateWriter
         await stream.FlushAsync(cancellationToken);
     }
 
-    private static async Task<string> ComputeSha256Async(
+    internal static async Task<string> ComputeSha256Async(
         string path,
         CancellationToken cancellationToken)
     {
