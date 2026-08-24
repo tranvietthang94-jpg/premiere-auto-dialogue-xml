@@ -111,6 +111,10 @@ try {
         throw 'Semantic mutation không bị validator Phase 15 từ chối.'
     }
 
+    # The rejected negative case may leave LASTEXITCODE=1 from the comparator
+    # even though the harness successfully proved fail-closed behavior.
+    $global:LASTEXITCODE = 0
+
     [pscustomobject]@{
         Status = 'phase15-multiboundary-roundtrip-policy-tests-passed'
         CompatibleCaseCount = 1
