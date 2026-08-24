@@ -1,6 +1,6 @@
 # Phase 14 — Nghiên cứu chất lượng biên cắt âm thanh
 
-Trạng thái: `in progress; click nhẹ đã được operator xác nhận, fixture đầu tiên là Constant Power +3 dB nên đang chờ fixture Constant Gain đúng`. Phase mở ngày 2026-08-24 từ clean `main` commit `90e8e2d81a2a20903a349f50bec10b953a8794c5` trên branch `codex/phase14-click-safe-boundary-research`.
+Trạng thái: `in progress; đã có fixture Constant Gain 0 dB đúng, đang chờ kết quả nghe tại A2 trước khi sinh candidate XML`. Phase mở ngày 2026-08-24 từ clean `main` commit `90e8e2d81a2a20903a349f50bec10b953a8794c5` trên branch `codex/phase14-click-safe-boundary-research`.
 
 ## Quyết định sản phẩm
 
@@ -106,7 +106,9 @@ Thư mục cục bộ: `private-artifacts/phase14-listening-clips-20260824-1`. C
 
 Operator xác nhận ngày 2026-08-24: cả ba excerpt đều nghe click nhẹ tại boundary. Cổng nghe đã mở, nhưng production writer vẫn chưa đổi. Bằng chứng kế tiếp phải là một `Constant Gain` ngắn do Premiere áp trên bản sao sequence tại A2 `00:07:25:15`, sau đó export Final Cut Pro XML mới vào `private-artifacts/phase14-premiere-transition-fixture-20260824-1`. Fixture này quyết định cấu trúc transition thật; không suy đoán effect ID hoặc normalization từ DTD.
 
-Fixture đầu tiên `phase14-constant-gain-A2.xml`, SHA-256 `F9A2D99669FB07C6439AB228FDFEF232AA475376A35A2CF79BDBA8167D75E56C`, có đúng vị trí A2 frame `11140` và độ dài một frame theo `pproTicks`, nhưng XML ghi `Cross Fade (+3dB)` / `KGAudioTransCrossFade3dB`. Đây là Constant Power, không phải Constant Gain 0 dB, nên không được dùng để suy ra production effect ID. Round-trip comparator chỉ thấy bốn normalization dự kiến ở hai clip kề transition (`start/end = -1` và mở rộng `pproTicksIn/Out` nửa frame); fragment count, Enabled count, marker và gain ngoài transition không đổi. Cần export fixture v2 thật sự bằng `Audio Transitions > Crossfade > Constant Gain` và ghi nhận kết quả nghe `hết/giảm/không đổi` trước khi tạo candidate XML.
+Fixture đầu tiên `phase14-constant-gain-A2.xml`, SHA-256 `F9A2D99669FB07C6439AB228FDFEF232AA475376A35A2CF79BDBA8167D75E56C`, có đúng vị trí A2 frame `11140` và độ dài một frame theo `pproTicks`, nhưng XML ghi `Cross Fade (+3dB)` / `KGAudioTransCrossFade3dB`. Đây là Constant Power, không phải Constant Gain 0 dB, nên không được dùng để suy ra production effect ID. Round-trip comparator chỉ thấy bốn normalization dự kiến ở hai clip kề transition (`start/end = -1` và mở rộng `pproTicksIn/Out` nửa frame); fragment count, Enabled count, marker và gain ngoài transition không đổi.
+
+Fixture lần hai `phase14-constant-gain-A2_lan 2.xml`, SHA-256 `41D69497E533B0E7135455CC85D5E2A63A0FB2937FA14736F3F620BBD8755883`, đã khóa đúng cấu trúc Premiere-authored một frame: `Cross Fade ( 0dB)` / `KGAudioTransCrossFade0dB`, `alignment=center`, `cutPointTicks=5080320000`, `pproTicksIn/Out` cách cut đúng nửa frame tại A2 frame `11140`. So với XML Phase 13, comparator vẫn chỉ thấy đúng bốn normalization nói trên; `8.291` clip, `4.488` Enabled, `3.803` Disabled, `5.207` marker và gain tolerance đều giữ nguyên. Cấu trúc XML đã đạt cổng fixture; kết quả nghe Constant Gain vẫn phải do operator xác nhận trước khi sinh candidate.
 
 PR `#20` CI run `32698485975` đạt build, `208/208` test, policy Premiere 24/30 `8/8`, self-contained publish và installer smoke; workflow source-only không upload artifact.
 
