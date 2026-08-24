@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
@@ -41,7 +42,10 @@ public sealed record BoundaryDiscontinuitySample(
     double SourceStepDbfs,
     double RenderedStepDbfs,
     double ExcessStepDbfs,
-    bool ScreeningCandidate);
+    bool ScreeningCandidate,
+    double LocalP99RenderedDerivativeDbfs,
+    double RenderedStepAboveLocalP99Db,
+    bool TransientScreeningCandidate);
 
 public sealed record BoundaryDiscontinuityScanReport(
     string SchemaVersion,
@@ -55,17 +59,21 @@ public sealed record BoundaryDiscontinuityScanReport(
     int DisabledToEnabledCount,
     int GainChangeCount,
     int ScreeningCandidateCount,
+    int TransientScreeningCandidateCount,
     double MaximumRenderedStepDbfs,
     double MaximumExcessStepDbfs,
     double P95ExcessStepDbfs,
+    double MaximumRenderedStepAboveLocalP99Db,
     string TransitionStreamSha256,
     int CapturedSampleCount,
     IReadOnlyList<BoundaryDiscontinuitySample> TopSamples);
 
 public sealed class BoundaryDiscontinuityScanner
 {
-    public const string Policy = "phase14-app-created-boundary-discontinuity-screen-v1";
+    public const string Policy = "phase14-app-created-boundary-discontinuity-screen-v2";
     public const double DefaultScreeningThresholdDbfs = -40;
+    public const double DefaultLocalOutlierThresholdDb = 12;
+    public const int LocalContextRadiusMilliseconds = 10;
     public const int DefaultMaximumCapturedSamples = 64;
     private const double MinimumDbfs = -120;
     private const double GainEqualityToleranceDb = 0.000_001;
@@ -147,6 +155,7 @@ public sealed class BoundaryDiscontinuityScanner
         }
 
         var samples = ReadRequestedSamples(drafts);
+        var localMeasurements = ReadLocalMeasurements(drafts);
         var captured = new PriorityQueue<BoundaryDiscontinuitySample, double>();
         var excessStepDbfsValues = new List<double>(drafts.Count);
         using var transitionHash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
@@ -154,11 +163,14 @@ public sealed class BoundaryDiscontinuityScanner
         var disabledToEnabledCount = 0;
         var gainChangeCount = 0;
         var screeningCandidateCount = 0;
+        var transientScreeningCandidateCount = 0;
         var maximumRenderedStepDbfs = MinimumDbfs;
         var maximumExcessStepDbfs = MinimumDbfs;
+        var maximumRenderedStepAboveLocalP99Db = 0d;
 
-        foreach (var draft in drafts)
+        for (var draftIndex = 0; draftIndex < drafts.Count; draftIndex++)
         {
+            var draft = drafts[draftIndex];
             var leftSourceSample = samples[new(draft.Left.SourceFileId, draft.LeftSampleIndex)];
             var rightSourceSample = samples[new(draft.Right.SourceFileId, draft.RightSampleIndex)];
             var leftGainDb = EffectiveGainDb(draft.Left);
@@ -176,6 +188,11 @@ public sealed class BoundaryDiscontinuityScanner
             var renderedStepDbfs = ToDbfs(renderedStep);
             var excessStepDbfs = ToDbfs(excessStep);
             var screeningCandidate = excessStepDbfs >= screeningThresholdDbfs;
+            var localP99RenderedDerivativeDbfs = ToDbfs(localMeasurements[draftIndex].LocalP99RenderedDerivative);
+            var renderedStepAboveLocalP99Db = renderedStepDbfs - localP99RenderedDerivativeDbfs;
+            var transientScreeningCandidate =
+                renderedStepDbfs >= screeningThresholdDbfs &&
+                renderedStepAboveLocalP99Db >= DefaultLocalOutlierThresholdDb;
             var sample = new BoundaryDiscontinuitySample(
                 draft.Left.TrackIndex,
                 draft.Left.SourceClipId,
@@ -201,7 +218,10 @@ public sealed class BoundaryDiscontinuityScanner
                 sourceStepDbfs,
                 renderedStepDbfs,
                 excessStepDbfs,
-                screeningCandidate);
+                screeningCandidate,
+                localP99RenderedDerivativeDbfs,
+                renderedStepAboveLocalP99Db,
+                transientScreeningCandidate);
 
             switch (draft.Kind)
             {
@@ -223,8 +243,16 @@ public sealed class BoundaryDiscontinuityScanner
                 screeningCandidateCount++;
             }
 
+            if (transientScreeningCandidate)
+            {
+                transientScreeningCandidateCount++;
+            }
+
             maximumRenderedStepDbfs = Math.Max(maximumRenderedStepDbfs, renderedStepDbfs);
             maximumExcessStepDbfs = Math.Max(maximumExcessStepDbfs, excessStepDbfs);
+            maximumRenderedStepAboveLocalP99Db = Math.Max(
+                maximumRenderedStepAboveLocalP99Db,
+                renderedStepAboveLocalP99Db);
             excessStepDbfsValues.Add(excessStepDbfs);
             AppendCanonicalTransition(transitionHash, sample);
             captured.Enqueue(sample, excessStep);
@@ -243,7 +271,7 @@ public sealed class BoundaryDiscontinuityScanner
             .ToArray();
         var transitionStreamSha256 = Convert.ToHexString(transitionHash.GetHashAndReset());
         return new(
-            "1.0",
+            "1.1",
             Policy,
             screeningThresholdDbfs,
             clips.Count,
@@ -254,9 +282,11 @@ public sealed class BoundaryDiscontinuityScanner
             disabledToEnabledCount,
             gainChangeCount,
             screeningCandidateCount,
+            transientScreeningCandidateCount,
             maximumRenderedStepDbfs,
             maximumExcessStepDbfs,
             Percentile95(excessStepDbfsValues),
+            maximumRenderedStepAboveLocalP99Db,
             transitionStreamSha256,
             topSamples.Length,
             topSamples);
@@ -438,6 +468,136 @@ public sealed class BoundaryDiscontinuityScanner
         return result;
     }
 
+    private static IReadOnlyList<LocalBoundaryMeasurement> ReadLocalMeasurements(
+        IReadOnlyList<BoundaryDraft> drafts)
+    {
+        var result = new LocalBoundaryMeasurement[drafts.Count];
+        var streams = new Dictionary<string, FileStream>(StringComparer.Ordinal);
+        try
+        {
+            for (var index = 0; index < drafts.Count; index++)
+            {
+                var draft = drafts[index];
+                if (!streams.TryGetValue(draft.Left.SourceFileId, out var stream))
+                {
+                    stream = new FileStream(
+                        draft.Wave.Path,
+                        FileMode.Open,
+                        FileAccess.Read,
+                        FileShare.Read,
+                        bufferSize: 64 * 1024,
+                        FileOptions.RandomAccess);
+                    streams.Add(draft.Left.SourceFileId, stream);
+                }
+
+                var contextRadiusSamples = checked(
+                    draft.Wave.SampleRate * LocalContextRadiusMilliseconds / 1_000);
+                result[index] = MeasureLocalRenderedDerivative(
+                    stream,
+                    draft,
+                    contextRadiusSamples);
+            }
+        }
+        finally
+        {
+            foreach (var stream in streams.Values)
+            {
+                stream.Dispose();
+            }
+        }
+
+        return result;
+    }
+
+    private static LocalBoundaryMeasurement MeasureLocalRenderedDerivative(
+        FileStream stream,
+        BoundaryDraft draft,
+        int contextRadiusSamples)
+    {
+        var wave = draft.Wave;
+        var leftStart = Math.Max(0, draft.LeftSampleIndex - contextRadiusSamples);
+        var leftCount = checked((int)(draft.LeftSampleIndex - leftStart + 1));
+        var rightEndExclusive = Math.Min(
+            wave.SampleFrameCount,
+            draft.RightSampleIndex + contextRadiusSamples + 1);
+        var rightCount = checked((int)(rightEndExclusive - draft.RightSampleIndex));
+        var derivativeCapacity = Math.Max(1, leftCount + rightCount - 2);
+        var derivatives = ArrayPool<double>.Shared.Rent(derivativeCapacity);
+        try
+        {
+            var derivativeCount = 0;
+            derivativeCount += ReadRenderedDerivatives(
+                stream,
+                wave,
+                leftStart,
+                leftCount,
+                draft.Left.Enabled ? DbToLinear(EffectiveGainDb(draft.Left)) : 0,
+                derivatives.AsSpan(derivativeCount));
+            derivativeCount += ReadRenderedDerivatives(
+                stream,
+                wave,
+                draft.RightSampleIndex,
+                rightCount,
+                draft.Right.Enabled ? DbToLinear(EffectiveGainDb(draft.Right)) : 0,
+                derivatives.AsSpan(derivativeCount));
+            if (derivativeCount == 0)
+            {
+                return new(0);
+            }
+
+            Array.Sort(derivatives, 0, derivativeCount);
+            var p99Index = Math.Clamp(
+                (int)Math.Ceiling(derivativeCount * 0.99) - 1,
+                0,
+                derivativeCount - 1);
+            return new(derivatives[p99Index]);
+        }
+        finally
+        {
+            ArrayPool<double>.Shared.Return(derivatives, clearArray: true);
+        }
+    }
+
+    private static int ReadRenderedDerivatives(
+        FileStream stream,
+        WaveFileInfo wave,
+        long startSample,
+        int sampleCount,
+        double linearGain,
+        Span<double> destination)
+    {
+        if (sampleCount < 2)
+        {
+            return 0;
+        }
+
+        var byteCount = checked(sampleCount * wave.BlockAlign);
+        var bytes = ArrayPool<byte>.Shared.Rent(byteCount);
+        var decoded = ArrayPool<float>.Shared.Rent(sampleCount);
+        try
+        {
+            stream.Position = checked(wave.DataOffset + (startSample * wave.BlockAlign));
+            stream.ReadExactly(bytes.AsSpan(0, byteCount));
+            PcmWaveSampleReader.DecodeMono(
+                bytes.AsSpan(0, byteCount),
+                decoded.AsSpan(0, sampleCount),
+                wave);
+            for (var index = 1; index < sampleCount; index++)
+            {
+                destination[index - 1] = Math.Abs(
+                    (decoded[index] * linearGain) -
+                    (decoded[index - 1] * linearGain));
+            }
+
+            return sampleCount - 1;
+        }
+        finally
+        {
+            ArrayPool<float>.Shared.Return(decoded, clearArray: true);
+            ArrayPool<byte>.Shared.Return(bytes, clearArray: true);
+        }
+    }
+
     private static void ValidateSampleIndex(WaveFileInfo wave, long sampleIndex, string sourceFileId)
     {
         if (sampleIndex < 0 || sampleIndex >= wave.SampleFrameCount)
@@ -488,7 +648,10 @@ public sealed class BoundaryDiscontinuityScanner
             sample.SourceStep.ToString("R", CultureInfo.InvariantCulture),
             sample.RenderedStep.ToString("R", CultureInfo.InvariantCulture),
             sample.ExcessStep.ToString("R", CultureInfo.InvariantCulture),
-            sample.ScreeningCandidate ? "1" : "0") + "\n";
+            sample.ScreeningCandidate ? "1" : "0",
+            sample.LocalP99RenderedDerivativeDbfs.ToString("R", CultureInfo.InvariantCulture),
+            sample.RenderedStepAboveLocalP99Db.ToString("R", CultureInfo.InvariantCulture),
+            sample.TransientScreeningCandidate ? "1" : "0") + "\n";
         hash.AppendData(Encoding.UTF8.GetBytes(line));
     }
 
@@ -503,4 +666,6 @@ public sealed class BoundaryDiscontinuityScanner
         BoundaryTransitionKind Kind,
         long LeftSampleIndex,
         long RightSampleIndex);
+
+    private readonly record struct LocalBoundaryMeasurement(double LocalP99RenderedDerivative);
 }

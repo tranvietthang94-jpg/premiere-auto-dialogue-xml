@@ -251,7 +251,7 @@ static async Task<int> WriteBoundaryReportAsync(string[] arguments)
         var scan = new BoundaryDiscontinuityScanner().Scan(audit, inspection.Project);
         var report = new
         {
-            SchemaVersion = "1.0",
+            SchemaVersion = "1.1",
             CreatedAtUtc = DateTimeOffset.UtcNow,
             AuditFileName = Path.GetFileName(auditPath),
             AuditSha256 = await ComputeSha256Async(auditPath),
@@ -297,8 +297,10 @@ static async Task<int> WriteBoundaryReportAsync(string[] arguments)
             scan.DisabledToEnabledCount,
             scan.GainChangeCount,
             scan.ScreeningCandidateCount,
+            scan.TransientScreeningCandidateCount,
             scan.MaximumExcessStepDbfs,
             scan.P95ExcessStepDbfs,
+            scan.MaximumRenderedStepAboveLocalP99Db,
             scan.TransitionStreamSha256,
             scan.CapturedSampleCount
         }, jsonOptions));

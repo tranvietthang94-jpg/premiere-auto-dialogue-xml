@@ -35,10 +35,45 @@ public sealed class BoundaryDiscontinuityScannerTests
         Assert.AreEqual(2, report.TransitionCount);
         Assert.AreEqual(2, report.EnabledToDisabledCount);
         Assert.AreEqual(1, report.ScreeningCandidateCount);
+        Assert.AreEqual(1, report.TransientScreeningCandidateCount);
         Assert.HasCount(2, report.TopSamples);
         Assert.AreEqual("high", report.TopSamples[0].SourceClipId);
         Assert.IsGreaterThan(-7, report.TopSamples[0].ExcessStepDbfs);
         Assert.IsLessThan(-55, report.TopSamples[1].ExcessStepDbfs);
+    }
+
+    [TestMethod]
+    public void ScanRequiresBoundaryStepToStandOutFromLocalSourceMotion()
+    {
+        var source = Enumerable.Repeat(0.5f, 2_000).ToArray();
+        for (var index = 0; index < 500; index++)
+        {
+            source[index] = index % 2 == 0 ? 0f : 0.5f;
+        }
+
+        using var fixture = TestAudioFixture.CreatePcm16(source);
+        var movingClip = fixture.Clip("moving", 0, 2, 0, 1_000);
+        var steadyClip = fixture.Clip("steady", 2, 4, 1_000, 2_000);
+        var project = Project([movingClip, steadyClip]);
+        var fragments = new[]
+        {
+            Fragment(movingClip, "moving-enabled", 0, 1, 0, 500, AudioSegmentStatus.Ambiguous),
+            Fragment(movingClip, "moving-disabled", 1, 2, 500, 1_000, AudioSegmentStatus.Noise),
+            Fragment(steadyClip, "steady-enabled", 2, 3, 1_000, 1_500, AudioSegmentStatus.Ambiguous),
+            Fragment(steadyClip, "steady-disabled", 3, 4, 1_500, 2_000, AudioSegmentStatus.Noise)
+        };
+
+        var report = new BoundaryDiscontinuityScanner().Scan(Audit(fragments), project);
+
+        Assert.AreEqual("1.1", report.SchemaVersion);
+        Assert.AreEqual(2, report.ScreeningCandidateCount);
+        Assert.AreEqual(1, report.TransientScreeningCandidateCount);
+        var moving = report.TopSamples.Single(sample => sample.SourceClipId == "moving");
+        var steady = report.TopSamples.Single(sample => sample.SourceClipId == "steady");
+        Assert.IsFalse(moving.TransientScreeningCandidate);
+        Assert.IsTrue(steady.TransientScreeningCandidate);
+        Assert.IsLessThan(12, moving.RenderedStepAboveLocalP99Db);
+        Assert.IsGreaterThanOrEqualTo(12, steady.RenderedStepAboveLocalP99Db);
     }
 
     [TestMethod]

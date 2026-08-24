@@ -1,6 +1,6 @@
 # Phase 14 — Nghiên cứu chất lượng biên cắt âm thanh
 
-Trạng thái: `in progress; click nhẹ đã được operator xác nhận, đang chờ Premiere-authored transition fixture`. Phase mở ngày 2026-08-24 từ clean `main` commit `90e8e2d81a2a20903a349f50bec10b953a8794c5` trên branch `codex/phase14-click-safe-boundary-research`.
+Trạng thái: `in progress; click nhẹ đã được operator xác nhận, fixture đầu tiên là Constant Power +3 dB nên đang chờ fixture Constant Gain đúng`. Phase mở ngày 2026-08-24 từ clean `main` commit `90e8e2d81a2a20903a349f50bec10b953a8794c5` trên branch `codex/phase14-click-safe-boundary-research`.
 
 ## Quyết định sản phẩm
 
@@ -83,6 +83,7 @@ Nếu không có click được xác nhận, Phase 14 đóng `research-only; no 
 - Synthetic suite phân biệt biên amplitude cao với gần zero, báo riêng mute/enable/gain, bỏ biên giữa hai source clip và deterministic trên empty stream.
 - HGE2 Phase 13 có `8.291` fragment, `8.284` biên do app tạo, `8.176` transition (`3.803` Enabled → Disabled, `3.798` Disabled → Enabled, `575` gain change). Screen nguồn `-40 dBFS` giữ `1.816` candidate; maximum excess `-3,1743 dBFS`, p95 `-29,9364 dBFS`, transition hash `0E6BE9F62FF73FD5CF354400F9390C2159A67CB77896AE94319A5F55AEB13B63`.
 - Report cục bộ: `private-artifacts/phase14-boundary-hge2-20260824-1/phase14-hge2-boundary-report.json`, SHA-256 `6757FB647EE17D0B3EE335A0142669AFF4B67514366069B345F0B22328217437`. Report chỉ là screening, không kết luận nghe.
+- Scanner v2 còn so rendered step dự đoán với p99 derivative nguồn đã áp state/gain trong cửa sổ hai phía `±10 ms`. Điều kiện kết hợp `>= -40 dBFS` và cao hơn local p99 ít nhất `12 dB` giảm HGE2 từ `1.816` excess candidate xuống `1.282` transient candidate; maximum above-local-p99 `40,7495 dB`. Report cục bộ `phase14-hge2-boundary-report-v2.json`, SHA-256 `4C0F60E6EB31AECD7496C74FB9AFE64C9770C02DC18AED7BC1AE1149BB2C33F1`; local full suite `209/209`, policy `8/8`, build `0` warning/error.
 
 ### Đối chiếu PCM Premiere thật
 
@@ -104,6 +105,8 @@ Ba excerpt PCM mono 48 kHz/24-bit, dài đúng `2 giây`, đặt boundary tại 
 Thư mục cục bộ: `private-artifacts/phase14-listening-clips-20260824-1`. Chỉ khi operator xác nhận nghe click/pop tại chính giữa excerpt mới nghiên cứu candidate XML nhỏ. Trước xác nhận này production writer giữ nguyên.
 
 Operator xác nhận ngày 2026-08-24: cả ba excerpt đều nghe click nhẹ tại boundary. Cổng nghe đã mở, nhưng production writer vẫn chưa đổi. Bằng chứng kế tiếp phải là một `Constant Gain` ngắn do Premiere áp trên bản sao sequence tại A2 `00:07:25:15`, sau đó export Final Cut Pro XML mới vào `private-artifacts/phase14-premiere-transition-fixture-20260824-1`. Fixture này quyết định cấu trúc transition thật; không suy đoán effect ID hoặc normalization từ DTD.
+
+Fixture đầu tiên `phase14-constant-gain-A2.xml`, SHA-256 `F9A2D99669FB07C6439AB228FDFEF232AA475376A35A2CF79BDBA8167D75E56C`, có đúng vị trí A2 frame `11140` và độ dài một frame theo `pproTicks`, nhưng XML ghi `Cross Fade (+3dB)` / `KGAudioTransCrossFade3dB`. Đây là Constant Power, không phải Constant Gain 0 dB, nên không được dùng để suy ra production effect ID. Round-trip comparator chỉ thấy bốn normalization dự kiến ở hai clip kề transition (`start/end = -1` và mở rộng `pproTicksIn/Out` nửa frame); fragment count, Enabled count, marker và gain ngoài transition không đổi. Cần export fixture v2 thật sự bằng `Audio Transitions > Crossfade > Constant Gain` và ghi nhận kết quả nghe `hết/giảm/không đổi` trước khi tạo candidate XML.
 
 PR `#20` CI run `32698485975` đạt build, `208/208` test, policy Premiere 24/30 `8/8`, self-contained publish và installer smoke; workflow source-only không upload artifact.
 
