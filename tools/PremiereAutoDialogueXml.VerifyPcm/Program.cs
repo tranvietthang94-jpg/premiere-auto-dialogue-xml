@@ -16,7 +16,7 @@ if (args.Length is not (4 or 5))
     Console.Error.WriteLine(
         "Cách dùng: PremiereAutoDialogueXml.VerifyPcm <audit.json> <track-number> <full-sequence-mono-48k.wav> <new-report.json> [source.xml]");
     Console.Error.WriteLine(
-        "          PremiereAutoDialogueXml.VerifyPcm --boundary <audit.json> <track-number> <full-sequence-mono-48k.wav> <source.xml> <new-report.json>");
+        "          PremiereAutoDialogueXml.VerifyPcm --boundary <audit.json> <track-number> <full-sequence-mono-48k.wav> <source.xml> <new-report.json> [focus-boundary-frame]");
     return 2;
 }
 
@@ -184,10 +184,10 @@ catch (Exception exception) when (exception is IOException or InvalidDataExcepti
 
 static async Task<int> WriteBoundaryReportAsync(string[] arguments)
 {
-    if (arguments.Length != 6)
+    if (arguments.Length is not (6 or 7))
     {
         Console.Error.WriteLine(
-            "Cách dùng: --boundary <audit.json> <track-number> <full-sequence-mono-48k.wav> <source.xml> <new-report.json>");
+            "Cách dùng: --boundary <audit.json> <track-number> <full-sequence-mono-48k.wav> <source.xml> <new-report.json> [focus-boundary-frame]");
         return 2;
     }
 
@@ -199,6 +199,18 @@ static async Task<int> WriteBoundaryReportAsync(string[] arguments)
     {
         Console.Error.WriteLine("track-number phải là số nguyên bắt đầu từ 1.");
         return 2;
+    }
+
+    long? focusedBoundaryFrame = null;
+    if (arguments.Length == 7)
+    {
+        if (!long.TryParse(arguments[6], out var parsedFocus) || parsedFocus <= 0)
+        {
+            Console.Error.WriteLine("focus-boundary-frame phải là frame dương.");
+            return 2;
+        }
+
+        focusedBoundaryFrame = parsedFocus;
     }
 
     if (!File.Exists(auditPath) || !File.Exists(wavPath) || !File.Exists(sourceXmlPath))
@@ -265,9 +277,10 @@ static async Task<int> WriteBoundaryReportAsync(string[] arguments)
         var scan = new PremierePcmBoundaryScanner().Scan(
             audit,
             waveInspection.File,
-            trackIndex);
+            trackIndex,
+            focusedBoundaryFrame: focusedBoundaryFrame);
         var envelope = new PcmBoundaryEvidence(
-            "1.0",
+            "1.1",
             DateTimeOffset.UtcNow,
             Path.GetFileName(auditPath),
             await ComputeSha256Async(auditPath),
@@ -318,6 +331,8 @@ static async Task<int> WriteBoundaryReportAsync(string[] arguments)
             scan.P95ActualStepDbfs,
             scan.MaximumStepAboveLocalP99Db,
             scan.TransitionStreamSha256,
+            scan.FocusedBoundaryFrame,
+            scan.FocusedSample,
             scan.CapturedSampleCount
         }, jsonOptions));
         return 0;

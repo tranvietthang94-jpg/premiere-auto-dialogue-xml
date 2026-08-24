@@ -64,6 +64,37 @@ public sealed class PremierePcmBoundaryScannerTests
     }
 
     [TestMethod]
+    public void ScanReturnsRequestedBoundaryEvenWhenItIsOutsideBoundedTopSamples()
+    {
+        var samples = new float[4 * SamplesPerFrame];
+        Array.Fill(samples, 0.5f, SamplesPerFrame, SamplesPerFrame);
+        Array.Fill(samples, 0.25f, 2 * SamplesPerFrame, SamplesPerFrame);
+        using var fixture = TestAudioFixture.CreatePcm16(samples);
+        var fragments = new[]
+        {
+            Fragment("clip", "noise", 0, 1, AudioSegmentStatus.Noise),
+            Fragment("clip", "enabled", 1, 2, AudioSegmentStatus.Ambiguous, 0),
+            Fragment("clip", "gain", 2, 3, AudioSegmentStatus.Speech, 6.020599913),
+            Fragment("clip", "muted", 3, 4, AudioSegmentStatus.Noise)
+        };
+
+        var report = new PremierePcmBoundaryScanner().Scan(
+            Audit(fragments),
+            fixture.Wave,
+            1,
+            maximumCapturedSamples: 1,
+            focusedBoundaryFrame: 2);
+
+        Assert.AreEqual("1.1", report.SchemaVersion);
+        Assert.HasCount(1, report.TopSamples);
+        Assert.AreNotEqual(2, report.TopSamples[0].BoundaryFrame);
+        Assert.AreEqual(2, report.FocusedBoundaryFrame);
+        Assert.IsNotNull(report.FocusedSample);
+        Assert.AreEqual(2, report.FocusedSample.BoundaryFrame);
+        Assert.AreEqual(BoundaryTransitionKind.GainChange, report.FocusedSample.Kind);
+    }
+
+    [TestMethod]
     public void ScanRejectsPcmThatEndsBeforeAuditTimeline()
     {
         using var fixture = TestAudioFixture.CreatePcm16(new float[SamplesPerFrame]);

@@ -59,6 +59,8 @@ public sealed record PremierePcmBoundaryScanReport(
     double P95ActualStepDbfs,
     double MaximumStepAboveLocalP99Db,
     string TransitionStreamSha256,
+    long? FocusedBoundaryFrame,
+    PremierePcmBoundarySample? FocusedSample,
     int CapturedSampleCount,
     IReadOnlyList<PremierePcmBoundarySample> TopSamples);
 
@@ -80,7 +82,8 @@ public sealed class PremierePcmBoundaryScanner
         int contextRadiusSamples = DefaultContextRadiusSamples,
         double stepThresholdDbfs = DefaultStepThresholdDbfs,
         double outlierThresholdDb = DefaultOutlierThresholdDb,
-        int maximumCapturedSamples = DefaultMaximumCapturedSamples)
+        int maximumCapturedSamples = DefaultMaximumCapturedSamples,
+        long? focusedBoundaryFrame = null)
     {
         ArgumentNullException.ThrowIfNull(audit);
         ArgumentNullException.ThrowIfNull(renderedWave);
@@ -107,6 +110,11 @@ public sealed class PremierePcmBoundaryScanner
         if (maximumCapturedSamples is < 1 or > 1_024)
         {
             throw new ArgumentOutOfRangeException(nameof(maximumCapturedSamples));
+        }
+
+        if (focusedBoundaryFrame is <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(focusedBoundaryFrame));
         }
 
         ValidateWave(renderedWave);
@@ -186,6 +194,7 @@ public sealed class PremierePcmBoundaryScanner
         var gainChangeCandidateCount = 0;
         var maximumActualStepDbfs = MinimumDbfs;
         var maximumStepAboveLocalP99Db = 0d;
+        PremierePcmBoundarySample? focusedSample = null;
 
         foreach (var draft in drafts)
         {
@@ -223,6 +232,15 @@ public sealed class PremierePcmBoundaryScanner
                 localMaximumDbfs,
                 stepAboveLocalP99Db,
                 candidate);
+            if (focusedBoundaryFrame == sample.BoundaryFrame)
+            {
+                if (focusedSample is not null)
+                {
+                    throw new InvalidDataException("Có nhiều transition trùng focused boundary frame.");
+                }
+
+                focusedSample = sample;
+            }
 
             switch (draft.Kind)
             {
@@ -276,8 +294,13 @@ public sealed class PremierePcmBoundaryScanner
             .ThenByDescending(sample => sample.StepAboveLocalP99Db)
             .ThenBy(sample => sample.BoundaryFrame)
             .ToArray();
+        if (focusedBoundaryFrame is not null && focusedSample is null)
+        {
+            throw new InvalidDataException("Không tìm thấy transition tại focused boundary frame.");
+        }
+
         return new(
-            "1.0",
+            "1.1",
             Policy,
             trackIndex,
             frameGrid.FramesPerSecond,
@@ -301,6 +324,8 @@ public sealed class PremierePcmBoundaryScanner
             Percentile95(actualStepDbfsValues),
             maximumStepAboveLocalP99Db,
             Convert.ToHexString(transitionHash.GetHashAndReset()),
+            focusedBoundaryFrame,
+            focusedSample,
             topSamples.Length,
             topSamples);
     }

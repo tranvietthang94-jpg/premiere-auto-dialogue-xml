@@ -31,7 +31,7 @@ public sealed class PremiereConstantGainCandidateWriter
 {
     public const string EffectName = "Cross Fade ( 0dB)";
     public const string EffectId = "KGAudioTransCrossFade0dB";
-    public const string Policy = "phase14-premiere-authored-constant-gain-one-frame-candidate-v1";
+    public const string Policy = "phase14-constant-gain-one-frame-import-candidate-no-pre-normalization-v2";
     private const int SupportedAudioSampleRate = 48_000;
     private const double GainEqualityToleranceDb = 0.000_001;
 
@@ -184,11 +184,6 @@ public sealed class PremiereConstantGainCandidateWriter
             leftPproTicksOut,
             rightPproTicksIn,
             rightPproTicksOut);
-        SetValue(left, "end", "-1");
-        SetValue(left, "pproTicksOut", Format(checked(leftPproTicksOut + halfFrameTicks)));
-        SetValue(right, "start", "-1");
-        SetValue(right, "pproTicksIn", Format(rightPproTicksIn - halfFrameTicks));
-
         var boundaryTicks = frameGrid.FrameToTicks(boundaryFrame);
         var transition = CreateTransition(
             boundaryFrame,
@@ -386,9 +381,6 @@ public sealed class PremiereConstantGainCandidateWriter
         throw new InvalidDataException($"Giá trị {name} không phải TRUE/FALSE.");
     }
 
-    private static void SetValue(XElement parent, string name, string value) =>
-        RequiredElement(parent, name).Value = value;
-
     private static XElement RequiredElement(XElement parent, string name) =>
         parent.Element(name) ?? throw new InvalidDataException($"XML thiếu phần tử {name}.");
 
@@ -396,8 +388,6 @@ public sealed class PremiereConstantGainCandidateWriter
         (string?)element.Attribute(name) is { Length: > 0 } value
             ? value
             : throw new InvalidDataException($"XML thiếu attribute {name}.");
-
-    private static string Format(long value) => value.ToString(CultureInfo.InvariantCulture);
 
     private static void RemoveInsignificantWhitespace(XDocument document)
     {

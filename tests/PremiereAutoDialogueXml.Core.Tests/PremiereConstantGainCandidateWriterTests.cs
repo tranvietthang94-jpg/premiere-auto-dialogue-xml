@@ -11,7 +11,7 @@ namespace PremiereAutoDialogueXml.Core.Tests;
 public sealed class PremiereConstantGainCandidateWriterTests
 {
     [TestMethod]
-    public async Task WriteAsyncEmitsPremiereAuthoredOneFrameConstantGainGeometry()
+    public async Task WriteAsyncEmitsOneFrameTransitionWithoutPreNormalizingAdjacentClips()
     {
         using var fixture = CandidateFixture.Create();
         var inputHash = Sha256(fixture.InputPath);
@@ -40,10 +40,10 @@ public sealed class PremiereConstantGainCandidateWriterTests
         var track = document.Root!.Element("sequence")!.Element("media")!.Element("audio")!.Element("track")!;
         var clips = track.Elements("clipitem").ToArray();
         Assert.HasCount(2, clips);
-        Assert.AreEqual("-1", clips[0].Element("end")!.Value);
-        Assert.AreEqual("15240960000", clips[0].Element("pproTicksOut")!.Value);
-        Assert.AreEqual("-1", clips[1].Element("start")!.Value);
-        Assert.AreEqual("5080320000", clips[1].Element("pproTicksIn")!.Value);
+        Assert.AreEqual("1", clips[0].Element("end")!.Value);
+        Assert.AreEqual("10160640000", clips[0].Element("pproTicksOut")!.Value);
+        Assert.AreEqual("1", clips[1].Element("start")!.Value);
+        Assert.AreEqual("10160640000", clips[1].Element("pproTicksIn")!.Value);
 
         var transition = track.Elements("transitionitem").Single();
         Assert.AreEqual("1", transition.Element("start")!.Value);
