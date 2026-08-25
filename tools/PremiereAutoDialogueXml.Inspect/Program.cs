@@ -157,11 +157,7 @@ foreach (var xmlPath in xmlPaths)
 
         if (writeOutput)
         {
-            var output = await new OutputPackageWriter().WriteAsync(new(
-                project,
-                analysis,
-                DialogueProcessingPreset.Balanced,
-                args[2]));
+            var output = await WriteProductionOutputAsync(project, analysis, args[2]);
             outputSummary = new
             {
                 RunDirectory = Path.GetFileName(output.RunDirectory),
@@ -172,6 +168,7 @@ foreach (var xmlPath in xmlPaths)
                 output.FragmentCount,
                 output.MarkerCount,
                 output.ReviewGroupCount,
+                output.TransitionCount,
                 TotalPeakWorkingSetMegabytes = Math.Round(
                     System.Diagnostics.Process.GetCurrentProcess().PeakWorkingSet64 / 1024d / 1024d,
                     1)
@@ -207,6 +204,34 @@ foreach (var xmlPath in xmlPaths)
 }
 
 return failed ? 1 : 0;
+
+static async Task<OutputPackageResult> WriteProductionOutputAsync(
+    PremiereAutoDialogueXml.Core.ProjectModel.PremiereProject project,
+    ProjectAudioAnalysis analysis,
+    string outputDirectory)
+{
+    var package = await new OutputPackageWriter().WriteAsync(new(
+        project,
+        analysis,
+        DialogueProcessingPreset.Balanced,
+        outputDirectory));
+    try
+    {
+        return await new ProductionTransitionPackageAdopter().AdoptAsync(project, package);
+    }
+    catch
+    {
+        var parent = Path.GetFullPath(outputDirectory);
+        var run = Path.GetFullPath(package.RunDirectory);
+        if (Directory.Exists(run) &&
+            string.Equals(Path.GetDirectoryName(run), parent, StringComparison.OrdinalIgnoreCase))
+        {
+            Directory.Delete(run, recursive: true);
+        }
+
+        throw;
+    }
+}
 
 static async Task<int> WriteConstantGainBatchCandidateAsync(
     string[] arguments,

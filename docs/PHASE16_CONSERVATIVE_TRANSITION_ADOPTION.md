@@ -1,7 +1,10 @@
 # Phase 16 — adoption transition bảo thủ theo gain gate
 
-Ngày mở: 2026-08-24 (Asia/Saigon)  
-Trạng thái: **đang thực hiện — production writer/app mặc định chưa chèn transition**
+Ngày mở: 2026-08-24 (Asia/Saigon)
+
+Ngày đạt: 2026-08-25 (Asia/Saigon)
+
+Trạng thái: **đạt — production app tự chèn tối đa 12 transition đã qua gain-safety fail-closed**
 
 ## Mục tiêu
 
@@ -69,7 +72,7 @@ PremiereAutoDialogueXml.Inspect --constant-gain-safe-batch-candidate <audit.json
 4. Candidate HGE2 mới phải loại A2/frame `11140`, giữ nguyên mọi clip/Enabled/gain/marker so với generated XML Phase 13 và không ghi đè artifact Phase 15.
 5. Release build, full tests, Phase 13 policy, Phase 15 normalization policy và format verify đều đạt.
 
-Các cổng local đã đạt. Phase đang chờ đúng candidate trên qua Premiere round-trip/PCM; chưa production-adopt.
+Các cổng local đã đạt.
 
 ## Cổng Premiere trước adoption
 
@@ -78,3 +81,24 @@ Các cổng local đã đạt. Phase đang chờ đúng candidate trên qua Prem
 3. XML chỉ có normalization đã khóa, không semantic drift và M19 vẫn Enabled.
 4. Mọi boundary được chọn phải giảm click; mọi phrase trên track render phải qua gain/target gate, không còn regression như A2/frame `11140`.
 5. Chỉ sau khi bốn cổng trên đạt mới cân nhắc nối policy vào production writer. Nếu không đạt, app tiếp tục semantic Phase 13 không transition.
+
+## Bằng chứng Premiere mới
+
+- Premiere Pro re-export đúng candidate thành `phase16-hge2-constant-gain-safe_render lai.xml`, `17.165.085` byte, SHA-256 `BD7E2377ED637486B61587A48D08C48407341FEF5A6B71FFB186E52CBD68ED1F`.
+- Round-trip giữ đúng `12` transition và chỉ có `48` clip normalization đã khóa; `8.291/8.291` clip, `4.488` Enabled, `3.803` Disabled, `5.207` marker; max gain delta `0,0000553 dB`. Report SHA-256 `55AC06A433D49946E4E247FE662E17E316B459EB8C87BD48C534E6D0B37B5EE5`.
+- Năm WAV A2/A3/A5/A6/A7 đều mono PCM `48 kHz/24-bit`, dài `2.150,4 giây`; phrase gate đạt `1.668/1.668`, failed `0`.
+- Cả `12/12` boundary rời transient-screening candidate. Rendered step giảm `26,58–48,94 dB`, trung vị `37,88 dB`; không còn regression A2/frame `11140` vì boundary đó không được chọn.
+- M19 A3 frame `11214–11218` vẫn có PCM, peak `-35,207469 dBFS`, RMS `-49,203671 dBFS`, trùng baseline.
+
+## Production adoption
+
+- `ProductionTransitionPackageAdopter` chạy tự động sau output baseline và trước khi app trả kết quả. Người dùng không có thêm preview, setting hay bước thủ công.
+- Scanner capture tối đa `1.024` sample; gain gate, phrase conflict và planner chọn tối đa `12`. Thiếu/stale evidence hoặc expected peak loss đều bị loại trước khi sửa XML.
+- Candidate writer chỉ chèn Constant Gain 0 dB một frame; audit production tăng lên schema `2.0`, ghi policy/count/hash và danh sách boundary được chọn. XML/audit được commit theo cặp trong run mới; lỗi/cancel xóa run dở, input không bị sửa.
+- HGE2 chạy qua đúng production `--write` trong `126,9 giây`, peak working set `284,1 MB`, tạo `12` transition. XML SHA-256 `84CD04782CEB33FBA71026FC3148284D9C5734EA9ED8066891391A473659642F` khớp hash trong audit; selection SHA-256 vẫn đúng `FB92805104949870B015F319F16FD0BF55CEA812ABF5CF5876C475137143F874`, safety decision SHA-256 `AEC4A6DF6D8B3D7F97633ED344143CBED67EB79A2586FCEB8008D869BCC255E8`; temp/backup còn lại `0`.
+- Comparator production với candidate đã qua Premiere có mismatch `0`, giữ nguyên mọi clip/Enabled/Disabled/gain/marker và đủ 12 transition; report SHA-256 `C34D361E6ED582B2A6314D6A863A6F0F2FE99F697FC4E21DF2ADE9E24CF5021E`.
+- Release build không warning, `223/223` test, Phase 13 policy `8/8`, Phase 15 normalization policy và self-contained publish `411` payload file đều đạt.
+
+## Kết luận
+
+Phase 16 đạt mục tiêu nâng chất lượng click mà không đổi VAD/noise/bleed/ambiguity, gain target, routing, marker, input contract, UI flow hoặc RC1. Production app đã adopt policy bảo thủ; mọi boundary không có đủ bằng chứng vẫn giữ semantic Phase 13, không transition.
