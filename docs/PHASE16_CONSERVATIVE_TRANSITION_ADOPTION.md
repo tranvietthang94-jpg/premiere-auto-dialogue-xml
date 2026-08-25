@@ -98,6 +98,7 @@ Các cổng local đã đạt.
 - HGE2 chạy qua đúng production `--write` trong `126,9 giây`, peak working set `284,1 MB`, tạo `12` transition. XML SHA-256 `84CD04782CEB33FBA71026FC3148284D9C5734EA9ED8066891391A473659642F` khớp hash trong audit; selection SHA-256 vẫn đúng `FB92805104949870B015F319F16FD0BF55CEA812ABF5CF5876C475137143F874`, safety decision SHA-256 `AEC4A6DF6D8B3D7F97633ED344143CBED67EB79A2586FCEB8008D869BCC255E8`; temp/backup còn lại `0`.
 - Comparator production với candidate đã qua Premiere có mismatch `0`, giữ nguyên mọi clip/Enabled/Disabled/gain/marker và đủ 12 transition; report SHA-256 `C34D361E6ED582B2A6314D6A863A6F0F2FE99F697FC4E21DF2ADE9E24CF5021E`.
 - Release build không warning, `223/223` test, Phase 13 policy `8/8`, Phase 15 normalization policy và self-contained publish `411` payload file đều đạt.
+- PR `#22` CI run `32802975587` đạt toàn bộ build/test/policy/publish/installer smoke trong `3 phút 48 giây`; không upload artifact.
 
 ## Kết luận
 
