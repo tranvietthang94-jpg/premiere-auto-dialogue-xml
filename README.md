@@ -35,6 +35,8 @@ Phase 14 đã hoàn tất nghiên cứu biên click-safe trên PR `#20`: scanner
 
 Phase 15 đã hoàn tất ở phạm vi candidate/tooling nhiều boundary. Premiere giữ đúng `12` Constant Gain và chỉ tạo `48` normalization đã khóa; clip/Enabled/gain/marker ngoài policy không đổi, M19 vẫn Enabled. Cả `12/12` boundary giảm rendered step `31,63–61,97 dB`, nhưng một phrase A2 frame `11140–11161` render `-8,7991 dBFS` thay vì mục tiêu `-6 dBFS`. Vì gain gate không đạt, production writer/app mặc định vẫn xuất semantic Phase 13 không transition; candidate CLI và fail-closed validator được giữ để nghiên cứu, không phải rollout. Xem [docs/PHASE15_MULTIBOUNDARY_CLICK_SAFE.md](docs/PHASE15_MULTIBOUNDARY_CLICK_SAFE.md).
 
+Phase 16 đã đạt và production-adopt gain-safety gate bảo thủ. Gate đọc source PCM thật, bỏ một frame quanh boundary và chỉ giữ transition khi peak còn lại bảo toàn expected post-routing peak trong `0,1 dB`; thiếu phrase provenance, expected peak loss hoặc phrase conflict đều bị loại. Premiere XML giữ đúng 12 transition với 48 normalization đã khóa; `1.668/1.668` phrase PCM đạt, 12/12 boundary giảm step `26,58–48,94 dB`, M19 không đổi. Production HGE2 tự tạo cùng selection hash, semantic comparator mismatch `0`; audit `2.0` ghi đầy đủ policy/count/hash. App vẫn chỉ có luồng phân tích và xuất XML, không thêm preview hay setting transition. Xem [docs/PHASE16_CONSERVATIVE_TRANSITION_ADOPTION.md](docs/PHASE16_CONSERVATIVE_TRANSITION_ADOPTION.md).
+
 ## Hệ điều hành mục tiêu
 
 - Windows 11 x64.

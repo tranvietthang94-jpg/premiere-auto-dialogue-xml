@@ -365,8 +365,11 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             var reviewSummary = string.IsNullOrWhiteSpace(output.ReviewCsvPath)
                 ? string.Empty
                 : $"\nReview: {Path.GetFileName(output.ReviewCsvPath)} ({output.ReviewGroupCount:N0} mục)";
+            var transitionSummary = output.TransitionCount > 0
+                ? $" · {output.TransitionCount:N0} chuyển tiếp giảm click"
+                : string.Empty;
             OutputSummary =
-                $"{phraseCount:N0} cụm lời · {output.FragmentCount:N0} fragment · {output.MarkerCount:N0} marker\n" +
+                $"{phraseCount:N0} cụm lời · {output.FragmentCount:N0} fragment · {output.MarkerCount:N0} marker{transitionSummary}\n" +
                 $"XML: {Path.GetFileName(output.XmlPath)}\nAudit: {Path.GetFileName(output.AuditPath)}{reviewSummary}";
             StatusMessage = "Đã xuất XML, audit và danh sách review vào thư mục run mới. Bạn có thể mở Explorer để import XML vào Premiere.";
             ProgressMessage = "Hoàn tất.";

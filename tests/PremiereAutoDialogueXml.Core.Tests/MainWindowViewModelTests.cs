@@ -67,6 +67,7 @@ public sealed class MainWindowViewModelTests
         Assert.AreEqual(service.Output.XmlPath, viewModel.OutputXmlPath);
         Assert.IsTrue(viewModel.CanOpenOutput);
         StringAssert.Contains(viewModel.OutputSummary, "4 fragment");
+        StringAssert.Contains(viewModel.OutputSummary, "12 chuyển tiếp giảm click");
         StringAssert.Contains(viewModel.OutputSummary, "result.review.csv (2 mục)");
         StringAssert.Contains(viewModel.StatusMessage, "danh sách review");
     }
@@ -168,7 +169,8 @@ public sealed class MainWindowViewModelTests
             1)
         {
             ReviewCsvPath = Path.Combine(Path.GetTempPath(), "run", "result.review.csv"),
-            ReviewGroupCount = 2
+            ReviewGroupCount = 2,
+            TransitionCount = 12
         };
 
         public int AnalyzeCount { get; private set; }

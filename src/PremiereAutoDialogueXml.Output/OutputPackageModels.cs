@@ -21,4 +21,6 @@ public sealed record OutputPackageResult(
     public string? ReviewCsvPath { get; init; }
 
     public int ReviewGroupCount { get; init; }
+
+    public int TransitionCount { get; init; }
 }

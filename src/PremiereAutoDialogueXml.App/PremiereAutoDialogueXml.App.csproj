@@ -12,6 +12,7 @@
     <ProjectReference Include="..\PremiereAutoDialogueXml.Audio\PremiereAutoDialogueXml.Audio.csproj" />
     <ProjectReference Include="..\PremiereAutoDialogueXml.Core\PremiereAutoDialogueXml.Core.csproj" />
     <ProjectReference Include="..\PremiereAutoDialogueXml.Output\PremiereAutoDialogueXml.Output.csproj" />
+    <ProjectReference Include="..\PremiereAutoDialogueXml.Validation\PremiereAutoDialogueXml.Validation.csproj" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="..\..\docs\THIRD_PARTY_NOTICES.md"

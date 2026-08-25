@@ -28,7 +28,44 @@ public sealed record OutputAudit(
     public VadFrontEndComparison? VadFrontEndComparison { get; init; }
 
     public NoiseBoundaryProjectComparison? NoiseBoundaryComparison { get; init; }
+
+    public TransitionSafetyAudit? TransitionSafety { get; init; }
 }
+
+public sealed record TransitionSafetyAudit(
+    string SchemaVersion,
+    string Policy,
+    string ScannerPolicy,
+    string GainSafetyPolicy,
+    string PlannerPolicy,
+    string WriterPolicy,
+    int MaximumTransitions,
+    int ScannerTransitionCount,
+    int ScannerTransientCandidateCount,
+    int CapturedTransientCandidateCount,
+    int UncapturedTransientCandidateCount,
+    int SafetyEligibleCount,
+    int SafetyRejectedCount,
+    int RejectedMissingPhraseEvidenceCount,
+    int RejectedSourcePeakMismatchCount,
+    int RejectedNoRetainedPeakCount,
+    int RejectedExpectedPeakLossCount,
+    int SelectedCount,
+    int EnabledToDisabledSelectedCount,
+    int DisabledToEnabledSelectedCount,
+    int GainChangeSelectedCount,
+    string ScannerTransitionStreamSha256,
+    string SafetyDecisionStreamSha256,
+    string SelectionStreamSha256,
+    IReadOnlyList<TransitionBoundaryAudit> Boundaries);
+
+public sealed record TransitionBoundaryAudit(
+    int TrackIndex,
+    long BoundaryFrame,
+    string Kind,
+    double RenderedStepDbfs,
+    double StepAboveLocalP99Db,
+    IReadOnlyList<string> AffectedPhraseIds);
 
 public sealed record SequenceTimingAudit(
     int FrameRate,
