@@ -37,6 +37,8 @@ Phase 15 đã hoàn tất ở phạm vi candidate/tooling nhiều boundary. Prem
 
 Phase 16 đã đạt và production-adopt gain-safety gate bảo thủ. Gate đọc source PCM thật, bỏ một frame quanh boundary và chỉ giữ transition khi peak còn lại bảo toàn expected post-routing peak trong `0,1 dB`; thiếu phrase provenance, expected peak loss hoặc phrase conflict đều bị loại. Premiere XML giữ đúng 12 transition với 48 normalization đã khóa; `1.668/1.668` phrase PCM đạt, 12/12 boundary giảm step `26,58–48,94 dB`, M19 không đổi. Production HGE2 tự tạo cùng selection hash, semantic comparator mismatch `0`; audit `2.0` ghi đầy đủ policy/count/hash. App vẫn chỉ có luồng phân tích và xuất XML, không thêm preview hay setting transition. Xem [docs/PHASE16_CONSERVATIVE_TRANSITION_ADOPTION.md](docs/PHASE16_CONSERVATIVE_TRANSITION_ADOPTION.md).
 
+`v0.1.0 Stable` khóa baseline Phase 00–16. Rà soát cuối đạt Release build sạch, `223/223` test, policy Premiere 24/30 `8/8`, policy multi-boundary, publish self-contained `411` file và dependency vulnerability scan không có advisory. GitHub chỉ phát hành source/tag/release notes; bộ cài ký số và toàn bộ bằng chứng sử dụng được giữ cục bộ ngoài Git. Xem [docs/V0.1.0_STABLE_RELEASE.md](docs/V0.1.0_STABLE_RELEASE.md).
+
 ## Hệ điều hành mục tiêu
 
 - Windows 11 x64.

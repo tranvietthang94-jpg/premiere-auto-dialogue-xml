@@ -23,6 +23,7 @@ Mỗi phase dùng branch và draft pull request riêng. Các thay đổi có ý 
 15. `codex/phase14-click-safe-boundary-research` — research/candidate tooling, production writer chưa adopt transition
 16. `codex/phase15-multiboundary-click-safe` — bounded candidate/tooling đạt; production adoption bị từ chối bởi gain gate
 17. `codex/phase16-conservative-transition-adoption` — source-peak gain safety gate bảo thủ đã production-adopt
+18. `codex/v0.1.0-stable` — rà soát cuối, source freeze và phát hành stable source-only
 
 Phase 00–09 đã hoàn tất và merge vào `main`. Theo quyết định sản phẩm ngày 2026-08-09, app không mở nhánh preview/review UI; Phase 09 tập trung làm chắc đầu vào VAD, safety validator và XML output. Phase 09 đạt mọi gate HGE2/full HGE, Premiere PCM A1–A7, Final Cut Pro XML re-export và CI/packaging; merge qua PR `#12` tại `50ee4f9`, CI hậu merge `31461869682` đạt. Xem [PHASE09_AUDIO_XML_HARDENING.md](PHASE09_AUDIO_XML_HARDENING.md).
 
@@ -39,6 +40,8 @@ Phase 14 đã đạt phạm vi nghiên cứu/candidate một-boundary trên PR `
 Phase 15 đã đóng ở phạm vi candidate/tooling nhiều boundary. Candidate HGE2 có `12` transition gồm đủ Enabled→Disabled, Disabled→Enabled và gain change; Premiere re-export chỉ tạo đúng `48` normalization đã khóa, giữ clip/Enabled/gain/marker và M19. PCM A2/A3/A6/A7 cho thấy cả `12/12` boundary giảm step `31,63–61,97 dB`, nhưng phrase A2 frame `11140–11161` render `-8,7991 dBFS` thay vì mục tiêu `-6 dBFS`. Do gain gate thất bại, batch policy không được nối vào production writer; app mặc định giữ semantic Phase 13. Candidate CLI, provenance checks và policy regression được giữ để nghiên cứu fail-closed. Xem [PHASE15_MULTIBOUNDARY_CLICK_SAFE.md](PHASE15_MULTIBOUNDARY_CLICK_SAFE.md).
 
 Phase 16 đã đạt. Gain-safety policy đọc source PCM thật của phrase, bỏ một frame quanh boundary và chỉ giữ transition khi peak còn lại vẫn bảo toàn expected post-routing peak trong `0,1 dB`; thiếu provenance, expected peak loss hoặc nhiều boundary tác động cùng phrase đều bị loại. Premiere re-export giữ đúng 12 transition/48 normalization; năm track đạt `1.668/1.668` phrase, 12/12 boundary giảm step `26,58–48,94 dB`, M19 không đổi. Production app tự chèn tối đa 12 Constant Gain an toàn trước khi trả output, audit `2.0` ghi provenance; HGE2 production có selection hash trùng candidate và semantic mismatch `0`. Không thêm preview/UI bước mới và không đổi audio classification/gain/routing/marker/RC1. Xem [PHASE16_CONSERVATIVE_TRANSITION_ADOPTION.md](PHASE16_CONSERVATIVE_TRANSITION_ADOPTION.md).
+
+`v0.1.0 Stable` là source freeze sau Phase 16, không phải phase tính năng mới. Rà soát cuối chạy lại build, `223/223` test, format/diff, policy 24/30, policy multi-boundary, self-contained publish `411` file và NuGet vulnerability scan. Source-only PR `#23` CI `32925672098` đạt toàn bộ workflow trong `3 phút 42 giây`. Stable dùng tag/release notes source-only trên GitHub; installer ký nội bộ được build, smoke-test và giữ local từ đúng post-merge commit. Xem [V0.1.0_STABLE_RELEASE.md](V0.1.0_STABLE_RELEASE.md).
 
 ## Kiến trúc
 
